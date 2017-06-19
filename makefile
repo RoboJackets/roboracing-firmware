@@ -21,7 +21,6 @@ all: robot
 clean:
 	cd build && ninja clean || true
 	rm -rf build
-	rm run/*
 
 # the alias names that point to the current set of firmware targets
 robot: robot2015

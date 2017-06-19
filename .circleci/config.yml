@@ -1,0 +1,12 @@
+
+version: 2
+jobs:
+  build:
+    working_directory: /root/roboracing-firmware
+    docker:
+      - image: debian:9
+    steps:
+      - run: apt update -qq && apt install -y git
+      - checkout
+      - run: ./util/ubuntu-setup --yes
+      - run: make
