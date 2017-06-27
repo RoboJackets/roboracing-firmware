@@ -2,19 +2,18 @@ const int red_led = 5;
 const int yellow_led = 4;
 const int green_led = 3;
 
-const int red_button = 7;
-const int yellow_button = 8;
-const int green_button = 9;
+const int relay = 9;
 
-const int active_button = 8;
-
-#define sayHello "Hello."
-#define recieveHi "Hi!"
+#define sayHi "Hi!"
+#define recieveHello "Hello."
 
 int interval;
 int timeout = 50;
 
 char packet;
+String incoming;
+
+boolean con = false;
 
 void setup() {
   Serial.begin(9600);
@@ -23,63 +22,34 @@ void setup() {
   pinMode(yellow_led, OUTPUT);
   pinMode(green_led, OUTPUT);
 
-  pinMode(red_button, INPUT);
-  pinMode(yellow_button, INPUT);
-  pinMode(green_button, INPUT);
+  digitalWrite(relay, LOW);
 
   digitalWrite(red_led, LOW);
   digitalWrite(yellow_led, LOW);
   digitalWrite(green_led, LOW);
 
-  digitalWrite(active_button, LOW);
+  interval = millis();
 
-  Serial.print("Hello.");
-
-  int start = millis();
-  int initTimeout = 200;
-  String incoming = "";
-  while (!Serial.available() && millis() - start < initTimeout) {}
+  while (!Serial.available()) {}
   if (Serial.available()) {
     incoming = Serial.readString();
   }
-  if (incoming.equals(recieveHi)) {
-    Serial.println("We're friends!.");
-    digitalWrite(yellow_led, HIGH);
+  if (incoming.equals(recieveHello)) {
+    con = true;
+    Serial.print("Hi!");
   }
-  else {
-    Serial.println("We can't find eachother... Plase reset.");
-    digitalWrite(red_led, HIGH);
-    digitalWrite(yellow_led, HIGH);
-    digitalWrite(green_led, HIGH);
-  }
-
-  interval = millis();
 }
 
 void loop() {
-  if (interval >= timeout) {
-    Serial.print('E');
-  }
-  
   if (Serial.available()) {
     packet = Serial.read();
-    interval = millis();
   }
   if (packet == 'G') {
-    digitalWrite(green_led, HIGH);
+    digitalWrite(relay, HIGH);
     Serial.print('G');
   }
   else if (packet == 'E') {
-    digitalWrite(red_led, HIGH);
-  }
-
-  if (digitalRead(red_button)) {
+    digitalWrite(relay, LOW);
     Serial.print('E');
-  }
-  else if (digitalRead(green_button)) {
-    Serial.print('G');
-  }
-  else if (digitalRead(yellow_button)) {
-    // what do we want this to do?
   }
 }
