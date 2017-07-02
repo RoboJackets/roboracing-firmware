@@ -73,6 +73,8 @@ void setup()
     digitalWrite(escMux, 0);
     digitalWrite(steerMux, 0);
 
+    Serial.begin(9600);
+
 }
 
 void loop()
