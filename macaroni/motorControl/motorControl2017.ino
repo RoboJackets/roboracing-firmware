@@ -107,6 +107,8 @@ void updateHeading()
 {
     if (muxState || estop) {
         steer(0);  
+        desiredHeading = 0;
+        currentHeading = 0;
     }
     else if (currentHeading != desiredHeading) {
         currentHeading = desiredHeading;
@@ -116,36 +118,40 @@ void updateHeading()
 
 void updateSpeed(int desiredSpeed)
 {
-    if (muxState || estop) {
-        motor(0);  
-    } else {
-	float deltaMeters = (float)(currentTicks - lastTicks) / ticks_per_rotation * meters_per_rotation;
-	float deltaSeconds = (float)(micros() - lastSpeedUpdateMicros) / 1000000;
-	float currentError = desiredSpeed - (deltaMeters / deltaSeconds);
+  if (muxState || estop) {
+    motor(0);  
+    errorSum = 0;
+    errorHistory = {0};
+    desiredSpeed = 0;
+    currentSpeed = 0;
+  } else {
+	  float deltaMeters = (float)(currentTicks - lastTicks) / ticks_per_rotation * meters_per_rotation;
+	  float deltaSeconds = (float)(micros() - lastSpeedUpdateMicros) / 1000000;
+	  float currentError = desiredSpeed - (deltaMeters / deltaSeconds);
 	  
-	// find derivative of error
-	float derivError = (float)(currentError - errorHistory[historyIndex]) 
+	  // find derivative of error
+	  float derivError = (float)(currentError - errorHistory[historyIndex]) 
 				    / (micros() - lastSpeedUpdateMicros);
 
-	// update integral error
-	// TODO test assumption of even-enough spacing of the measurements thru time
-	// TODO test assumption that floating point inaccuracies won't add up too badly
-	historyIndex = (historyIndex+1) % HISTORY_SIZE;
-	errorSum -= errorHistory[historyIndex];
-	errorSum += currentError;
-	float integralError = errorSum / HISTORY_SIZE;
+  	// update integral error
+  	// TODO test assumption of even-enough spacing of the measurements thru time
+  	// TODO test assumption that floating point inaccuracies won't add up too badly
+  	historyIndex = (historyIndex+1) % HISTORY_SIZE;
+  	errorSum -= errorHistory[historyIndex];
+  	errorSum += currentError;
+	  float integralError = errorSum / HISTORY_SIZE;
+  	  
+  	// combine PID terms
+  	float targetMotorPwm = pid_p * currentError + pid_i * integralError + pid_d * derivError;
 	  
-	// combine PID terms
-	float targetMotorPwm = pid_p * currentError + pid_i * integralError + pid_d * derivError;
+  	// store previous state info
+  	lastSpeedUpdateMicros = micros();
+  	errorHistory[historyIndex] = currentError;
+  	lastTicks = currentTicks;
 	  
-	// store previous state info
-	lastSpeedUpdateMicros = micros();
-	errorHistory[historyIndex] = currentError;
-	lastTicks = currentTicks;
-	  
-	// update acutal PWM value. Slows down change rate to ESC to avoid errors
-	motor(targetMotorPwm);
-    }
+	  // update acutal PWM value. Slows down change rate to ESC to avoid errors
+	  motor(targetMotorPwm);
+   }
 }
 
 void steer(int val)
@@ -165,7 +171,7 @@ void tick()
     } else {
         currentTicks--;
     }
-    Serial.write((char)currentTicks);
+    Serial.write((char)(deltaMeters/deltaSeconds));
 }
 
 boolean getMessage()
