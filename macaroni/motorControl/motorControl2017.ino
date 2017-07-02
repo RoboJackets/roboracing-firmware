@@ -165,6 +165,7 @@ void tick()
     } else {
         currentTicks--;
     }
+    Serial.write((char)currentTicks);
 }
 
 boolean getMessage()
