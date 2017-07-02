@@ -121,12 +121,13 @@ void updateSpeed(int desiredSpeed)
   if (muxState || estop) {
     motor(0);  
     errorSum = 0;
-    errorHistory = {0};
+    errorHistory[HISTORY_SIZE] = {0};
     desiredSpeed = 0;
     currentSpeed = 0;
   } else {
 	  float deltaMeters = (float)(currentTicks - lastTicks) / ticks_per_rotation * meters_per_rotation;
 	  float deltaSeconds = (float)(micros() - lastSpeedUpdateMicros) / 1000000;
+    currentSpeed = deltaMeters / deltaSeconds;
 	  float currentError = desiredSpeed - (deltaMeters / deltaSeconds);
 	  
 	  // find derivative of error
@@ -171,7 +172,7 @@ void tick()
     } else {
         currentTicks--;
     }
-    Serial.write((char)(deltaMeters/deltaSeconds));
+    Serial.write((char)currentSpeed);
 }
 
 boolean getMessage()
