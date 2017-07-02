@@ -1,4 +1,4 @@
-#include <LiquidCrystal.h>
+/*#include <LiquidCrystal.h>
 
 #include <Servo.h>
 
@@ -121,4 +121,4 @@ bool getMessage()
   }
   return gotMessage;
 }
-
+*/
