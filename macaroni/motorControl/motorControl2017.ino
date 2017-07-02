@@ -82,7 +82,27 @@ void limitDesiredHeading(int desiredHeading) {
 
 void updateHeading()
 {
-    
+    if (currentHeading != desiredHeading) {
+        currentHeading = desiredHeading;
+        steer(currentHeading); 
+    }    
+}
+
+void updateSpeed(int desiredSpeed)
+{
+    if (muxState || estop) {
+        
+    }
+}
+
+void steer(int val)
+{
+    steering.write(val + 90);
+}
+
+void motor(int val)
+{
+    EscMotor.write(val + 90);
 }
 /*
     - encoder input -> PID -> writing to motor
