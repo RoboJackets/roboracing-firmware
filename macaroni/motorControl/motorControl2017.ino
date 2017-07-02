@@ -23,7 +23,9 @@ static const int maxSteer = 25;
 const int estopPin = A1;
 boolean estop = true;
 
+Servo esc;
 const int escMux = 10;
+Servo steering;
 const int steerMux = 11;
 
 const int encoderA = 3;
