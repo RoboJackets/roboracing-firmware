@@ -10,7 +10,6 @@ void updateHeading();
 void updateSpeed();
 void tick();
 boolean getMessage();
-void stopCar();
 
 static float currentSpeed = 0;
 static float currentHeading = 0;
