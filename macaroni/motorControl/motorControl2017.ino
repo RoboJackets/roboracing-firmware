@@ -81,7 +81,6 @@ void setup()
 
 void loop()
 {   
-    Serial.println("looping");
     muxState = digitalRead(muxStatePin);
     estop = digitalRead(estopPin);
     if (estop) {
@@ -196,8 +195,16 @@ boolean getMessage()
       lastMessageTime = millis();
       desiredSpeed = Serial.parseFloat();
       desiredHeading = Serial.parseFloat();
-      gotMessage = true;
-      Serial.println('$' + currentSpeed + ',' + muxState + ',' + estop + '\n');
+      gotMessage = true;      
+      Serial.println(currentSpeed);
+      String message = "$";
+      message.concat(currentSpeed);
+      message.concat(",");
+      message.concat(muxState);
+      message.concat(",");
+      message.concat(estop);
+      //Serial.println("$".concat(currentSpeed) + ',' + muxState + ',' + estop + '\n');
+      Serial.println(message);
     } else {
       Serial.println(Serial.read() + "  no$\n");
     }
