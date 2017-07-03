@@ -80,8 +80,7 @@ void setup()
 }
 
 void loop()
-{
-    Serial.println("looping");
+{   
     muxState = digitalRead(muxStatePin);
     estop = digitalRead(estopPin);
     if (estop) {
@@ -97,7 +96,6 @@ void loop()
 
 void update()
 {
-    Serial.println("updating");
     if(getMessage()) {
         desiredSpeed = limitDesiredSpeed(desiredSpeed);
         desiredHeading = limitDesiredHeading(desiredHeading); 
@@ -129,9 +127,6 @@ void updateHeading()
 
 void updateSpeed()
 {
-  Serial.println("updating speed");
-  Serial.println(muxState);
-  Serial.println(estop);
   if (!muxState || estop || timeout) {
     motor(0);  
     errorSum = 0;
