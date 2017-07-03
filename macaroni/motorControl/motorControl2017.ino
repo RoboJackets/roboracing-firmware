@@ -42,18 +42,18 @@ static int           historyIndex = 0;
 
 
 const int estopPin = A1;
-boolean estop = true;
+boolean estop = false;
 
 Servo esc;
 const int escMux = 10;
 Servo steering;
 const int steerMux = 11;
 
-const int encoderA = 3;
+const int encoderA = 2;
 const int encoderB = 4;
 
 const int muxStatePin = A0;
-boolean muxState = 0;
+boolean muxState = false;
 
 volatile int tickData = 0;
 
@@ -65,7 +65,7 @@ void setup()
     pinMode(steerMux, OUTPUT);
 
     pinMode(encoderA, INPUT);
-    attachInterrupt(encoderA, tick, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(encoderA), tick, CHANGE);
     pinMode(encoderB, INPUT);
 
     pinMode(muxState, INPUT);
@@ -79,16 +79,19 @@ void setup()
 
 void loop()
 {
+    Serial.println("looping");
     muxState = digitalRead(muxStatePin);
     estop = digitalRead(estopPin);
     if (estop) {
         digitalWrite(escMux, 0);
         digitalWrite(steerMux, 0);
     } 
+    update();
 }
 
 void update()
 {
+    Serial.println("updating");
     if(getMessage()) {
         desiredSpeed = limitDesiredSpeed(desiredSpeed);
         desiredHeading = limitDesiredHeading(desiredHeading); 
@@ -107,7 +110,7 @@ int limitDesiredHeading(int desiredHeading) {
 
 void updateHeading()
 {
-    if (muxState || estop) {
+    if (!muxState || estop) {
         steer(0);  
         desiredHeading = 0;
         currentHeading = 0;
@@ -118,9 +121,12 @@ void updateHeading()
     }    
 }
 
-void updateSpeed(int desiredSpeed)
+void updateSpeed()
 {
-  if (muxState || estop) {
+  Serial.println("updating speed");
+  Serial.println(muxState);
+  Serial.println(estop);
+  if (!muxState || estop) {
     motor(0);  
     errorSum = 0;
     errorHistory[HISTORY_SIZE] = {0};
@@ -174,6 +180,8 @@ void tick()
     } else {
         currentTicks--;
     }
+    Serial.println("tick: ");
+    Serial.println(currentSpeed);
     Serial.write((char)currentSpeed);
 }
 
