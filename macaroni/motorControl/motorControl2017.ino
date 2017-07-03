@@ -81,6 +81,7 @@ void setup()
 
 void loop()
 {   
+    Serial.println("looping");
     muxState = digitalRead(muxStatePin);
     estop = digitalRead(estopPin);
     if (estop) {
@@ -190,12 +191,15 @@ boolean getMessage()
   {
     if(Serial.read() == '$')
     {
+      Serial.println("message received");
       timeout = false;
       lastMessageTime = millis();
       desiredSpeed = Serial.parseFloat();
       desiredHeading = Serial.parseFloat();
       gotMessage = true;
       Serial.println('$' + currentSpeed + ',' + muxState + ',' + estop + '\n');
+    } else {
+      Serial.println(Serial.read() + "  no$\n");
     }
   }
   return gotMessage;
