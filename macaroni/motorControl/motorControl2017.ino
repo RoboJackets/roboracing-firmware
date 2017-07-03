@@ -206,10 +206,3 @@ boolean getMessage()
   }
   return gotMessage;
 }
-/*
-    - encoder input -> PID -> writing to motor
-    - encoder input -> back to Joule
-    - read the mux state -> tell PID what do
-    - read the E-Stop state -> tell PID what do
-
-*/
