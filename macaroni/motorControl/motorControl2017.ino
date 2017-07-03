@@ -10,6 +10,7 @@ void updateHeading();
 void updateSpeed();
 void tick();
 boolean getMessage();
+void stopCar();
 
 static float currentSpeed = 0;
 static float currentHeading = 0;
@@ -18,7 +19,7 @@ static float desiredHeading = 0;
 static volatile int currentTicks = 0; //volatile data for manipulation in interrupt routines
 static          int lastTicks = 0;
 static int ticks_per_rotation = 200;
-static int meters_per_rotation = 4.36 * 3.14; //TODO where is PI? Also inches or feet?
+static int meters_per_rotation = 0.1107 * 3.14; 
 
 //control limits
 static const int maxSpeed = 30; // maximum velocity 
@@ -40,9 +41,9 @@ static float         errorHistory[HISTORY_SIZE] = {0};
 static unsigned long lastSpeedUpdateMicros = 0;
 static int           historyIndex = 0;
 
-
 const int estopPin = A1;
 boolean estop = false;
+static boolean timeout = false;
 
 Servo esc;
 const int escMux = 10;
@@ -57,6 +58,7 @@ boolean muxState = false;
 
 volatile int tickData = 0;
 
+static int lastMessageTime;
 void setup()
 {
     pinMode(estop, INPUT);
@@ -74,6 +76,7 @@ void setup()
     digitalWrite(steerMux, 0);
 
     Serial.begin(9600);
+    lastMessageTime = millis();
 
 }
 
@@ -86,6 +89,10 @@ void loop()
         digitalWrite(escMux, 0);
         digitalWrite(steerMux, 0);
     } 
+    //if we haven't received a message from the joule in a while, stop driving
+    if (lastMessageTime + 500 < millis()) {
+      timeout = true;
+    }
     update();
 }
 
@@ -126,7 +133,7 @@ void updateSpeed()
   Serial.println("updating speed");
   Serial.println(muxState);
   Serial.println(estop);
-  if (!muxState || estop) {
+  if (!muxState || estop || timeout) {
     motor(0);  
     errorSum = 0;
     errorHistory[HISTORY_SIZE] = {0};
@@ -180,9 +187,6 @@ void tick()
     } else {
         currentTicks--;
     }
-    Serial.println("tick: ");
-    Serial.println(currentSpeed);
-    Serial.write((char)currentSpeed);
 }
 
 boolean getMessage()
@@ -192,9 +196,12 @@ boolean getMessage()
   {
     if(Serial.read() == '$')
     {
+      timeout = false;
+      lastMessageTime = millis();
       desiredSpeed = Serial.parseFloat();
       desiredHeading = Serial.parseFloat();
       gotMessage = true;
+      Serial.println('$' + currentSpeed + ',' + muxState + ',' + estop + '\n');
     }
   }
   return gotMessage;
