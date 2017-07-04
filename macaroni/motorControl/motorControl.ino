@@ -1,29 +1,24 @@
-/*#include <LiquidCrystal.h>
-
+#include <LiquidCrystal.h>
 #include <Servo.h>
 
 void motor(int val);
 void steer(int val);
 void update();
-void limitDesiredValues(int& requestedSpeed, int& requestedHeading);
+int limitDesiredSpeed(int desiredSpeed);
+int limitDesiredHeading(int desiredHeading);
 void updateHeading();
 void updateSpeed();
-bool getMessage();
+void tick();
+boolean getMessage();
 
-//LiquidCrystal lcd(12, 11, 10, 9, 8, 7);
+static float currentSpeed = 0;
+static float currentHeading = 0;
+static float desiredHeading = 0;
 
-static int LED = 13;
-
-//Variables for motors & state variables
-Servo EscMotor;
-static int escPin = 10;
-Servo SteeringMotor;
-static int SteeringMotorPin=11;
-
-static int currentSpeed = 0;
-static int desiredSpeed=0;
-static int currentHeading = 0;
-static int desiredHeading = 0;
+static volatile int currentTicks = 0; //volatile data for manipulation in interrupt routines
+static          int lastTicks = 0;
+static int ticks_per_rotation = 200;
+static int meters_per_rotation = 0.1107 * 3.14; 
 
 //control limits
 static const int maxSpeed = 30; // maximum velocity 
@@ -31,94 +26,188 @@ static const int minSpeed = -15;
 static const int minSteer = -25;
 static const int maxSteer = 25;
 
-void setup() 
+static const int maxHeading = 1;
+static const int minHeading = 1;
+
+const static int   pid_p = 0.1;
+const static int   pid_i = 0.1;
+const static int   pid_d = 0.1;
+
+#define HISTORY_SIZE 100
+static float         desiredSpeed = 0;
+static float         errorSum = 0;
+static float         errorHistory[HISTORY_SIZE] = {0};
+static unsigned long lastSpeedUpdateMicros = 0;
+static int           historyIndex = 0;
+
+const int estopPin = A1;
+boolean estop = false;
+static boolean timeout = false;
+
+Servo esc;
+const int escMux = 10;
+Servo steering;
+const int steerMux = 11;
+
+const int encoderA = 2;
+const int encoderB = 4;
+
+const int muxStatePin = A0;
+boolean muxState = false;
+
+volatile int tickData = 0;
+
+static int lastMessageTime;
+void setup()
 {
-  Serial.begin(115200);
-  EscMotor.attach(escPin);
-  SteeringMotor.attach(SteeringMotorPin);
-  motor(0);
-  steer(0);
-//  lcd.begin(16, 2);
-  // Print a message to the LCD.
-//  lcd.print("Steer    Speed");
-  pinMode(LED, OUTPUT);
-  digitalWrite(LED, LOW);
-} 
+    pinMode(estop, INPUT);
 
-unsigned long time = 0;
+    pinMode(escMux, OUTPUT);
+    pinMode(steerMux, OUTPUT);
 
-void loop() {
-  
-  update();
-//  lcd.setCursor(0, 1);
-//  lcd.print("               ");
-//  lcd.setCursor(0, 1);
-//  lcd.print(desiredHeading);
-//  lcd.setCursor(9,1);
-//  lcd.print(desiredSpeed);
+    pinMode(encoderA, INPUT);
+    attachInterrupt(digitalPinToInterrupt(encoderA), tick, CHANGE);
+    pinMode(encoderB, INPUT);
+
+    pinMode(muxState, INPUT);
+
+    digitalWrite(escMux, 0);
+    digitalWrite(steerMux, 0);
+
+    Serial.begin(9600);
+    lastMessageTime = millis();
+
 }
 
-void motor(int val){
-  EscMotor.write(val+90);
-}
-
-void steer(int val)
-{
-  SteeringMotor.write(val+90);
+void loop()
+{   
+    muxState = digitalRead(muxStatePin);
+    estop = digitalRead(estopPin);
+    if (estop) {
+        digitalWrite(escMux, 0);
+        digitalWrite(steerMux, 0);
+    } 
+    //if we haven't received a message from the joule in a while, stop driving
+    if (lastMessageTime + 500 < millis()) {
+      timeout = true;
+    }
+    update();
 }
 
 void update()
 {
-  if(getMessage()) {
-    limitDesiredValues(desiredSpeed, desiredHeading);
-  }
-  updateHeading();
-  updateSpeed();
+    if(getMessage()) {
+        desiredSpeed = limitDesiredSpeed(desiredSpeed);
+        desiredHeading = limitDesiredHeading(desiredHeading); 
+    }
+    updateHeading();
+    updateSpeed();
 }
 
-//Ensure desired velocity does not exceed limits
-void limitDesiredValues(int& requestedSpeed, int& requestedSteer)
-{
-  // speed
-//  requestedSpeed = min(maxSpeed, max(requestedSpeed, minSpeed));
+int limitDesiredSpeed(int desiredSpeed) {
+    return min(maxSpeed, max(desiredSpeed, minSpeed));
+}
 
-  // steer
-//  requestedSteer = min(maxSteer, max(requestedSteer, minSteer));
-      
+int limitDesiredHeading(int desiredHeading) {
+    return min(maxHeading, max(desiredHeading, minHeading));    
 }
 
 void updateHeading()
 {
-  if(currentHeading != desiredHeading) {
-    currentHeading = desiredHeading; //set heading to desired heading
-    steer(currentHeading); //update rotation to reflect changed value
-  }
+    if (!muxState || estop) {
+        steer(0);  
+        desiredHeading = 0;
+        currentHeading = 0;
+    }
+    else if (currentHeading != desiredHeading) {
+        currentHeading = desiredHeading;
+        steer(currentHeading); 
+    }    
 }
 
-//Make an incremental change to speed in the desired direction
 void updateSpeed()
 {
-  if(currentSpeed != desiredSpeed) {
-    currentSpeed = desiredSpeed;
-    motor(currentSpeed);
-    digitalWrite(LED, HIGH);
-    delay(10);
-    digitalWrite(LED, LOW);
-  }
+  if (!muxState || estop || timeout) {
+    motor(0);  
+    errorSum = 0;
+    errorHistory[HISTORY_SIZE] = {0};
+    desiredSpeed = 0;
+    currentSpeed = 0;
+  } else {
+	  float deltaMeters = (float)(currentTicks - lastTicks) / ticks_per_rotation * meters_per_rotation;
+	  float deltaSeconds = (float)(micros() - lastSpeedUpdateMicros) / 1000000;
+    currentSpeed = deltaMeters / deltaSeconds;
+	  float currentError = desiredSpeed - (deltaMeters / deltaSeconds);
+	  
+	  // find derivative of error
+	  float derivError = (float)(currentError - errorHistory[historyIndex]) 
+				    / (micros() - lastSpeedUpdateMicros);
+
+  	// update integral error
+  	// TODO test assumption of even-enough spacing of the measurements thru time
+  	// TODO test assumption that floating point inaccuracies won't add up too badly
+  	historyIndex = (historyIndex+1) % HISTORY_SIZE;
+  	errorSum -= errorHistory[historyIndex];
+  	errorSum += currentError;
+	  float integralError = errorSum / HISTORY_SIZE;
+  	  
+  	// combine PID terms
+  	float targetMotorPwm = pid_p * currentError + pid_i * integralError + pid_d * derivError;
+	  
+  	// store previous state info
+  	lastSpeedUpdateMicros = micros();
+  	errorHistory[historyIndex] = currentError;
+  	lastTicks = currentTicks;
+	  
+	  // update acutal PWM value. Slows down change rate to ESC to avoid errors
+	  motor(targetMotorPwm);
+   }
 }
 
-bool getMessage()
+void steer(int val)
+{
+    steering.write(val + 90);
+}
+
+void motor(int val)
+{
+    esc.write(val + 90);
+}
+
+void tick()
+{
+    if (digitalRead(encoderA) == digitalRead(encoderB)) {
+        currentTicks++;
+    } else {
+        currentTicks--;
+    }
+}
+
+boolean getMessage()
 {
   bool gotMessage = false;
   while(Serial.available())
   {
     if(Serial.read() == '$')
     {
+      Serial.println("message received");
+      timeout = false;
+      lastMessageTime = millis();
       desiredSpeed = Serial.parseFloat();
       desiredHeading = Serial.parseFloat();
-      gotMessage = true;
+      gotMessage = true;      
+      Serial.println(currentSpeed);
+      String message = "$";
+      message.concat(currentSpeed);
+      message.concat(",");
+      message.concat(muxState);
+      message.concat(",");
+      message.concat(estop);
+      //Serial.println("$".concat(currentSpeed) + ',' + muxState + ',' + estop + '\n');
+      Serial.println(message);
+    } else {
+      Serial.println(Serial.read() + "  no$\n");
     }
   }
   return gotMessage;
 }
-*/
