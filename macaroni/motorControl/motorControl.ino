@@ -23,7 +23,7 @@ static int meters_per_rotation = 0.1107 * 3.14;
 static const int maxSpeed = 30; // maximum velocity 
 static const int minSpeed = -15;
 static const int maxHeading = 1;
-static const int minHeading = 1;
+static const int minHeading = -1;
 
 //PID Constants
 static float   pid_p = 0.1;
