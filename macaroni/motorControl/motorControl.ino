@@ -29,9 +29,9 @@ static const int maxSteer = 25;
 static const int maxHeading = 1;
 static const int minHeading = 1;
 
-const static int   pid_p = 0.1;
-const static int   pid_i = 0.1;
-const static int   pid_d = 0.1;
+static float   pid_p = 0.1;
+static float   pid_i = 0.1;
+static float   pid_d = 0.1;
 
 #define HISTORY_SIZE 100
 static float         desiredSpeed = 0;
@@ -195,6 +195,9 @@ boolean getMessage()
       lastMessageTime = millis();
       desiredSpeed = Serial.parseFloat();
       desiredHeading = Serial.parseFloat();
+      pid_p = Serial.parseFloat();
+      pid_i = Serial.parseFloat();
+      pid_d = Serial.parseFloat();
       gotMessage = true;      
       Serial.println(currentSpeed);
       String message = "$";
@@ -203,10 +206,9 @@ boolean getMessage()
       message.concat(muxState);
       message.concat(",");
       message.concat(estop);
-      //Serial.println("$".concat(currentSpeed) + ',' + muxState + ',' + estop + '\n');
       Serial.println(message);
     } else {
-      Serial.println(Serial.read() + "  no$\n");
+      Serial.println(Serial.read() + "  no message\n");
     }
   }
   return gotMessage;
