@@ -1,78 +1,82 @@
-#include <LiquidCrystal.h>
 #include <Servo.h>
 
+//forward method declarations
 void motor(int val);
 void steer(int val);
 void update();
-int limitDesiredSpeed(int desiredSpeed);
-int limitDesiredHeading(int desiredHeading);
+int limitDesiredSpeed(float& desiredSpeed);
+int limitDesiredHeading(float& desiredHeading);
 void updateHeading();
 void updateSpeed();
-void tick();
-boolean getMessage();
+void encoderCallback();
+bool getMessage();
 
-static float currentSpeed = 0;
-static float currentHeading = 0;
-static float desiredHeading = 0;
-
+//tracking distance traveled
+const int encoderA = 2;
+const int encoderB = 4;
 static volatile int currentTicks = 0; //volatile data for manipulation in interrupt routines
-static          int lastTicks = 0;
+static int lastTicks = 0;
 static int ticks_per_rotation = 200;
 static int meters_per_rotation = 0.1107 * 3.14; 
 
 //control limits
 static const int maxSpeed = 30; // maximum velocity 
 static const int minSpeed = -15;
-static const int minSteer = -25;
-static const int maxSteer = 25;
-
 static const int maxHeading = 1;
 static const int minHeading = 1;
 
+//PID Constants
 static float   pid_p = 0.1;
 static float   pid_i = 0.1;
 static float   pid_d = 0.1;
 
+//Setpoint and error tracking
+static float currentSpeed = 0;
+static float currentHeading = 0;
+static float desiredHeading = 0;
+static float desiredSpeed = 0;
+
+//variables used for "dt" parts of PID control
 #define HISTORY_SIZE 100
-static float         desiredSpeed = 0;
 static float         errorSum = 0;
 static float         errorHistory[HISTORY_SIZE] = {0};
 static unsigned long lastSpeedUpdateMicros = 0;
 static int           historyIndex = 0;
 
-const int estopPin = A1;
-boolean estop = false;
-static boolean timeout = false;
-
-Servo esc;
-const int escMux = 10;
-Servo steering;
-const int steerMux = 11;
-
-const int encoderA = 2;
-const int encoderB = 4;
-
-const int muxStatePin = A0;
-boolean muxState = false;
-
-volatile int tickData = 0;
-
+//stop conditions for the car
 static int lastMessageTime;
+static bool timeout = false; 
+
+const int estopPin = A1;
+bool estop = false;
+
+//autonomous or human control
+const int muxStatePin = A3;
+bool muxState = false;
+
+//Motor objects
+Servo esc;
+const int escPin = 10;
+Servo steering;
+const int steerPin = 11;
+
 void setup()
 {
     pinMode(estop, INPUT);
 
-    pinMode(escMux, OUTPUT);
-    pinMode(steerMux, OUTPUT);
+    pinMode(escPin, OUTPUT);
+    esc.attach(escPin);
+    pinMode(steerPin, OUTPUT);
+    steering.attach(steerPin);
 
     pinMode(encoderA, INPUT);
-    attachInterrupt(digitalPinToInterrupt(encoderA), tick, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(encoderA), encoderCallback, CHANGE);
     pinMode(encoderB, INPUT);
 
     pinMode(muxState, INPUT);
 
-    digitalWrite(escMux, 0);
-    digitalWrite(steerMux, 0);
+    motor(0);
+    steer(0);
 
     Serial.begin(9600);
     lastMessageTime = millis();
@@ -81,48 +85,48 @@ void setup()
 
 void loop()
 {   
-    muxState = digitalRead(muxStatePin);
-    estop = digitalRead(estopPin);
-    if (estop) {
-        digitalWrite(escMux, 0);
-        digitalWrite(steerMux, 0);
-    } 
-    //if we haven't received a message from the joule in a while, stop driving
-    if (lastMessageTime + 500 < millis()) {
-      timeout = true;
-    }
-    update();
+  muxState = digitalRead(muxStatePin);
+  estop = digitalRead(estopPin);
+  if (estop) {
+    motor(0);
+    steer(0);
+  } 
+  //if we haven't received a message from the joule in a while, stop driving
+  if (lastMessageTime + 500 < millis()) {
+    timeout = true;
+  }
+  update();
 }
 
 void update()
 {
-    if(getMessage()) {
-        desiredSpeed = limitDesiredSpeed(desiredSpeed);
-        desiredHeading = limitDesiredHeading(desiredHeading); 
-    }
-    updateHeading();
-    updateSpeed();
+  if(getMessage()) {
+      desiredSpeed = limitDesiredSpeed(desiredSpeed);
+      desiredHeading = limitDesiredHeading(desiredHeading); 
+  }
+  updateHeading();
+  updateSpeed();
 }
 
-int limitDesiredSpeed(int desiredSpeed) {
-    return min(maxSpeed, max(desiredSpeed, minSpeed));
+int limitDesiredSpeed(float& desiredSpeed) {
+  return min(maxSpeed, max(desiredSpeed, minSpeed));
 }
 
-int limitDesiredHeading(int desiredHeading) {
-    return min(maxHeading, max(desiredHeading, minHeading));    
+int limitDesiredHeading(float& desiredHeading) {
+  return min(maxHeading, max(desiredHeading, minHeading));    
 }
 
 void updateHeading()
 {
-    if (!muxState || estop) {
-        steer(0);  
-        desiredHeading = 0;
-        currentHeading = 0;
-    }
-    else if (currentHeading != desiredHeading) {
-        currentHeading = desiredHeading;
-        steer(currentHeading); 
-    }    
+  if (!muxState || estop) {
+    steer(0);  
+    desiredHeading = 0;
+    currentHeading = 0;
+  }
+  else if (currentHeading != desiredHeading) {
+    currentHeading = desiredHeading;
+    steer(currentHeading); 
+  }    
 }
 
 void updateSpeed()
@@ -166,24 +170,24 @@ void updateSpeed()
 
 void steer(int val)
 {
-    steering.write(val + 90);
+  steering.write(val + 90);
 }
 
 void motor(int val)
 {
-    esc.write(val + 90);
+  esc.write(val + 90);
 }
 
-void tick()
+void encoderCallback()
 {
-    if (digitalRead(encoderA) == digitalRead(encoderB)) {
-        currentTicks++;
-    } else {
-        currentTicks--;
-    }
+  if (digitalRead(encoderA) == digitalRead(encoderB)) {
+    currentTicks++;
+  } else {
+    currentTicks--;
+  }
 }
 
-boolean getMessage()
+bool getMessage()
 {
   bool gotMessage = false;
   while(Serial.available())
