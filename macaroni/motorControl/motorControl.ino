@@ -78,7 +78,7 @@ void setup()
     motor(0);
     steer(0);
 
-    Serial.begin(9600);
+    Serial.begin(115200);
     lastMessageTime = millis();
 
 }
