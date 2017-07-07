@@ -85,7 +85,7 @@ void setup()
 
 void loop()
 {   
-  /*muxState = digitalRead(muxStatePin);
+  muxState = digitalRead(muxStatePin);
   estop = digitalRead(estopPin);
   if (estop) {
     motor(0);
@@ -95,8 +95,7 @@ void loop()
   if (lastMessageTime + 500 < millis()) {
     timeout = true;
   }
-  update();*/
-  Serial.println("blehhhh");
+  update();
 }
 
 void update()
