@@ -13,7 +13,7 @@ bool getMessage();
 
 //tracking distance traveled
 const int encoderA = 2;
-const int encoderB = 4;
+const int encoderB = 7;
 static volatile int currentTicks = 0; //volatile data for manipulation in interrupt routines
 static int lastTicks = 0;
 static int ticks_per_rotation = 200;
@@ -47,18 +47,18 @@ static int           historyIndex = 0;
 static int lastMessageTime;
 static bool timeout = false; 
 
-const int estopPin = A1;
+const int estopPin = 10;
 bool estop = false;
 
 //autonomous or human control
-const int muxStatePin = A3;
+const int muxStatePin = A5;
 bool muxState = false;
 
 //Motor objects
 Servo esc;
-const int escPin = 10;
+const int escPin = 9;
 Servo steering;
-const int steerPin = 11;
+const int steerPin = 3;
 
 void setup()
 {
