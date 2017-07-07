@@ -85,7 +85,7 @@ void setup()
 
 void loop()
 {   
-  muxState = digitalRead(muxStatePin);
+  /*muxState = digitalRead(muxStatePin);
   estop = digitalRead(estopPin);
   if (estop) {
     motor(0);
@@ -95,7 +95,8 @@ void loop()
   if (lastMessageTime + 500 < millis()) {
     timeout = true;
   }
-  update();
+  update();*/
+  Serial.println("blehhhh");
 }
 
 void update()
@@ -108,11 +109,11 @@ void update()
   updateSpeed();
 }
 
-float limitDesiredSpeed(float& desiredSpeed) {
+void limitDesiredSpeed(float& desiredSpeed) {
   desiredSpeed = min(maxSpeed, max(desiredSpeed, minSpeed));
 }
 
-float limitDesiredHeading(float& desiredHeading) {
+void limitDesiredHeading(float& desiredHeading) {
   desiredHeading = min(maxHeading, max(desiredHeading, minHeading));    
 }
 
