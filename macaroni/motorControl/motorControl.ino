@@ -4,8 +4,8 @@
 void motor(int val);
 void steer(int val);
 void update();
-int limitDesiredSpeed(float& desiredSpeed);
-int limitDesiredHeading(float& desiredHeading);
+void limitDesiredSpeed(float& desiredSpeed);
+void limitDesiredHeading(float& desiredHeading);
 void updateHeading();
 void updateSpeed();
 void encoderCallback();
@@ -101,19 +101,19 @@ void loop()
 void update()
 {
   if(getMessage()) {
-      desiredSpeed = limitDesiredSpeed(desiredSpeed);
-      desiredHeading = limitDesiredHeading(desiredHeading); 
+      limitDesiredSpeed(desiredSpeed);
+      limitDesiredHeading(desiredHeading); 
   }
   updateHeading();
   updateSpeed();
 }
 
-int limitDesiredSpeed(float& desiredSpeed) {
-  return min(maxSpeed, max(desiredSpeed, minSpeed));
+float limitDesiredSpeed(float& desiredSpeed) {
+  desiredSpeed = min(maxSpeed, max(desiredSpeed, minSpeed));
 }
 
-int limitDesiredHeading(float& desiredHeading) {
-  return min(maxHeading, max(desiredHeading, minHeading));    
+float limitDesiredHeading(float& desiredHeading) {
+  desiredHeading = min(maxHeading, max(desiredHeading, minHeading));    
 }
 
 void updateHeading()
