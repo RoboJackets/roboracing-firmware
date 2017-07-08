@@ -16,8 +16,9 @@ const int encoderA = 2;
 const int encoderB = 7;
 static volatile int currentTicks = 0; //volatile data for manipulation in interrupt routines
 static int lastTicks = 0;
-static int ticks_per_rotation = 200;
-static int meters_per_rotation = 0.1107 * 3.14; 
+static const float ticks_per_rotation = 200;
+static const float meters_per_rotation = 0.1107 * 3.14; 
+static const float gear_ratio = 0.33;
 
 //control limits
 static const int maxSpeed = 30; // maximum velocity 
@@ -26,8 +27,8 @@ static const int maxHeading = 1;
 static const int minHeading = -1;
 
 //PID Constants
-static float   pid_p = 0.1;
-static float   pid_i = 0.1;
+static float   pid_p = 1;
+static float   pid_i = 0.0;
 static float   pid_d = 0.1;
 
 //Setpoint and error tracking
@@ -60,6 +61,8 @@ const int escPin = 9;
 Servo steering;
 const int steerPin = 3;
 
+int led_state = HIGH;
+
 void setup()
 {
     pinMode(estop, INPUT);
@@ -75,6 +78,8 @@ void setup()
 
     pinMode(muxState, INPUT);
 
+    pinMode(13, OUTPUT);
+      
     motor(0);
     steer(0);
 
@@ -85,6 +90,7 @@ void setup()
 
 void loop()
 {   
+  digitalWrite(13, led_state = !led_state);
   muxState = digitalRead(muxStatePin);
   estop = digitalRead(estopPin);
   if (estop) {
@@ -96,6 +102,7 @@ void loop()
     timeout = true;
   }
   update();
+  delay(50);
 }
 
 void update()
@@ -131,14 +138,14 @@ void updateHeading()
 
 void updateSpeed()
 {
-  if (!muxState || estop || timeout) {
+  if (muxState || estop || timeout) {
     motor(0);  
     errorSum = 0;
     errorHistory[HISTORY_SIZE] = {0};
     desiredSpeed = 0;
     currentSpeed = 0;
   } else {
-	  float deltaMeters = (float)(currentTicks - lastTicks) / ticks_per_rotation * meters_per_rotation;
+	  float deltaMeters = ((float)(currentTicks - lastTicks) / ticks_per_rotation) * meters_per_rotation * gear_ratio;
 	  float deltaSeconds = (float)(micros() - lastSpeedUpdateMicros) / 1000000;
     currentSpeed = deltaMeters / deltaSeconds;
 	  float currentError = desiredSpeed - (deltaMeters / deltaSeconds);
@@ -194,7 +201,6 @@ bool getMessage()
   {
     if(Serial.read() == '$')
     {
-      Serial.println("message received");
       timeout = false;
       lastMessageTime = millis();
       desiredSpeed = Serial.parseFloat();
@@ -203,7 +209,6 @@ bool getMessage()
       pid_i = Serial.parseFloat();
       pid_d = Serial.parseFloat();
       gotMessage = true;      
-      Serial.println(currentSpeed);
       String message = "$";
       message.concat(currentSpeed);
       message.concat(",");
@@ -211,6 +216,7 @@ bool getMessage()
       message.concat(",");
       message.concat(estop);
       Serial.println(message);
+      Serial.println(currentTicks);
     } else {
       Serial.println(Serial.read() + "  no message\n");
     }
