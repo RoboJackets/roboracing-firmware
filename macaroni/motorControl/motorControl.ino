@@ -10,39 +10,38 @@ void updateHeading();
 void updateSpeed();
 void encoderCallback();
 bool getMessage();
+void measureCurrentSpeed();
 
 //tracking distance traveled
 const int encoderA = 2;
 const int encoderB = 7;
 static volatile int currentTicks = 0; //volatile data for manipulation in interrupt routines
-static int lastTicks = 0;
-static int ticks_per_rotation = 200;
-static int meters_per_rotation = 0.1107 * 3.14; 
 
 //control limits
-static const int maxSpeed = 30; // maximum velocity 
-static const int minSpeed = -15;
-static const int maxHeading = 1;
-static const int minHeading = -1;
+static const float maxSpeed = 430; // maximum velocity 
+static const float minSpeed = -90;
+static const float maxHeading = 0.35;
+static const float minHeading = -0.35;
 
 //PID Constants
-static float   pid_p = 0.1;
-static float   pid_i = 0.1;
+static float   pid_p = 1;
+static float   pid_i = 0.0;
 static float   pid_d = 0.1;
 
 static int trim = 0;
 
 //Setpoint and error tracking
-static float currentSpeed = 0;
+static volatile float currentSpeed = 0;
 static float currentHeading = 0;
 static float desiredHeading = 0;
 static float desiredSpeed = 0;
+static float currentMotorPWM = 0;
 
 //variables used for "dt" parts of PID control
 #define HISTORY_SIZE 100
-static float         errorSum = 0;
-static float         errorHistory[HISTORY_SIZE] = {0};
+static float         lastError = 0;
 static unsigned long lastSpeedUpdateMicros = 0;
+static unsigned long lastPIDUpdateMicros = 0;
 static int           historyIndex = 0;
 
 //stop conditions for the car
@@ -62,6 +61,8 @@ const int escPin = 9;
 Servo steering;
 const int steerPin = 3;
 
+int led_state = HIGH;
+
 void setup()
 {
     pinMode(estop, INPUT);
@@ -77,6 +78,8 @@ void setup()
 
     pinMode(muxState, INPUT);
 
+    pinMode(13, OUTPUT);
+      
     motor(0);
     steer(0);
 
@@ -87,7 +90,8 @@ void setup()
 
 void loop()
 {   
-  muxState = digitalRead(muxStatePin);
+  digitalWrite(13, led_state = !led_state);
+  muxState = !digitalRead(muxStatePin);
   estop = digitalRead(estopPin);
   if (estop) {
     motor(0);
@@ -97,7 +101,9 @@ void loop()
   if (lastMessageTime + 500 < millis()) {
     timeout = true;
   }
+  measureCurrentSpeed();
   update();
+  delay(50);
 }
 
 void update()
@@ -108,6 +114,7 @@ void update()
   }
   updateHeading();
   updateSpeed();
+  
 }
 
 void limitDesiredSpeed(float& desiredSpeed) {
@@ -120,53 +127,33 @@ void limitDesiredHeading(float& desiredHeading) {
 
 void updateHeading()
 {
-  if (!muxState || estop) {
+  if (!muxState || estop || timeout) {
     steer(0);  
     desiredHeading = 0;
     currentHeading = 0;
   }
   else if (currentHeading != desiredHeading) {
     currentHeading = desiredHeading;
-    steer(currentHeading); 
+    int pwm = ((currentHeading - minHeading) * 142.857) - 45;
+    steer(pwm);
   }    
 }
 
 void updateSpeed()
 {
   if (!muxState || estop || timeout) {
-    motor(0);  
-    errorSum = 0;
-    errorHistory[HISTORY_SIZE] = {0};
+    motor(0);
     desiredSpeed = 0;
     currentSpeed = 0;
   } else {
-	  float deltaMeters = (float)(currentTicks - lastTicks) / ticks_per_rotation * meters_per_rotation;
-	  float deltaSeconds = (float)(micros() - lastSpeedUpdateMicros) / 1000000;
-    currentSpeed = deltaMeters / deltaSeconds;
-	  float currentError = desiredSpeed - (deltaMeters / deltaSeconds);
-	  
-	  // find derivative of error
-	  float derivError = (float)(currentError - errorHistory[historyIndex]) 
-				    / (micros() - lastSpeedUpdateMicros);
+    float error = desiredSpeed - currentSpeed;
+    float dError = error - lastError;
+    lastError = error;
+    float deltaPWM = (pid_p * error) + (pid_d * dError);
+    deltaPWM = max(min(deltaPWM, 2), -2);
+    currentMotorPWM += deltaPWM;
 
-  	// update integral error
-  	// TODO test assumption of even-enough spacing of the measurements thru time
-  	// TODO test assumption that floating point inaccuracies won't add up too badly
-  	historyIndex = (historyIndex+1) % HISTORY_SIZE;
-  	errorSum -= errorHistory[historyIndex];
-  	errorSum += currentError;
-	  float integralError = errorSum / HISTORY_SIZE;
-  	  
-  	// combine PID terms
-  	float targetMotorPwm = pid_p * currentError + pid_i * integralError + pid_d * derivError;
-	  
-  	// store previous state info
-  	lastSpeedUpdateMicros = micros();
-  	errorHistory[historyIndex] = currentError;
-  	lastTicks = currentTicks;
-	  
-	  // update acutal PWM value. Slows down change rate to ESC to avoid errors
-	  motor(targetMotorPwm);
+	  motor(currentMotorPWM);
    }
 }
 
@@ -196,7 +183,6 @@ bool getMessage()
   {
     if(Serial.read() == '$')
     {
-      Serial.println("message received");
       timeout = false;
       lastMessageTime = millis();
       desiredSpeed = Serial.parseFloat();
@@ -207,6 +193,7 @@ bool getMessage()
       trim = Serial.parseInt();
       gotMessage = true;      
       Serial.println(currentSpeed);
+      gotMessage = true;
       String message = "$";
       message.concat(currentSpeed);
       message.concat(",");
@@ -214,9 +201,17 @@ bool getMessage()
       message.concat(",");
       message.concat(estop);
       Serial.println(message);
-    } else {
-      Serial.println(Serial.read() + "  no message\n");
     }
   }
   return gotMessage;
 }
+
+void measureCurrentSpeed() 
+{
+    long time = micros();
+    long deltaTime = (long)(time - lastSpeedUpdateMicros) / 50000;
+    lastSpeedUpdateMicros = time;
+    currentSpeed = currentTicks / deltaTime;
+    currentTicks = 0;
+}
+
