@@ -30,6 +30,8 @@ static float   pid_p = 0.1;
 static float   pid_i = 0.1;
 static float   pid_d = 0.1;
 
+static int trim = 0;
+
 //Setpoint and error tracking
 static float currentSpeed = 0;
 static float currentHeading = 0;
@@ -170,7 +172,7 @@ void updateSpeed()
 
 void steer(int val)
 {
-  steering.write(val + 90);
+  steering.write(val + trim + 90);
 }
 
 void motor(int val)
@@ -202,6 +204,7 @@ bool getMessage()
       pid_p = Serial.parseFloat();
       pid_i = Serial.parseFloat();
       pid_d = Serial.parseFloat();
+      trim = Serial.parseInt();
       gotMessage = true;      
       Serial.println(currentSpeed);
       String message = "$";
