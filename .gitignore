@@ -33,3 +33,5 @@ __pycache__/
 run/*.bin
 run/*.nib
 clean.patch
+
+.o
