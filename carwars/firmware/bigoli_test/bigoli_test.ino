@@ -1,58 +1,136 @@
-/*
-const int leftDir = 10;
-const int leftSpeed = 9;
-const int rightDir = 7;
-const int rightSpeed = 6;
-*/
+const int pinEscSpeed = 9;
+const int pinEscDirection = 10;
+const int pinEncoder1 = 2;
+const int pinEncoder2 = 4;
 
-const int pin_esc_speed = 9;
-const int pin_esc_direction = 10;
+volatile int encoderTicks = 0;
+const unsigned long speedUpdateMillis = 20;
 
-float SPEED = 0;
+const float wheelCircumference = 0.246 * 3.14159; //meters
+const float ticksPerRot = 200.0; // TODO update
+const float metersPerTick = wheelCircumference / ticksPerRot;
+
+const float maxAcceleration = 0.1;
+
+float desiredSpeed = 0;
+float actualSpeed = 0;
+
+unsigned long lastMessageMillis;
+unsigned long lastDriveMillis;
+
+const float pidP = 0.1;
+const float pidI = 0.0;
+const float pidD = 0.01;
+const int errorHistorySize = 20;
+float errorHistory[errorHistorySize] = {0};
+int errorHistoryIndex = 0;
+float lastError = 0.0;
+float lastDutyCycle = 0.0;
+
+
+inline float clamp(float x, float xMin, float xMax) {
+  return min(max(x, xMin), xMax);
+}
+
+void tickEncoder() {
+  if(digitalRead(pinEncoder1) == digitalRead(pinEncoder2)) {
+    encoderTicks++;
+  } else {
+    encoderTicks--;
+  }
+}
+
+// find the current speed (m/s)
+void measureCurrentSpeedBlocking() {
+  encoderTicks = 0;
+  delay(speedUpdateMillis);
+
+  float ticksPerSec = (float)encoderTicks * 1000.0 / (float)speedUpdateMillis;
+  actualSpeed =  ticksPerSec * metersPerTick;
+}
 
 bool getMessage() {
-    bool gotMessage = false;
-    while(Serial.available()) {
-        if(Serial.read() == '$') {
-            SPEED = Serial.parseFloat();
-            gotMessage = true;
-        }
+  bool gotMessage = false;
+  while(Serial.available()) {
+    if(Serial.read() == '$') {
+      desiredSpeed = -1.0 * Serial.parseFloat();
+      gotMessage = true;
     }
-    return gotMessage;
+  }
+  return gotMessage;
+}
+
+bool sendMessage() {
+  bool sentMessage = false;
+  if(Serial.available()) {
+    String message = "$";
+    message.concat(actualSpeed);
+    Serial.println(message);
+    sentMessage = true;
+  }
+  return sentMessage;
+}
+
+float pidCorrection() {
+  float error = actualSpeed - desiredSpeed;
+  float dError = error - lastError;
+  lastError = error;
+
+  errorHistoryIndex = (errorHistoryIndex + 1) % errorHistorySize;
+  errorHistory[errorHistoryIndex] = error;
+  float errorTotal = 0;
+  for(int i = 0; i < errorHistorySize; i++) {
+    errorTotal += errorHistory[i];
+  }
+
+  return (pidP * error) + (pidI * errorTotal) + (pidD * dError);
 }
 
 void drive() {
-    int direction;
-    float pwm = SPEED;
-    if(SPEED >= 0) {
-        direction = HIGH;
-        pwm = 1.0 - pwm;
-    } else {
-        direction = LOW;
-        pwm *= -1;
-    }
+  float dt = millis() - lastDriveMillis;
+  float dV = maxAcceleration * dt;
+  lastDriveMillis = millis();
 
-    int analogInt = (int) (255 * pwm);
+  int direction;
+  float clampedSpeed = clamp(desiredSpeed, actualSpeed-dV, actualSpeed+dV);
+  float dutyCycle = clamp(clampedSpeed + pidCorrection(), -1.0, 1.0);
+  if(dutyCycle >= 0) {
+    direction = HIGH;
+    dutyCycle = 1.0 - dutyCycle;
+  } else { //negative speed
+    direction = LOW;
+    dutyCycle *= -1;
+  }
 
-    digitalWrite(pin_esc_direction, direction);
-    analogWrite(pin_esc_speed, analogInt);
+  int pwm = (int)(255 * dutyCycle);
+  digitalWrite(pinEscDirection, direction);
+  analogWrite(pinEscSpeed, pwm);
 }
 
 void setup() {
-    Serial.begin(9600);
-    pinMode(pin_esc_direction, OUTPUT);
-    pinMode(pin_esc_speed, OUTPUT);
-    pinMode(13, OUTPUT);
-    digitalWrite(13, LOW);
-    drive();
+  Serial.begin(9600);
+
+  pinMode(pinEscDirection, OUTPUT);
+  pinMode(pinEscSpeed, OUTPUT);
+
+  pinMode(pinEncoder1, INPUT);
+  pinMode(pinEncoder2, INPUT);
+  attachInterrupt(digitalPinToInterrupt(pinEncoder1), tickEncoder, CHANGE);
+
+  lastMessageMillis = millis();
 }
 
 void loop() {
-    if(getMessage()) {
-        drive();
-        digitalWrite(13, HIGH);
-    } else {
-        digitalWrite(13, LOW);
-    }
-    delay(50);
+  if(getMessage() && sendMessage()) {
+    drive();
+    lastMessageMillis = millis();
+  }
+
+  if(millis() - lastMessageMillis > 500) {
+    // timeout
+    desiredSpeed = 0.0;
+    drive();
+  }
+
+  measureCurrentSpeedBlocking();
 }
