@@ -1,17 +1,13 @@
-*.kdev4
 *.o
 
-# scons build system
-.sconsign.dblite
-.scons_variables
-
-# build directories
-/build
-/gmon.out
-*.swp
-/.settings
-/api_docs
+# build files (makefile can/should be generated each time)
 *~
+/Makefile
+/BUILD/
+
+# libraries (everything except the zip archives)
+/mbed-libs/*
+!/mbed-libs/*.zip
 
 # sublime-text
 *.sublime-workspace
@@ -30,6 +26,3 @@ __pycache__/
 # IntelliJ
 .idea
 
-# output files (makefile should be generated)
-Makefile
-BUILD/

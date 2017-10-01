@@ -4,15 +4,12 @@ import sys
 import os
 path = os.path
 import subprocess
+import time
+from glob import glob
 
 if len(sys.argv) != 2:
     print "usage: mbed-run [path to main file]"
     sys.exit(-1)
-
-
-# part 1: fill in two key parts of the Makefile template
-
-print "generating Makefile..."
 
 mbed_dir = path.expandvars("/media/$USER/MBED")
 root = path.dirname(path.abspath(__file__))
@@ -20,6 +17,20 @@ libs_dir = path.join(root, "mbed-libs")
 arm_libs_dir = path.join(root, "mbed-libs/mbed/TARGET_LPC1768/TOOLCHAIN_GCC_ARM")
 program_path = path.abspath(sys.argv[1])
 program_dir = path.dirname(program_path)
+
+
+# part 1: extract libraries
+
+for zip_path in glob(path.join(libs_dir,"*.zip")):
+    name = path.split(zip_path)[1][:-4]
+    if name not in os.listdir(libs_dir):
+        print "extracting %s..." % name
+        subprocess.Popen(["unzip",zip_path,"-d",libs_dir],
+            stdout=None
+        ).wait()
+
+
+# part 2: fill in two key parts of the Makefile template
 
 def get_all_files(parent_dir):
     out = []
@@ -59,6 +70,8 @@ def get_include_args():
         paths.append(path.relpath(f, root))
     return ["-I../" + s for s in paths]
 
+print "generating Makefile..."
+
 with open(path.join(root,'template.make'), 'r') as template_file:
     with open(path.join(root,'Makefile'), 'w') as makefile:
         for line in template_file:
@@ -76,18 +89,19 @@ with open(path.join(root,'template.make'), 'r') as template_file:
 
 print "done"
 
-# part 2: compile
-os.system("make -C " + root)
+
+# part 3: compile
+subprocess.Popen(["make","-C",root]).wait()
 
 
-# part 3: upload to board
+# part 4: upload to board
+# time.sleep(0.5);
 if path.exists(mbed_dir):
     print "found mbed board at %s. Uploading..." % mbed_dir
-    # os.system("cp %s %s" % (program_path, path.join(mbed_dir,"firmware.bin")))
-    # p = subprocess.Popen("cp %s %s" % ("BUILD/firmware.bin", path.join(mbed_dir,"firmware.bin")))
     mbed_path = path.join(mbed_dir,"firmware.bin")
     if path.exists(mbed_path):
         subprocess.Popen(["rm",mbed_path]).wait()
+        time.sleep(1)
     subprocess.Popen(["cp",path.join(root,"BUILD/firmware.bin"),mbed_path]).wait()
     print "done"
 else:
