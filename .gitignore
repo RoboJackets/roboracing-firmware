@@ -1,4 +1,5 @@
 *.kdev4
+*.o
 
 # scons build system
 .sconsign.dblite
@@ -29,7 +30,6 @@ __pycache__/
 # IntelliJ
 .idea
 
-# output binaries
-run/*.bin
-run/*.nib
-clean.patch
+# output files (makefile should be generated)
+Makefile
+BUILD/

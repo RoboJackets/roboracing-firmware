@@ -1,3 +1,0 @@
-[submodule "external/mbed_lib_build_tools"]
-	path = external/mbed_lib_build_tools
-	url = https://github.com/ARMmbed/mbed-os.git
