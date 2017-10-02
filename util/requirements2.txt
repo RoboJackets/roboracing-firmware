@@ -1,9 +1,0 @@
-# python requirements
-jinja2   # A dependency for the mbed build library
-colorama # A dependency for the mbed build library
-
-# firmware - required
-pyserial
-
-# firmware - optional
-pyocd

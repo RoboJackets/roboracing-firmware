@@ -1,0 +1,108 @@
+#!/usr/bin/python
+
+import sys
+import os
+path = os.path
+import subprocess
+import time
+from glob import glob
+
+if len(sys.argv) != 2:
+    print "usage: mbed-run [path to main file]"
+    sys.exit(-1)
+
+mbed_dir = path.expandvars("/media/$USER/MBED")
+root = path.dirname(path.abspath(__file__))
+libs_dir = path.join(root, "mbed-libs")
+arm_libs_dir = path.join(root, "mbed-libs/mbed/TARGET_LPC1768/TOOLCHAIN_GCC_ARM")
+program_path = path.abspath(sys.argv[1])
+program_dir = path.dirname(program_path)
+
+
+# part 1: extract libraries
+
+for zip_path in glob(path.join(libs_dir,"*.zip")):
+    name = path.split(zip_path)[1][:-4]
+    if name not in os.listdir(libs_dir):
+        print "extracting %s..." % name
+        subprocess.Popen(["unzip",zip_path,"-d",libs_dir],
+            stdout=None
+        ).wait()
+
+
+# part 2: fill in two key parts of the Makefile template
+
+def get_all_files(parent_dir):
+    out = []
+    for f in os.listdir(parent_dir):
+        f = path.join(parent_dir, f)
+        if path.isfile(f):
+            out.append(f)
+        elif path.isdir(f):
+            out += get_all_files(f)
+    return out
+
+def get_all_dirs(parent_dir):
+    out = []
+    for f in os.listdir(parent_dir):
+        f = path.join(parent_dir, f)
+        if path.isdir(f):
+            out.append(f)
+            out += get_all_dirs(f)
+    return sorted(list(set(out)))
+
+def source_to_o(fname):
+    return path.splitext(fname)[0] + '.o'
+
+def get_objects():
+    objects = []
+    objects.append(source_to_o(path.relpath(program_path, root)))
+    for f in get_all_files(libs_dir):
+        if path.splitext(f)[1] in [".cpp", ".c", ".S"]:
+            objects.append(path.relpath(source_to_o(f), root))
+    return objects
+
+def get_include_args():
+    paths = []
+    paths.append('')
+    paths.append(path.dirname(path.relpath(program_path, root)))
+    for f in get_all_dirs(libs_dir):
+        paths.append(path.relpath(f, root))
+    return ["-I../" + s for s in paths]
+
+print "generating Makefile..."
+
+with open(path.join(root,'template.make'), 'r') as template_file:
+    with open(path.join(root,'Makefile'), 'w') as makefile:
+        for line in template_file:
+            if line[0] == '#':
+                continue
+
+            if '[OBJECTS]' in line:
+                for s in get_objects():
+                    makefile.write("OBJECTS += " + s + "\n")
+            elif '[INCLUDE_PATHS]' in line:
+                for s in get_include_args():
+                    makefile.write("INCLUDE_PATHS += " + s + "\n")
+            else:
+                makefile.write(line)
+
+print "done"
+
+
+# part 3: compile
+subprocess.Popen(["make","-C",root]).wait()
+
+
+# part 4: upload to board
+# time.sleep(0.5);
+if path.exists(mbed_dir):
+    print "found mbed board at %s. Uploading..." % mbed_dir
+    mbed_path = path.join(mbed_dir,"firmware.bin")
+    if path.exists(mbed_path):
+        subprocess.Popen(["rm",mbed_path]).wait()
+        time.sleep(1)
+    subprocess.Popen(["cp",path.join(root,"BUILD/firmware.bin"),mbed_path]).wait()
+    print "done"
+else:
+    print "did not find a board at %s. Is it mounted?" % mbed_dir
