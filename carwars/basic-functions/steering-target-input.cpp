@@ -7,39 +7,53 @@ PwmOut driverPin(p21);
 Serial serial(USBTX, USBRX);
 DigitalOut led(LED1);
 AnalogIn pot(p20);
+Timer timer;
+
+const int mainLoopMillis = 50;
 
 const int pwmPeriodMs = 16;
 const int pwmPulseMinUs = 1250;
 const int pwmPulseMaxUs = 1750;
 const int pwmPulseRangeUs = pwmPulseMaxUs - pwmPulseMinUs;
 
-const float potMin = 2;
-const float potMax = 3;
+const float potMin = 0;
+const float potMax = 1;
 
-const float steerPID_P = 0.1;
-const float steerPID_I = 0.002;
-const float steerPID_D = 0.1;
-const int errorHistorySize = 50;
+const float steerPID_P = 0.3;
+const float steerPID_I = 0.01;
+const float steerPID_D = 50;
+const int errorHistorySize = 20;
 float errorHistory[errorHistorySize] = {0};
 int errorHistoryIndex = 0;
 float lastError = 0;
-float lastPIDTime;
+unsigned int lastPIDTime;
 
-float desiredHeading = (potMin + potMax) / 2.0;
+float desiredHeading = 0;
 
-inline float clamp(float x, float minX, float maxX) {
+
+float clamp(float x, float minX, float maxX) {
     return min(max(x, minX), maxX);
 }
 
-long timeMillis() {
-    return (long)(time(NULL) * 1000);
+float linearRemap(float x, float x1, float x2, float y1, float y2) {
+    float proportion = (x - x1) / (x2 - x1);
+    return y1 + proportion * (y2 - y1);
+}
+
+unsigned int timeMillis() {
+    return (unsigned int)(timer.read() * 1000.0);
 }
 
 void steerPower(float x) {
     x = clamp(x, -1.0, 1.0); // -1 <= x <= 1
-    x = (x + 1.0) / 2.0; // convert to 0 <= x <= 1
+    x = linearRemap(x, -1, 1, 0, 1); // convert to 0 <= x <= 1
     int width = (int)(pwmPulseMinUs + (pwmPulseRangeUs * x));
     driverPin.pulsewidth_us(width);
+}
+
+float getHeading() {
+    float h = linearRemap(pot.read(), potMin, potMax, -1, 1);
+    return clamp(h, -1, 1);
 }
 
 bool getMessage() {
@@ -55,8 +69,7 @@ bool getMessage() {
 }
 
 float getPIDCorrection() {
-    float steerReading = pot.read();
-    float error = desiredHeading - steerReading;
+    float error = desiredHeading - getHeading();
 
     errorHistoryIndex = (errorHistoryIndex + 1) % errorHistorySize;
     errorHistory[errorHistoryIndex] = error;
@@ -78,30 +91,42 @@ float getPIDCorrection() {
 }
 
 int main() {
-    long lastUpdate = lastPIDTime = timeMillis();
+    timer.start();
+    unsigned int lastUpdate = timeMillis();
+    lastPIDTime = timeMillis();
+
+    Thread::wait(1500);
 
     while(true) {
-        long thisTime = timeMillis();
-        if(getMessage()) {
+        unsigned int thisTime = timeMillis();
+        
+        bool received = getMessage();
+        if(received) {
             led = !led;
             lastUpdate = thisTime;
-        } 
+        }
 
-        if(thisTime < lastUpdate + 2000) {
+        if(thisTime < lastUpdate + 1000) {
             float output = getPIDCorrection();
             steerPower(output);
-            serial.printf("pot=%.2f, drive=%.2f\r\n", pot.read(), output);
+            if(received) {
+                serial.printf("$pot = %.2f, ", pot.read());
+                serial.printf("heading = %.2f, ", getHeading());
+                serial.printf("target = %.2f, ", desiredHeading);
+                serial.printf("drive = %.2f\r\n", output);
+            }
         } else {
             // timeout
             steerPower(0);
-            serial.printf("[timeout] pot=%.2f\r\n", pot.read());
+            if(received) {
+                serial.printf("$[timeout] pot=%.2f\r\n", pot.read());
+            }
         }
 
-        int count = 0;
-        while(timeMillis() < thisTime + 20) {
-            Thread::wait(1);
-            count++;
+        int msRemain = thisTime + mainLoopMillis - (int)timeMillis();
+        if(msRemain > 0) {
+            Thread::wait(msRemain);
         }
-        serial.printf("wait count = %d\r\n", count);
+        // serial.printf("wait = %d\r\n", msRemain);
     }
 }
