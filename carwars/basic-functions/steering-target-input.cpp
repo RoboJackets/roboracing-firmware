@@ -9,19 +9,19 @@ DigitalOut led(LED1);
 AnalogIn pot(p20);
 Timer timer;
 
-const int mainLoopMillis = 50;
+const int mainLoopMillis = 25;
 
 const int pwmPeriodMs = 16;
 const int pwmPulseMinUs = 1250;
 const int pwmPulseMaxUs = 1750;
 const int pwmPulseRangeUs = pwmPulseMaxUs - pwmPulseMinUs;
 
-const float potMin = 0;
-const float potMax = 1;
+const float potMin = 0.13;
+const float potMax = 0.88;
 
-const float steerPID_P = 0.3;
-const float steerPID_I = 0.01;
-const float steerPID_D = 50;
+const float steerPID_P = 0.7;
+const float steerPID_I = 0;//0.05;
+const float steerPID_D = 2;
 const int errorHistorySize = 20;
 float errorHistory[errorHistorySize] = {0};
 int errorHistoryIndex = 0;
@@ -45,8 +45,8 @@ unsigned int timeMillis() {
 }
 
 void steerPower(float x) {
-    x = clamp(x, -1.0, 1.0); // -1 <= x <= 1
-    x = linearRemap(x, -1, 1, 0, 1); // convert to 0 <= x <= 1
+    x = clamp(x, -0.83, 0.83); // constrain speed to safe levels (multiply by 12 for volts)
+    x = linearRemap(x, -1, 1, 0, 1); // remap [-1,1] to [0,1] for pwm logic
     int width = (int)(pwmPulseMinUs + (pwmPulseRangeUs * x));
     driverPin.pulsewidth_us(width);
 }
@@ -58,7 +58,7 @@ float getHeading() {
 
 bool getMessage() {
     bool gotMessage = false;
-    if (serial.readable()) {
+    while (serial.readable()) {
         char first = serial.getc();
         if (first == '$') {
             serial.scanf("%f", &desiredHeading);
@@ -92,8 +92,7 @@ float getPIDCorrection() {
 
 int main() {
     timer.start();
-    unsigned int lastUpdate = timeMillis();
-    lastPIDTime = timeMillis();
+    unsigned int lastUpdate = lastPIDTime = timeMillis();
 
     Thread::wait(1500);
 
@@ -106,7 +105,7 @@ int main() {
             lastUpdate = thisTime;
         }
 
-        if(thisTime < lastUpdate + 1000) {
+        if(thisTime < lastUpdate + 500) {
             float output = getPIDCorrection();
             steerPower(output);
             if(received) {

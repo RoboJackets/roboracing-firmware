@@ -9,7 +9,7 @@ DigitalOut led(LED1);
 AnalogIn pot(p20);
 Timer timer;
 
-const int mainLoopMillis = 50;
+const int mainLoopMillis = 20;
 
 const int pwmPeriodMs = 16;
 const int pwmPulseMinUs = 1250;
@@ -56,18 +56,24 @@ int main() {
 
     while(true) {
         unsigned int thisTime = timeMillis();
-        if(getMessage()) {
+
+        bool received = getMessage();
+        if(received) {
             led = !led;
             lastUpdate = thisTime;
         }
 
         if(thisTime < lastUpdate + 1000) {
             steerPower(desiredPower);
-            serial.printf("$pot=%.2f, drive=%.2f\r\n", pot.read(), desiredPower);
+            if (received) {
+                serial.printf("$pot=%.2f, drive=%.2f\r\n", pot.read(), desiredPower);
+            }
         } else {
             // timeout
             steerPower(0);
-            serial.printf("$[timeout] pot=%.2f\r\n", pot.read());
+            if (received) {
+                serial.printf("$[timeout] pot=%.2f\r\n", pot.read());
+            }
         }
 
         int msRemain = thisTime + mainLoopMillis - (int)timeMillis();
