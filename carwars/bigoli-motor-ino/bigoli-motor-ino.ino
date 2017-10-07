@@ -1,31 +1,45 @@
+/* IGVC electrical
+const int encoderRightData1 = 3;
+const int encoderRightData2 = 5;
+const int encoderLeftData1 = 2;
+const int encoderLeftData2 = 4;
+const int rightDir = 7;
+const int rightSpeed = 6;
+const int rightDisable = 8;
+const int leftDir = 10;
+const int leftSpeed = 9;
+const int leftDisable = 11;
+*/
+
+// Note: left/right motor output headers are mislabeled above
 const int pinEscSpeed = 9;
 const int pinEscDirection = 10;
-const int pinEncoder1 = 2;
-const int pinEncoder2 = 4;
-
-volatile int encoderTicks = 0;
-const unsigned long speedUpdateMillis = 20;
+const int pinEncoderA = 3;
+const int pinEncoderB = 5;
 
 const float wheelCircumference = 0.246 * 3.14159; //meters
-const float ticksPerRot = 200.0; // TODO update
+const float ticksPerRot = 8637; // TODO update
 const float metersPerTick = wheelCircumference / ticksPerRot;
 
-const float maxAcceleration = 0.1;
+// const float maxDutyCycleChangeRate = 0.2; //per second
 
 float desiredSpeed = 0;
 float actualSpeed = 0;
+float lastDutyCycle = 0;
+volatile int encoderTicks = 0;
+int stickyEncoderTicks = 0;
 
 unsigned long lastMessageMillis;
 unsigned long lastDriveMillis;
 
-const float pidP = 0.1;
+const unsigned long speedUpdateMillis = 20;
+const float pidP = 0.03;
 const float pidI = 0.0;
-const float pidD = 0.01;
+const float pidD = 0.5;
 const int errorHistorySize = 20;
 float errorHistory[errorHistorySize] = {0};
 int errorHistoryIndex = 0;
 float lastError = 0.0;
-float lastDutyCycle = 0.0;
 
 
 inline float clamp(float x, float xMin, float xMax) {
@@ -33,7 +47,7 @@ inline float clamp(float x, float xMin, float xMax) {
 }
 
 void tickEncoder() {
-  if(digitalRead(pinEncoder1) == digitalRead(pinEncoder2)) {
+  if(digitalRead(pinEncoderA) == digitalRead(pinEncoderB)) {
     encoderTicks++;
   } else {
     encoderTicks--;
@@ -46,7 +60,8 @@ void measureCurrentSpeedBlocking() {
   delay(speedUpdateMillis);
 
   float ticksPerSec = (float)encoderTicks * 1000.0 / (float)speedUpdateMillis;
-  actualSpeed =  ticksPerSec * metersPerTick;
+  stickyEncoderTicks = encoderTicks;
+  actualSpeed = ticksPerSec * metersPerTick;
 }
 
 bool getMessage() {
@@ -62,17 +77,23 @@ bool getMessage() {
 
 bool sendMessage() {
   bool sentMessage = false;
-  if(Serial.available()) {
+  if(Serial.availableForWrite()) {
     String message = "$";
     message.concat(actualSpeed);
+    message.concat(", ");
+    message.concat(lastDutyCycle);
     Serial.println(message);
     sentMessage = true;
   }
-  return sentMessage;
+  return sendMessage;
 }
 
-float pidCorrection() {
-  float error = actualSpeed - desiredSpeed;
+
+void drive() {
+  float dt = millis() - lastDriveMillis;
+  lastDriveMillis = millis();
+
+  float error = desiredSpeed - actualSpeed;
   float dError = error - lastError;
   lastError = error;
 
@@ -83,26 +104,23 @@ float pidCorrection() {
     errorTotal += errorHistory[i];
   }
 
-  return (pidP * error) + (pidI * errorTotal) + (pidD * dError);
-}
-
-void drive() {
-  float dt = millis() - lastDriveMillis;
-  float dV = maxAcceleration * dt;
-  lastDriveMillis = millis();
+  float pidCorrection = (pidP * error) + (pidI * errorTotal) + (pidD * dError/dt);
 
   int direction;
-  float clampedSpeed = clamp(desiredSpeed, actualSpeed-dV, actualSpeed+dV);
-  float dutyCycle = clamp(clampedSpeed + pidCorrection(), -1.0, 1.0);
+  float dutyCycle = lastDutyCycle + pidCorrection;
+  dutyCycle = clamp(dutyCycle, -1, 1);
+  lastDutyCycle = dutyCycle;
+
+  float convertedDutyCycle;
   if(dutyCycle >= 0) {
     direction = HIGH;
-    dutyCycle = 1.0 - dutyCycle;
+    convertedDutyCycle = 1.0 - dutyCycle;
   } else { //negative speed
     direction = LOW;
-    dutyCycle *= -1;
+    convertedDutyCycle = -1 * dutyCycle;
   }
 
-  int pwm = (int)(255 * dutyCycle);
+  int pwm = (int)(255 * convertedDutyCycle);
   digitalWrite(pinEscDirection, direction);
   analogWrite(pinEscSpeed, pwm);
 }
@@ -113,24 +131,32 @@ void setup() {
   pinMode(pinEscDirection, OUTPUT);
   pinMode(pinEscSpeed, OUTPUT);
 
-  pinMode(pinEncoder1, INPUT);
-  pinMode(pinEncoder2, INPUT);
-  attachInterrupt(digitalPinToInterrupt(pinEncoder1), tickEncoder, CHANGE);
+  pinMode(pinEncoderA, INPUT);
+  pinMode(pinEncoderB, INPUT);
+  attachInterrupt(digitalPinToInterrupt(pinEncoderA), tickEncoder, CHANGE);
 
-  lastMessageMillis = millis();
+  lastMessageMillis = lastDriveMillis = millis();
 }
 
 void loop() {
   if(getMessage() && sendMessage()) {
-    drive();
     lastMessageMillis = millis();
   }
 
   if(millis() - lastMessageMillis > 500) {
     // timeout
     desiredSpeed = 0.0;
-    drive();
   }
 
   measureCurrentSpeedBlocking();
+
+  drive();
+
+  // desiredSpeed = 0;
+  // drive();
+  // delay(3000);
+
+  // desiredSpeed = 0.2;
+  // drive();
+  // delay(3000);
 }
