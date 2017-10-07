@@ -3,10 +3,10 @@
 #include "algorithm"
 #include "stdlib.h"
 
-PwmOut driverPin(p21);
+PwmOut driverPin(p23);
 Serial serial(USBTX, USBRX);
 DigitalOut led(LED1);
-AnalogIn pot(p20);
+AnalogIn pot(p15);
 Timer timer;
 
 const int mainLoopMillis = 25;
@@ -16,8 +16,8 @@ const int pwmPulseMinUs = 1250;
 const int pwmPulseMaxUs = 1750;
 const int pwmPulseRangeUs = pwmPulseMaxUs - pwmPulseMinUs;
 
-const float potMin = 0.13;
-const float potMax = 0.88;
+const float potMin = 0.18;
+const float potMax = 0.91;
 
 const float steerPID_P = 0.7;
 const float steerPID_I = 0;//0.05;

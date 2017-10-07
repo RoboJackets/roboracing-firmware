@@ -3,10 +3,10 @@
 #include "algorithm"
 #include "stdlib.h"
 
-PwmOut driverPin(p21);
+PwmOut driverPin(p23);
 Serial serial(USBTX, USBRX);
 DigitalOut led(LED1);
-AnalogIn pot(p20);
+AnalogIn pot(p15);
 Timer timer;
 
 const int mainLoopMillis = 20;
