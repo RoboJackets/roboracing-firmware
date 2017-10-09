@@ -20,15 +20,14 @@ const int pwmPulseRangeUs = pwmPulseMaxUs - pwmPulseMinUs;
 const float potMin = 0.18;
 const float potMax = 0.91;
 
-float steerPID_P = 0.7;
-float steerPID_I = 0; //0.05;
-float steerPID_D = 2;
+float steerPID_P = 0; //0.7;
+float steerPID_I = 0;
+float steerPID_D = 0; //2;
 const int errorHistorySize = 20;
 float errorHistory[errorHistorySize] = {0};
 int errorHistoryIndex = 0;
 float lastError = 0;
 unsigned int lastPIDTime;
-bool pidUpdated;
 
 float desiredHeading = 0;
 
@@ -63,13 +62,12 @@ bool getMessage() {
     while (serial.readable()) {
         char first = serial.getc();
         if (first == '$') {
-            serial.scanf("%f", &desiredHeading);
+            serial.scanf("%f,%f,%f,%f",
+                    &desiredHeading,
+                    &steerPID_P, 
+                    &steerPID_I, 
+                    &steerPID_D);
             gotMessage = true;
-        }
-        if (first == '#') {
-            serial.scanf("%f,%f,%f", 
-                &steerPID_P, &steerPID_I, &steerPID_D);
-            pidUpdated = true;
         }
     }
     return gotMessage;
@@ -107,32 +105,22 @@ int main() {
     while(true) {
         unsigned int thisTime = timeMillis();
         
-        pidUpdated = false;
         bool received = getMessage();
         if(received) {
             led = !led;
             lastUpdate = thisTime;
         }
 
-        if(thisTime < lastUpdate + timeoutMillis && thisTime > timeoutMillis) {
+        if(serial.writeable()) {
+            serial.printf("$%.3f\r\n", getHeading());
+        }
+
+        if(thisTime < lastUpdate + timeoutMillis) {
             float output = getPIDCorrection();
             steerPower(output);
-            if(received) {
-                serial.printf("$pot = %.2f, ", pot.read());
-                serial.printf("heading = %.2f, ", getHeading());
-                serial.printf("target = %.2f, ", desiredHeading);
-                serial.printf("drive = %.2f", output);
-                if(pidUpdated) serial.printf(", PID values updated");
-                serial.printf("\r\n");
-            }
         } else {
             // timeout
             steerPower(0);
-            if(received) {
-                serial.printf("$[timeout] pot=%.2f", pot.read());
-                if(pidUpdated) serial.printf(", PID values updated");
-                serial.printf("\r\n");
-            }
         }
 
         int msRemain = thisTime + mainLoopMillis - (int)timeMillis();

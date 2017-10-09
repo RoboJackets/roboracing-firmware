@@ -21,6 +21,7 @@ const int pinLED = 13;
 const float wheelCircumference = 0.246 * 3.14159; //meters
 const float ticksPerRot = 8637; // TODO update
 const float metersPerTick = wheelCircumference / ticksPerRot;
+const float deadZone = 0.05;
 
 // const float maxDutyCycleChangeRate = 0.2; //per second
 
@@ -34,14 +35,13 @@ unsigned long lastMessageMillis;
 unsigned long lastDriveMillis;
 
 const unsigned long speedUpdateMillis = 20;
-float pidP = 0.03;
-float pidI = 0.0;
-float pidD = 0.5;
+float pidP = 0; //0.03;
+float pidI = 0;
+float pidD = 0; //0.5;
 const int errorHistorySize = 20;
 float errorHistory[errorHistorySize] = {0};
 int errorHistoryIndex = 0;
 float lastError = 0.0;
-bool pidUpdated;
 
 
 inline float clamp(float x, float xMin, float xMax) {
@@ -72,13 +72,10 @@ bool getMessage() {
     char first = Serial.read();
     if(first == '$') {
       desiredSpeed = -1.0 * Serial.parseFloat();
-      gotMessage = true;
-    }
-    if(first == '#') {
       pidP = Serial.parseFloat();
       pidI = Serial.parseFloat();
       pidD = Serial.parseFloat();
-      gotMessage = pidUpdated = true;
+      gotMessage = true;
     }
   }
   return gotMessage;
@@ -91,8 +88,6 @@ bool sendMessage() {
     message.concat(actualSpeed);
     message.concat(", ");
     message.concat(lastDutyCycle);
-    if(pidUpdated)
-      message.concat(", PID values updated");
     Serial.println(message);
     sentMessage = true;
   }
@@ -120,6 +115,12 @@ void drive() {
   int direction;
   float dutyCycle = lastDutyCycle + pidCorrection;
   dutyCycle = clamp(dutyCycle, -1, 1);
+  
+  // account for estop error collection
+  if(abs(actualSpeed) < 0.01 && abs(desiredSpeed) > 0) {
+    dutyCycle = clamp(dutyCycle, -0.2, 0.2);
+  }
+
   lastDutyCycle = dutyCycle;
 
   float convertedDutyCycle;
@@ -150,7 +151,6 @@ void setup() {
 }
 
 void loop() {
-  pidUpdated = false;
   if(getMessage() && sendMessage()) {
     lastMessageMillis = millis();
   }
