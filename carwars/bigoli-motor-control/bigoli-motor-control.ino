@@ -67,7 +67,7 @@ void measureCurrentSpeedBlocking() {
 }
 
 bool getMessage() {
-  bool gotSpeedMessage = false;
+  bool gotMessage = false;
   while(Serial.available()) {
     char first = Serial.read();
     if(first == '$') {
@@ -78,10 +78,10 @@ bool getMessage() {
       pidP = Serial.parseFloat();
       pidI = Serial.parseFloat();
       pidD = Serial.parseFloat();
-      pidUpdated = true;
+      gotMessage = pidUpdated = true;
     }
   }
-  return gotSpeedMessage;
+  return gotMessage;
 }
 
 bool sendMessage() {
