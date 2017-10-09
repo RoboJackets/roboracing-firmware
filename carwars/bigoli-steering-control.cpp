@@ -23,7 +23,7 @@ const float potMax = 0.91;
 float steerPID_P = 0.7;
 float steerPID_I = 0; //0.05;
 float steerPID_D = 2;
-int errorHistorySize = 20;
+const int errorHistorySize = 20;
 float errorHistory[errorHistorySize] = {0};
 int errorHistoryIndex = 0;
 float lastError = 0;
@@ -102,7 +102,7 @@ int main() {
     timer.start();
     unsigned int lastUpdate = lastPIDTime = timeMillis();
 
-    Thread::wait(timeMillis + 50);
+    Thread::wait(timeoutMillis + 50);
 
     while(true) {
         unsigned int thisTime = timeMillis();
@@ -114,7 +114,7 @@ int main() {
             lastUpdate = thisTime;
         }
 
-        if(thisTime < lastUpdate + timeMillis && thisTime > timeMillis) {
+        if(thisTime < lastUpdate + timeoutMillis && thisTime > timeoutMillis) {
             float output = getPIDCorrection();
             steerPower(output);
             if(received) {
