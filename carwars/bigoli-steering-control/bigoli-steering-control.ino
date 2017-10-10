@@ -1,18 +1,16 @@
-#include "mbed.h"
-#include "rtos.h"
-#include "algorithm"
-#include "stdlib.h"
+// #include "algorithm"
+// #include "stdlib.h"
+#include <Servo.h>
 
-PwmOut driverPin(p23);
-Serial serial(USBTX, USBRX);
-DigitalOut led(LED1);
-AnalogIn pot(p15);
-Timer timer;
+const int driverPin = 9;
+Servo ppmOutput;
+const int potPin = A0;
 
 const int mainLoopMillis = 25;
 const int timeoutMillis = 500;
+unsigned long lastUpdate;
 
-const int pwmPeriodMs = 16;
+// const int pwmPeriodMs = 16;
 const int pwmPulseMinUs = 1250;
 const int pwmPulseMaxUs = 1750;
 const int pwmPulseRangeUs = pwmPulseMaxUs - pwmPulseMinUs;
@@ -27,7 +25,8 @@ const int errorHistorySize = 20;
 float errorHistory[errorHistorySize] = {0};
 int errorHistoryIndex = 0;
 float lastError = 0;
-unsigned int lastPIDTime;
+unsigned long lastPIDTime;
+float lastPIDCorrection = 0;
 
 float desiredHeading = 0;
 
@@ -41,36 +40,47 @@ float linearRemap(float x, float x1, float x2, float y1, float y2) {
     return y1 + proportion * (y2 - y1);
 }
 
-unsigned int timeMillis() {
-    return (unsigned int)(timer.read() * 1000.0);
-}
-
 void steerPower(float x) {
     x = clamp(x, -0.83, 0.83); // constrain speed to safe levels (multiply by 12 for volts)
     x = linearRemap(x, -1, 1, 0, 1); // remap [-1,1] to [0,1] for pwm logic
     int width = (int)(pwmPulseMinUs + (pwmPulseRangeUs * x));
-    driverPin.pulsewidth_us(width);
+    ppmOutput.writeMicroseconds(width);
 }
 
 float getHeading() {
-    float h = linearRemap(pot.read(), potMin, potMax, -1, 1);
+    float a = (float) analogRead(potPin) / 1023.0;
+    float h = linearRemap(a, potMin, potMax, -1, 1);
     return clamp(h, -1, 1);
 }
 
 bool getMessage() {
     bool gotMessage = false;
-    while (serial.readable()) {
-        char first = serial.getc();
-        if (first == '$') {
-            serial.scanf("%f,%f,%f,%f",
-                    &desiredHeading,
-                    &steerPID_P, 
-                    &steerPID_I, 
-                    &steerPID_D);
+    while(Serial.available()) {
+        char first = Serial.read();
+        if(first == '$') {
+            desiredHeading = Serial.parseFloat();
+            steerPID_P = Serial.parseFloat();
+            steerPID_I = Serial.parseFloat();
+            steerPID_D = Serial.parseFloat();
             gotMessage = true;
         }
     }
     return gotMessage;
+}
+
+bool sendMessage() {
+    bool sentMessage = false;
+    if(Serial.availableForWrite()) {
+        String message = "$";
+        message.concat(getHeading());
+        message.concat(", ");
+        message.concat(desiredHeading);
+        message.concat(", ");
+        message.concat(lastPIDCorrection);
+        Serial.println(message);
+        sentMessage = true;
+    }
+    return sendMessage;
 }
 
 float getPIDCorrection() {
@@ -86,7 +96,7 @@ float getPIDCorrection() {
     float dError = error - lastError;
     lastError = error;
 
-    long thisTime = timeMillis();
+    long thisTime = millis();
     float dt = thisTime - lastPIDTime;
     lastPIDTime = thisTime;
 
@@ -96,37 +106,35 @@ float getPIDCorrection() {
     return clamp(correction, -1.0, 1.0);
 }
 
-int main() {
-    timer.start();
-    unsigned int lastUpdate = lastPIDTime = timeMillis();
+void setup() {
+    Serial.begin(9600);
 
-    Thread::wait(timeoutMillis + 50);
+    pinMode(potPin, INPUT);
+    pinMode(driverPin, OUTPUT);
+    ppmOutput.attach(driverPin);
 
-    while(true) {
-        unsigned int thisTime = timeMillis();
-        
-        bool received = getMessage();
-        if(received) {
-            led = !led;
-            lastUpdate = thisTime;
-        }
+    lastUpdate = lastPIDTime = millis();
+}
 
-        if(serial.writeable()) {
-            serial.printf("$%.3f\r\n", getHeading());
-        }
+void loop() {
+    unsigned long thisTime = millis();
 
-        if(thisTime < lastUpdate + timeoutMillis) {
-            float output = getPIDCorrection();
-            steerPower(output);
-        } else {
-            // timeout
-            steerPower(0);
-        }
-
-        int msRemain = thisTime + mainLoopMillis - (int)timeMillis();
-        if(msRemain > 0) {
-            Thread::wait(msRemain);
-        }
-        // serial.printf("wait = %d\r\n", msRemain);
+    if(getMessage() && sendMessage()) {
+        lastUpdate = thisTime;
     }
+
+    if(thisTime < lastUpdate + timeoutMillis) {
+        float output = getPIDCorrection();
+        steerPower(output);
+        lastPIDCorrection = output;
+    } else {
+        // timeout
+        steerPower(0);
+    }
+
+    int msRemain = thisTime + mainLoopMillis - millis();
+    if(msRemain > 0) {
+        delay(msRemain);
+    }
+    // serial.printf("wait = %d\r\n", msRemain);
 }
