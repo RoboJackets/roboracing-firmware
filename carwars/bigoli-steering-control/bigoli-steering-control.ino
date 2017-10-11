@@ -4,7 +4,7 @@
 
 const int driverPin = 9;
 Servo ppmOutput;
-const int potPin = A0;
+const int potPin = A1;
 
 const int mainLoopMillis = 25;
 const int timeoutMillis = 500;
