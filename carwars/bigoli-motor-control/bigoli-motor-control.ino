@@ -23,8 +23,6 @@ const float ticksPerRot = 8637; // TODO update
 const float metersPerTick = wheelCircumference / ticksPerRot;
 const float deadZone = 0.05;
 
-// const float maxDutyCycleChangeRate = 0.2; //per second
-
 float desiredSpeed = 0;
 float actualSpeed = 0;
 float lastDutyCycle = 0;
@@ -118,10 +116,15 @@ void drive() {
   
   // account for estop error collection
   if(abs(actualSpeed) < 0.01 && abs(desiredSpeed) > 0) {
-    dutyCycle = clamp(dutyCycle, -0.2, 0.2);
+    dutyCycle = clamp(dutyCycle, -0.35, 0.35);
   }
 
   lastDutyCycle = dutyCycle;
+
+  // dead zone
+  if(abs(dutyCycle) < 0.15) {
+    dutyCycle = 0;
+  }
 
   float convertedDutyCycle;
   if(dutyCycle >= 0) {
