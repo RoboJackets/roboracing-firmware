@@ -1,3 +1,5 @@
+#include "PWM.h"
+
 /* IGVC electrical
 const int encoderRightData1 = 3;
 const int encoderRightData2 = 5;
@@ -137,11 +139,21 @@ void drive() {
 
   int pwm = (int)(255 * convertedDutyCycle);
   digitalWrite(pinEscDirection, direction);
-  analogWrite(pinEscSpeed, pwm);
+  //analogWrite(pinEscSpeed, pwm);
+  pwmWrite(pinEscSpeed, pwm);
 }
 
 void setup() {
+  InitTimersSafe();
+  
   Serial.begin(9600);
+
+  bool success = SetPinFrequencySafe(pinEscSpeed, 1500);
+  if(success) {
+    Serial.println("successfully set frequency");
+  } else {
+    Serial.println("error: could not set frequency");
+  }
 
   pinMode(pinEscDirection, OUTPUT);
   pinMode(pinEscSpeed, OUTPUT);
