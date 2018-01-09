@@ -2,22 +2,22 @@
 #include "NeoStripRGBW.h"
 #include <cmath>
 
-#define N 56
 #define PI 3.14159265
 
-const float width = 0.185;        // the width of the car in meters (X coords)
-const float length = 0.255;       // the length of the car in meters (Y coords)
-const float originToEnd = 0.04;   // distance from orign to back of the car in meters
-const float neoPerUnit = 60;      // the number of neopixels per meter
-const float maxMag = 181.019;     // the max distance away from the origin the object can be in meters
-const float maxVelocity = 10;     // the max velocity away the robot can travel in meters/second
-const int topLeftIndex = 0;       // the index of the top left individual Pixel
-const int botLeftIndex = 15;      // the index of the bottom left individual Pixel
-const int botRightIndex = 27;     // the index of the bottom right individual Pixel
-const int topRightIndex = 44;     // the index of the top right individual Pixel
-const char gradientChar = 'a';	  // the selected gradient colors
-const float phi = atan2((length-originToEnd),width/2);
-const float psi = atan2(-originToEnd,width/2);
+const float width = 0.185;          // the width of the car in meters (X coords)
+const float length = 0.255;         // the length of the car in meters (Y coords)
+const float originToEnd = 0.04;     // distance from orign to back of the car in meters
+const float neoPerUnit = 60;        // the number of neopixels per meter
+const float maxMag = 181.019;       // the max distance away from the origin the object can be in meters
+const float maxVelocity = 10;       // the max velocity away the robot can travel in meters/second
+const int topLeftIndex = 0;         // the index of the top left individual Pixel
+const int botLeftIndex = 15;        // the index of the bottom left individual Pixel
+const int botRightIndex = 27;       // the index of the bottom right individual Pixel
+const int topRightIndex = 44;       // the index of the top right individual Pixel
+const int N = 56;                   // the number of total NeoPixels
+const char * gradientChar = 'rg';	// the selected gradient colors
+const float phi = atan2((length - originToEnd),width / 2);
+const float psi = atan2(-originToEnd,width / 2);
 
 DigitalIn b1(p25); // Direction button
 DigitalIn b2(p26); // Point button
@@ -31,9 +31,8 @@ NeoStripRGBW strip(p8, N);
 Serial pc(USBTX, USBRX); // tx, rx
 
 void neoDirectionAndVelocity(float,float);
-void neoPointDetection(signed char*,int);
-void setPixelGradient(NeoStripRGBW &,int,float,char,bool);
-
+void neoPointDetection(signed char *,int);
+void setPixelGradient(NeoStripRGBW &, int, int, float, char*, bool);
 
 int floatToIntWithRounding(float);
 
@@ -115,6 +114,19 @@ int main() {
     }
 }
 
+//TODO Fix documentation
+/** 
+*   Given an arbitrary array of points stringed together in 
+*   a 'xyxyxy' format, where every odd character is a X value and 
+*   every even character is a Y value, the position is superimposed on 
+*   the NeoPixel array in line with the detected point.
+*
+*   The brightness of each point is set by the distance from the origin each point exists.
+*
+*   @param pointArr The array of detected points with X and Y values in ranges of -128 to 127.
+*   @param size The size of the pointArr.
+*/
+
 void neoDirectionAndVelocity(float directionTheta, float velocityValue){
     int index = thetaToIndex(directionTheta);
     if (index > -1) {
@@ -122,6 +134,7 @@ void neoDirectionAndVelocity(float directionTheta, float velocityValue){
         setPixelGradient(strip, index, magnitude, gradientChar, true);
         strip.write(); 
     }
+    //TODO Add error message
 }
 
 /** 
@@ -209,7 +222,7 @@ int thetaToIndex(float theta){
             // Side 3b
             // Above the origin in X direction
             index = originXIndex + floatToIntWithRounding(fractionX * (topRightIndex - originXIndex));
-        }
+        } // TODO Check for invalid theta
     } else {
         // Side 4
         int originYIndex = floatToIntWithRounding((N - topRightIndex) / 2 + topRightIndex);
@@ -229,58 +242,87 @@ int thetaToIndex(float theta){
     return index;
 }
 
-// TODO Add width of input
-void setPixelGradient(NeoStripRGBW &strip, int pos, float gradient, char transitionType, bool reset){
-    if (reset) {
-        strip.clear();
-    }
-    //0 to 1
-    float minusGradient = 1 - gradient;
-    NeoColorRGBW createdColor;
-    if (transitionType == 'a') {
-        // Red to Blue
-        createdColor.red = (uint8_t)(gradient * 255);
+//TODO Documentation
+
+/** 
+*   Given an arbitrary array of points stringed together in 
+*   a 'xyxyxy' format, where every odd character is a X value and 
+*   every even character is a Y value, the position is superimposed on 
+*   the NeoPixel array in line with the detected point.
+*
+*   The brightness of each point is set by the distance from the origin each point exists.
+*
+*   @param pointArr The array of detected points with X and Y values in ranges of -128 to 127.
+*   @param size The size of the pointArr.
+*/
+
+void setPixelGradient(NeoStripRGBW &strip, int index, int width, float gradient, char * transitionType, bool reset){
+    if (gradient >= 0 && gradient <= 1) {
+        if (reset) {
+            strip.clear();
+        }
+
+        float minusGradient = 1 - gradient;
+        NeoColorRGBW createdColor;
+
+        createdColor.red = (uint8_t)(0);
         createdColor.green = (uint8_t)(0);
-        createdColor.blue = (uint8_t)(minusGradient * 255);
+        createdColor.blue = (uint8_t)(0);
         createdColor.white = (uint8_t)(0);
-	} else if (transitionType == 'b') {
-		// Blue to Red
-		createdColor.red = (uint8_t)(minusGradient * 255);
-		createdColor.green = (uint8_t)(0);
-		createdColor.blue = (uint8_t)(gradient * 255);
-		createdColor.white = (uint8_t)(0);
-	} else if (transitionType == 'c') {
-		// Green to Red
-		createdColor.red = (uint8_t)(minusGradient * 255);
-		createdColor.green = (uint8_t)(gradient * 255);
-		createdColor.blue = (uint8_t)(0);
-		createdColor.white = (uint8_t)(0);	
-	} else if (transitionType == 'd') {
-		// Red to Green
-		createdColor.red = (uint8_t)(gradient * 255);
-		createdColor.green = (uint8_t)(minusGradient * 255);
-		createdColor.blue = (uint8_t)(0);
-		createdColor.white = (uint8_t)(0);		
-	} else if (transitionType == 'e') {
-		// Blue to Green
-		createdColor.red = (uint8_t)(0);
-		createdColor.green = (uint8_t)(minusGradient * 255);
-		createdColor.blue = (uint8_t)(gradient * 255);
-		createdColor.white = (uint8_t)(0);		
-	} else if (transitionType == 'f') {
-		// Green to Blue
-		createdColor.red = (uint8_t)(0);
-		createdColor.green = (uint8_t)(gradient * 255);
-		createdColor.blue = (uint8_t)(minusGradient * 255);
-		createdColor.white = (uint8_t)(0);		
-	} else {
-		createdColor.red = (uint8_t)(0);
-		createdColor.green = (uint8_t)(0);
-		createdColor.blue = (uint8_t)(0);
-		createdColor.white = (uint8_t)(0);	
-	}
-	strip.setPixel(pos, createdColor);
+
+        if (transitionType[0] == 'r') {
+            createdColor.red = (uint8_t)(gradient * 255);
+        } else if (transitionType[0] == 'g') {
+            createdColor.green = (uint8_t)(gradient * 255);
+        } else if (transitionType[0] == 'b') {
+            createdColor.blue = (uint8_t)(gradient * 255);
+        } else if (transitionType[0] == 'w') {
+            createdColor.white = (uint8_t)(gradient * 255);
+        } else {
+            printf("Error: Invalid Initial Color Combo\n");
+        }
+
+        if (transitionType[1] == 'r') {
+            createdColor.red = (uint8_t)(minusGradient * 255);
+        } else if (transitionType[1] == 'g') {
+            createdColor.green = (uint8_t)(minusGradient * 255);
+        } else if (transitionType[1] == 'b') {
+            createdColor.blue = (uint8_t)(minusGradient * 255);
+        } else if (transitionType[1] == 'w') {
+            createdColor.white = (uint8_t)(minusGradient * 255);
+        } else {
+            printf("Error: Invalid Secondary Color Combo\n");
+        }
+
+        for (int i = 0; i < width; i++){
+            if (index - i >= 0) {
+                strip.setPixel(index - i, createdColor); 
+            }
+
+            if (index + i < N) {
+                strip.setPixel(index + i, createdColor); 
+            }
+        }
+
+    } else {
+        printf("Error: Invalid Gradient\n");
+    }
+    
 }
+
+
+//TODO Fix 
+/** 
+*   Given an arbitrary array of points stringed together in 
+*   a 'xyxyxy' format, where every odd character is a X value and 
+*   every even character is a Y value, the position is superimposed on 
+*   the NeoPixel array in line with the detected point.
+*
+*   The brightness of each point is set by the distance from the origin each point exists.
+*
+*   @param pointArr The array of detected points with X and Y values in ranges of -128 to 127.
+*   @param size The size of the pointArr.
+*/
 
 int floatToIntWithRounding(float input){
     return (int)(input + 0.5);
