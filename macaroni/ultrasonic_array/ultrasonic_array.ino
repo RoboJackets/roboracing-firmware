@@ -55,7 +55,7 @@ double ping(int trigPin, int echoPin) {
 void testSensor(int sensorNum) {
   //useful to debug a single ultrasonic sensor
   switchMux(sensorNum);
-  Serial.print(ping(trigPin, echoPin));
+  Serial.println(ping(trigPin, echoPin));
   delay(200);
 }
 
@@ -75,11 +75,12 @@ void setup() {
 }
 
 void loop() {
-
+//testSensor(2);
   for (int i = 0; i < NUM_SENSORS; i++) {
     switchMux(i);
-    distances[i] = ping(trigPin, echoPin););
-    delay(5); //neccessary because echo from other sensor can interfere if lower
+    distances[i] = ping(trigPin, echoPin);
+    delay(10);
+    //delay(5); //neccessary because echo from other sensor can interfere if lower
   }
 
   //output distances to serial
@@ -92,7 +93,6 @@ void loop() {
 
   Serial.println();
 
-  delay(200); //may want to lessen this #TODO
+  delay(50);//delay(100); //may want to lessen this #TODO 100 sounds safe but lower could be tested
   
-//*/
 }
