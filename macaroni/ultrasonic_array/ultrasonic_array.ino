@@ -75,11 +75,11 @@ void setup() {
 }
 
 void loop() {
-//testSensor(2);
+
   for (int i = 0; i < NUM_SENSORS; i++) {
     switchMux(i);
     distances[i] = ping(trigPin, echoPin);
-    delay(10);
+    delay(10); //#TODO: This value needs to be played with based on location
     //delay(5); //neccessary because echo from other sensor can interfere if lower
   }
 
@@ -90,9 +90,8 @@ void loop() {
       Serial.print(",");
     }
   }
-
   Serial.println();
 
-  delay(50);//delay(100); //may want to lessen this #TODO 100 sounds safe but lower could be tested
+  delay(50);//delay(100); //#TODO 100 sounds safe but lower could be tested
   
 }
