@@ -6,7 +6,8 @@
 #define S2 6
 #define S3 5
 
-#define DELAY_TIME 10; //delay in between sensor triggers (PLAY WITH THIS)
+#define TRIGGER_DELAY 10 //delay in between sensor triggers (PLAY WITH THIS)
+#define LOOP_DELAY 50 //delay of whole loop. (PLAY WITH THIS)
 
 #define SPEED_OF_SOUND 2941.2 //microseconds per meter!
 
@@ -18,7 +19,7 @@ double distances[NUM_SENSORS];
  * Firmware for sensor array with HC-SR04 ultrasonic sensors
  * Simply define the proper pins and # of sensors
  * Uses 2 Muxes: 1 of triggers and 1 for echos
- * Play with the DELAY_TIME if having trouble with sensors
+ * Play with the TRIGGER_DELAY LOOP_DELAY if having trouble with sensors
  * 
  * @Note: https://www.bananarobotics.com/shop/HC-SR04-Ultrasonic-Distance-Sensor
  * Use the above as a reference for some code and reasoning
@@ -81,7 +82,7 @@ void loop() {
   for (int i = 0; i < NUM_SENSORS; i++) {
     switchMux(i);
     distances[i] = ping(trigPin, echoPin);
-    delay(DELAY_TIME);
+    delay(TRIGGER_DELAY);
   }
 
   //output distances to serial
@@ -93,6 +94,6 @@ void loop() {
   }
   Serial.println();
 
-  delay(50);//delay(100); //#TODO 100 sounds safe but lower could be tested
+  delay(LOOP_DELAY);
   
 }
