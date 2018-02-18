@@ -6,8 +6,9 @@
 #define S2 6
 #define S3 5
 
+#define DELAY_TIME 10; //delay in between sensor triggers
+
 #define SPEED_OF_SOUND 2941.2 //microseconds per meter!
-//#TODO: write a version of ping that does not use delay. Increment through two at a time, need to write your own "pulseIn"
 
 int trigPin = 9; //trigger pin (to send out ultrasonic)
 int echoPin = 10; //echo pin (to listen to return)
@@ -79,8 +80,7 @@ void loop() {
   for (int i = 0; i < NUM_SENSORS; i++) {
     switchMux(i);
     distances[i] = ping(trigPin, echoPin);
-    delay(10); //#TODO: This value needs to be played with based on location
-    //delay(5); //neccessary because echo from other sensor can interfere if lower
+    delay(DELAY_TIME);
   }
 
   //output distances to serial
