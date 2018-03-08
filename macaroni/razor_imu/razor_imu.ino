@@ -25,10 +25,6 @@ float q2;
 float q3;
 
 // used for orientation calculation
-unsigned long stepCount = 0;
-unsigned long stepTime = 0;
-unsigned long lastStepCount = 0;
-
 const signed char orientationMatrix[9] = {
   1, 0, 0,
   0, 1, 0,
