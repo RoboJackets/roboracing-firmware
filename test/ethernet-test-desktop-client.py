@@ -1,6 +1,9 @@
+from __future__ import print_function
 import socket
 import signal
 import sys
+
+# Evan's laptop works with: IP whatever, netmask 255.255.255.0, gateway 0.0.0.0
 
 def signal_handler(signal, frame):
     print('You pressed Ctrl+C!')

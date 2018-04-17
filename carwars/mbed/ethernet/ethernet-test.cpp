@@ -11,11 +11,11 @@ int main (void) {
     eth.connect(1000);
     printf("result code is %d\r\n", res);
     printf("Server IP Address is: %s\r\n", eth.getIPAddress());
-    
+
     TCPSocketServer server;
     server.bind(ECHO_SERVER_PORT);
     server.listen();
-    
+
     while (true) {
         printf("Wait for new connection...\r\n");
         TCPSocketConnection client;
