@@ -8,10 +8,6 @@ const unsigned char ECHO_SERVER_PORT = 7;
 const std::string MBED_IP("192.168.2.2");
 AnalogIn pot(p15);
 
-void serveClient(TCPSocketConnection& client) {
-  
-}
- 
 int main (void) {
   EthernetInterface eth;
   eth.init(MBED_IP.c_str(), 0, 0);
@@ -27,9 +23,6 @@ int main (void) {
     client.set_blocking(false, 1500); // Timeout after 1.5s
 
     while (true) {
-      // int n = client.receive(buffer, sizeof(buffer));
-      // if (n <= 0) break;
-
       char angleStr[16];
       sprintf(angleStr, "%1.5f", pot.read());
 
