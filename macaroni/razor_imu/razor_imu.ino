@@ -93,9 +93,9 @@ void printIMUData(void){
   String mag = String(String(magX) + ", " + String(magY) + ", " + String(magZ));
   String axes = String(String(imu.roll) + ", " + String(imu.pitch) + ", " + String(imu.yaw));
 
-  SerialPort.println("accel," + accel); 
-  SerialPort.println("gyro," + gyro);
-  SerialPort.println("quat," + quat);
-  SerialPort.println("mag," + mag);
+  SerialPort.println("ax," + accel); 
+  SerialPort.println("gx," + gyro);
+  SerialPort.println("q0," + quat);
+  SerialPort.println("mx," + mag);
   SerialPort.println("axes," + axes);
 }
