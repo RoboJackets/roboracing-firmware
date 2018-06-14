@@ -58,7 +58,7 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
-
+playSong(0);
  String message = "";
  
  estopState = digitalRead(estopStatePin);
