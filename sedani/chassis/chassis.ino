@@ -153,10 +153,11 @@ int speedToPWM(float velocity)
 void rcSteerRead()
 {
   //In RC remote mode, read Steer
-  if(!muxState){
+  if(manualState){
     float currentSteerPWM = float(pulseIn(rcSteerPin,HIGH));
     currentSteerPWM = min(max((currentSteerPWM-1500.0)/500.0,-1),1);
-    
+
+    //TODO Clean up
     if(currentSteerPWM > 0){
       currentSteerValue = currentSteerPWM*maxHeading;
     } else{
@@ -165,11 +166,28 @@ void rcSteerRead()
   }
 }
 
+void rcEscRead()
+{
+  //In RC remote mode, read Esc
+  if(manualState){
+    float currentEscPWM = float(pulseIn(rcEscPin,HIGH));
+    currentEscPWM = min(max((currentEscPWM-1500.0)/500.0,-1),1);
+    //TODO Clean up
+    if(currentEscPWM > 0){
+      currentEscValue = currentEscPWM;
+    } else{
+      currentEscValue = -1*currentEscPWMg;
+    }
+  }
+}
+
+//TODO understand +90
 void steerDrive(int val)
 {
   steering.write(val + trim + 90);
 }
 
+//TODO understand +90
 void escDrive(int val)
 {
   esc.write(val + 90);
