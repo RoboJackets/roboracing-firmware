@@ -1,13 +1,11 @@
+#include "pitch.h"
 #include <Servo.h>
 
 //forward method declarations
 void escDrive(int val);
-void steerDrive(int val);
-void limitDesiredSpeed(float& desiredSpeed);
-void limitDesiredHeading(float& desiredHeading);
 void updateHeading();
 void updateSpeed();
-int speedToPWM(float velocity);
+int speedToPwm(float velocity);
 void rcEscRead();
 void rcSteerRead();
 void encoderCallback();
@@ -17,17 +15,20 @@ void measureCurrentSpeed();
 //control limits
 static const float maxSpeed = 430; // maximum velocity 
 static const float minSpeed = -90;
-static const float maxHeading = 0.35;
-static const float minHeading = -0.35;
+static const float maxHeading = 0.463; //Radians
+static const float minHeading = -0.463; //Radians
 
-static int trim = 0;
+static const int steerRangePwm = 213; //(Max Steering Pwm  - Min Steering Pwm) / 2
+static int steerCenterPwm = 1538;
+
+static const int escRangePwm = 50; //Max PWM chosen for safety
+static int escCenterPwm = 1463;
 
 //Setpoint and error tracking
-static volatile float currentSpeed = 0;
 static float currentHeading = 0;
 static float desiredHeading = 0;
+static volatile float currentSpeed = 0;
 static float desiredSpeed = 0;
-static float currentEscPWM = 0;
 
 //stop conditions for the car
 static int lastMessageTime;
@@ -41,14 +42,35 @@ bool buttonEstopOff = false;
 const int wirelessEstopPin = 16;
 bool wirelessEstopOff = false;
 
+const int wirelessD0Pin = 16;
+bool wirelessD0State = false;
+bool wirelessD0Buffer = false;
+
+const int wirelessD1Pin = 14;
+bool wirelessD1State = false;
+bool wirelessD1Buffer = false;
+
+const int wirelessD2Pin = 15;
+bool wirelessD2State = false;
+bool wirelessD2Buffer = false;
+
+const int speakerOutputPin = 9;
+
+int songInformation0[2] = {NOTE_C4, NOTE_C4};
+int songInformation1[2] = {NOTE_C5, NOTE_C4};
+int songInformation2[2] = {NOTE_C4, NOTE_C5};
+
 //autonomous or human control
 const int manualStatePin = 6;
 bool manualState = true;
 
 //RC Remote Monitoring
-static float currentEscValue = 0;
+static float currentEscVelocity = 0;
+static float currentEscPwm = 0;
 const int rcEscPin = 2;
-static float currentSteerValue = 0;
+
+static float currentSteerAngle = 0;
+static float currentSteerPwm = 0;
 const int rcSteerPin = 3;
 
 //ESC and Steering objects
@@ -59,6 +81,11 @@ const int steerPin = 5;
 
 void setup()
 {
+    pinMode(wirelessD0Pin,INPUT);
+    pinMode(wirelessD1Pin,INPUT);
+    pinMode(wirelessD2Pin,INPUT);
+    pinMode(speakerOutputPin, OUTPUT);
+  
     pinMode(buttonEstopPin, INPUT);
     pinMode(wirelessEstopPin, INPUT);
     
@@ -75,7 +102,6 @@ void setup()
     pinMode(manualStatePin, INPUT);
       
     escDrive(0);
-    steerDrive(0);
 
     Serial.begin(115200);
     lastMessageTime = millis();
@@ -84,14 +110,34 @@ void setup()
 
 void loop()
 {   
+  wirelessD0State = digitalRead(wirelessD0Pin);
+  wirelessD1State = digitalRead(wirelessD1Pin);
+  wirelessD2State = digitalRead(wirelessD2Pin);
+
+//  if(wirelessD0State != wirelessD0Buffer && wirelessD0State){
+//    String message = "$";
+//    message.concat("D, ");
+//    message.concat(currentEscPwm);
+//    Serial.println(message);
+//    playSong(0);
+//  }
+// 
+//  if(wirelessD1State != wirelessD1Buffer && wirelessD1State){
+//    escDrive(escCenterPwm);
+//    Serial.println("Don't Move");
+//    playSong(1);
+//  }
+//  
+//  if(wirelessD2State != wirelessD2Buffer && wirelessD2State){
+//    escDrive(escCenterPwm + 80);
+//    Serial.println("Move");
+//    playSong(2);
+//  }
+//  
   manualState = digitalRead(manualStatePin);
   buttonEstopOff = digitalRead(buttonEstopPin);
   wirelessEstopOff = digitalRead(wirelessEstopPin);
 
-  if(getMessage()) {
-      limitDesiredSpeed(desiredSpeed);
-      limitDesiredHeading(desiredHeading); 
-  }
 
   //if we haven't received a message from the NUC in a while, stop driving
   if (lastMessageTime + 500 < millis()) {
@@ -99,98 +145,73 @@ void loop()
   }
   
   if (manualState || !buttonEstopOff || !wirelessEstopOff || timeout) {
-    desiredSpeed = 0;
-    currentSpeed = 0;
-    desiredHeading = 0;
-    currentHeading = 0;
-    escDrive(0);
-    steerDrive(0);
+//    desiredSpeed = 0;
+//    currentSpeed = 0;
+//    desiredHeading = 0;
+//    currentHeading = 0;
+//    escDrive(0);
   } else{
-    updateHeading();
-    updateSpeed();
+//    updateSpeed();
   }
   
-  
-  
-  
+  updateHeading();
   updateRcSteerRead();
-//updateRcEscRead();
-  
+  updateRcEscRead();
+  wirelessD0Buffer = wirelessD0State;
+  wirelessD1Buffer = wirelessD1State;
+  wirelessD2Buffer = wirelessD2State;
   
   delay(50);
 }
 
-void limitDesiredSpeed(float& desiredSpeed) {
-  desiredSpeed = min(maxSpeed, max(desiredSpeed, minSpeed));
-}
-
-void limitDesiredHeading(float& desiredHeading) {
-  desiredHeading = min(maxHeading, max(desiredHeading, minHeading));    
-}
 
 void updateHeading()
 {
-  currentHeading = desiredHeading;
-  //TODO fix constants
-  int steerPwm = ((currentHeading - minHeading) * 142.857) - 45;
-  steerDrive(steerPwm);    
+  currentHeading = min(maxHeading, max(desiredHeading, minHeading));
+  int steerPwm = ((currentHeading/maxHeading) * steerRangePwm)+steerCenterPwm;
+  steering.write(steerPwm);    
 }
 
 void updateSpeed()
 {
-    currentSpeed = desiredSpeed;
-    int escPWM = speedToPWM(currentSpeed);
-    escDrive(currentEscPWM);
+  currentSpeed = min(maxSpeed, max(desiredSpeed, minSpeed));
+  int escPwm = speedToPwm(currentSpeed);
+  escDrive(currentEscPwm);
 }
 
-int speedToPWM(float velocity)
+int speedToPwm(float velocity)
 {
-  int outputPWM = 0;
+  int outputPwm = 0;
   //TODO do table calc
-  return outputPWM;
+  return outputPwm;
 }
 
-void rcSteerRead()
+void updateRcSteerRead()
 {
   //In RC remote mode, read Steer
   if(manualState){
-    float currentSteerPWM = float(pulseIn(rcSteerPin,HIGH));
-    currentSteerPWM = min(max((currentSteerPWM-1500.0)/500.0,-1),1);
-
-    //TODO Clean up
-    if(currentSteerPWM > 0){
-      currentSteerValue = currentSteerPWM*maxHeading;
+    currentSteerPwm = float(pulseIn(rcSteerPin,HIGH));
+    //1500 is the center of the PWM range of the reciever output (between 1000 to 2000)
+    float currentSteerProp = min(max((currentSteerPwm - (steerCenterPwm))/steerRangePwm,-1),1);
+    if(currentSteerProp > 0){
+      currentSteerAngle = currentSteerProp*maxHeading;
     } else{
-      currentSteerValue = -1*currentSteerPWM*minHeading;
+      currentSteerAngle = -1*currentSteerProp*minHeading;
     }
   }
 }
 
-void rcEscRead()
+void updateRcEscRead()
 {
   //In RC remote mode, read Esc
   if(manualState){
-    float currentEscPWM = float(pulseIn(rcEscPin,HIGH));
-    currentEscPWM = min(max((currentEscPWM-1500.0)/500.0,-1),1);
-    //TODO Clean up
-    if(currentEscPWM > 0){
-      currentEscValue = currentEscPWM;
-    } else{
-      currentEscValue = -1*currentEscPWMg;
-    }
+    currentEscPwm = float(pulseIn(rcEscPin,HIGH));
   }
 }
 
-//TODO understand +90
-void steerDrive(int val)
-{
-  steering.write(val + trim + 90);
-}
-
-//TODO understand +90
 void escDrive(int val)
 {
-  esc.write(val + 90);
+  esc.write(val);
 }
 
 bool getMessage()
@@ -206,25 +227,40 @@ bool getMessage()
       
       desiredSpeed = Serial.parseFloat();
       desiredHeading = Serial.parseFloat();
-      pid_p = Serial.parseFloat();
-      pid_i = Serial.parseFloat();
-      pid_d = Serial.parseFloat();
-      trim = Serial.parseInt();
             
       String message = "$";
       //If in RC control
       if(manualState){
-         message.concat("D,");
-         message.concat(currentSteerValue);
+         message.concat("D, ");
+         message.concat(currentEscPwm);
       }
       else{
         message.concat("A,");
         message.concat(currentSpeed);
         message.concat(",");
-        message.concat(estop);
+        message.concat(wirelessEstopOff);
+        message.concat(",");
+        message.concat(buttonEstopOff);
       }
       Serial.println(message);
     }
   }
   return gotMessage;
+}
+
+
+void playSong(int number){
+    for (int thisNote = 0; thisNote < 2; thisNote++) {
+      int noteDuration = 125;
+      if(number == 0){
+        tone(speakerOutputPin, songInformation0[thisNote], noteDuration);
+      } else if(number == 1){
+        tone(speakerOutputPin, songInformation1[thisNote], noteDuration);
+      } else{
+        tone(speakerOutputPin, songInformation2[thisNote], noteDuration);
+      }
+      int pauseBetweenNotes = 162;
+      delay(pauseBetweenNotes);
+      noTone(speakerOutputPin);
+    }
 }
