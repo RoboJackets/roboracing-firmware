@@ -2,10 +2,9 @@
 #include <Servo.h>
 
 //forward method declarations
-void escDrive(int val);
 void updateHeading();
 void updateSpeed();
-int speedToPwm(float velocity);
+float speedToPwm(float velocity);
 void rcEscRead();
 void rcSteerRead();
 void encoderCallback();
@@ -13,16 +12,16 @@ bool getMessage();
 void measureCurrentSpeed();
 
 //control limits
-static const float maxSpeed = 430; // maximum velocity 
-static const float minSpeed = -90;
+static const float maxSpeed = 3; // maximum velocity 
+static const float minSpeed = -1;
 static const float maxHeading = 0.463; //Radians
 static const float minHeading = -0.463; //Radians
 
 static const int steerRangePwm = 213; //(Max Steering Pwm  - Min Steering Pwm) / 2
-static int steerCenterPwm = 1538;
+static int steerCenterPwm = 1560;
 
-static const int escRangePwm = 50; //Max PWM chosen for safety
-static int escCenterPwm = 1463;
+static const int escRangePwm = 90; //Max PWM chosen for safety
+static int escCenterPwm = 1520;
 
 //Setpoint and error tracking
 static float currentHeading = 0;
@@ -100,8 +99,6 @@ void setup()
     pinMode(rcSteerPin, INPUT);
 
     pinMode(manualStatePin, INPUT);
-      
-    escDrive(0);
 
     Serial.begin(115200);
     lastMessageTime = millis();
@@ -114,26 +111,27 @@ void loop()
   wirelessD1State = digitalRead(wirelessD1Pin);
   wirelessD2State = digitalRead(wirelessD2Pin);
 
-//  if(wirelessD0State != wirelessD0Buffer && wirelessD0State){
-//    String message = "$";
-//    message.concat("D, ");
-//    message.concat(currentEscPwm);
-//    Serial.println(message);
-//    playSong(0);
-//  }
-// 
-//  if(wirelessD1State != wirelessD1Buffer && wirelessD1State){
-//    escDrive(escCenterPwm);
-//    Serial.println("Don't Move");
-//    playSong(1);
-//  }
-//  
-//  if(wirelessD2State != wirelessD2Buffer && wirelessD2State){
-//    escDrive(escCenterPwm + 80);
-//    Serial.println("Move");
-//    playSong(2);
-//  }
-//  
+  if(wirelessD0State != wirelessD0Buffer && wirelessD0State){
+    desiredSpeed = 0;
+    desiredHeading = 0;
+    Serial.println("Standby");
+    playSong(0);
+  }
+ 
+  if(wirelessD1State != wirelessD1Buffer && wirelessD1State){
+    desiredSpeed = 1;
+    desiredHeading = 0;
+    Serial.println("Move Forward Medium");
+    playSong(1);
+  }
+  
+  if(wirelessD2State != wirelessD2Buffer && wirelessD2State){
+    desiredSpeed = 2;
+    desiredHeading = 0;
+    Serial.println("Move Forward Fast");
+    playSong(2);
+  }
+  
   manualState = digitalRead(manualStatePin);
   buttonEstopOff = digitalRead(buttonEstopPin);
   wirelessEstopOff = digitalRead(wirelessEstopPin);
@@ -141,7 +139,7 @@ void loop()
 
   //if we haven't received a message from the NUC in a while, stop driving
   if (lastMessageTime + 500 < millis()) {
-    timeout = true;
+    //timeout = true;
   }
   
   if (manualState || !buttonEstopOff || !wirelessEstopOff || timeout) {
@@ -151,10 +149,13 @@ void loop()
 //    currentHeading = 0;
 //    escDrive(0);
   } else{
-//    updateSpeed();
+    updateSpeed();
+    updateHeading();
   }
-  
+
   updateHeading();
+  updateSpeed();
+
   updateRcSteerRead();
   updateRcEscRead();
   wirelessD0Buffer = wirelessD0State;
@@ -176,13 +177,12 @@ void updateSpeed()
 {
   currentSpeed = min(maxSpeed, max(desiredSpeed, minSpeed));
   int escPwm = speedToPwm(currentSpeed);
-  escDrive(currentEscPwm);
+  esc.write(escPwm);
 }
 
-int speedToPwm(float velocity)
+float speedToPwm(float velocity)
 {
-  int outputPwm = 0;
-  //TODO do table calc
+  float outputPwm = 0.8675*(velocity*velocity) + 15.619*(velocity) + escCenterPwm;
   return outputPwm;
 }
 
@@ -194,7 +194,7 @@ void updateRcSteerRead()
     //1500 is the center of the PWM range of the reciever output (between 1000 to 2000)
     float currentSteerProp = min(max((currentSteerPwm - (steerCenterPwm))/steerRangePwm,-1),1);
     if(currentSteerProp > 0){
-      currentSteerAngle = currentSteerProp*maxHeading;
+      currentSteerAngle = currentSteerProp*maxHeading; 
     } else{
       currentSteerAngle = -1*currentSteerProp*minHeading;
     }
@@ -207,11 +207,6 @@ void updateRcEscRead()
   if(manualState){
     currentEscPwm = float(pulseIn(rcEscPin,HIGH));
   }
-}
-
-void escDrive(int val)
-{
-  esc.write(val);
 }
 
 bool getMessage()
