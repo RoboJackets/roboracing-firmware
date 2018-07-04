@@ -1,4 +1,5 @@
 #include "pitch.h"
+#include "SpeedLUT.h"
 #include <Servo.h>
 
 // Pins
@@ -181,8 +182,22 @@ void loop()
 
 unsigned long escPwmFromMetersPerSecond(float velocity)
 {
-  // TODO need new data
-  return 0;
+  if(velocity <= 0) {
+    return SpeedLUT[0][0];
+  }
+  double prevLUTVelocity = 0.0;
+  for(int i = 1; i < 86; i++) {
+    double LUTVelocity = SpeedLUT[i][1];
+    if(fabs(velocity - LUTVelocity) > fabs(velocity - prevLUTVelocity)) {
+      return SpeedLUT[i-1][0];
+    }
+  }
+  return SpeedLUT[85][0];
+}
+
+float metersPerSecondFromEscPwm(unsigned long pwm) {
+  int index = pwm - centerSpeedPwm;
+  return SpeedLUT[index][1];
 }
 
 float radiansFromServoPwm(unsigned long pwm) {
@@ -197,13 +212,13 @@ float radiansFromServoPwm(unsigned long pwm) {
 }
 
 unsigned long servoPwmFromRadians(float radians) {
-  // TODO
-  return 0;
-}
-
-float metersPerSecondFromEscPwm(unsigned long pwm) {
-  // TODO need new data
-  return 0.0;
+  if(radians > 0) {
+    float prop = radians / maxSteeringAngle;
+    return (prop * ( maxSteeringPwm - centerSteeringPwm)) + centerSteeringPwm;
+  } else {
+    float prop = radians / minSteeringAngle;
+    return (prop * (minSteeringPwm - centerSteeringPwm)) + centerSteeringPwm;
+  }
 }
 
 bool getMessage()
