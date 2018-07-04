@@ -11,6 +11,9 @@ void encoderCallback();
 bool getMessage();
 void measureCurrentSpeed();
 
+//To keep track if just turned on
+static bool justOn = false;
+
 //control limits
 static const float maxSpeed = 3; // maximum velocity 
 static const float minSpeed = -1;
@@ -20,8 +23,7 @@ static const float minHeading = -0.463; //Radians
 static const int steerRangePwm = 213; //(Max Steering Pwm  - Min Steering Pwm) / 2
 static int steerCenterPwm = 1560;
 
-static const int escRangePwm = 90; //Max PWM chosen for safety
-static int escCenterPwm = 1520;
+static int escCenterPwm = 1492;
 
 //Setpoint and error tracking
 static float currentHeading = 0;
@@ -38,26 +40,29 @@ const int buttonEstopPin = 10;
 bool buttonEstopOff = false;
 
 //Wireless E-Stop (true means E-Stop is off)
-const int wirelessEstopPin = 16;
-bool wirelessEstopOff = false;
 
-const int wirelessD0Pin = 16;
-bool wirelessD0State = false;
-bool wirelessD0Buffer = false;
+const int bWPin = 15;
+bool bWState = false;
+bool bWBuffer = false;
 
-const int wirelessD1Pin = 14;
-bool wirelessD1State = false;
-bool wirelessD1Buffer = false;
+const int cWPin = 14;
+bool cWState = false;
+bool cWBuffer = false;
 
-const int wirelessD2Pin = 15;
-bool wirelessD2State = false;
-bool wirelessD2Buffer = false;
+const int dWPin = 16;
+bool dWState = false;
+bool dWBuffer = false;
+
+//If true, e-stop is off
+bool totalWStateOff = false;
+bool totalWBuffer = false;
 
 const int speakerOutputPin = 9;
 
 int songInformation0[2] = {NOTE_C4, NOTE_C4};
 int songInformation1[2] = {NOTE_C5, NOTE_C4};
 int songInformation2[2] = {NOTE_C4, NOTE_C5};
+int songInformation3[2] = {NOTE_C5, NOTE_C5};
 
 //autonomous or human control
 const int manualStatePin = 6;
@@ -80,13 +85,14 @@ const int steerPin = 5;
 
 void setup()
 {
-    pinMode(wirelessD0Pin,INPUT);
-    pinMode(wirelessD1Pin,INPUT);
-    pinMode(wirelessD2Pin,INPUT);
+    pinMode(bWPin,INPUT);
+    pinMode(cWPin,INPUT);
+    pinMode(dWPin,INPUT);
+    
+    
     pinMode(speakerOutputPin, OUTPUT);
   
     pinMode(buttonEstopPin, INPUT);
-    pinMode(wirelessEstopPin, INPUT);
     
     pinMode(escPin, OUTPUT);
     esc.attach(escPin);
@@ -107,34 +113,55 @@ void setup()
 
 void loop()
 {   
-  wirelessD0State = digitalRead(wirelessD0Pin);
-  wirelessD1State = digitalRead(wirelessD1Pin);
-  wirelessD2State = digitalRead(wirelessD2Pin);
-
-  if(wirelessD0State != wirelessD0Buffer && wirelessD0State){
-    desiredSpeed = 0;
-    desiredHeading = 0;
-    Serial.println("Standby");
-    playSong(0);
-  }
- 
-  if(wirelessD1State != wirelessD1Buffer && wirelessD1State){
-    desiredSpeed = 1;
-    desiredHeading = 0;
-    Serial.println("Move Forward Medium");
-    playSong(1);
+  if(!justOn){
+    playSong(3);
+    justOn = true;
   }
   
-  if(wirelessD2State != wirelessD2Buffer && wirelessD2State){
+  bWState = digitalRead(bWPin);
+  cWState = digitalRead(cWPin);
+  dWState = digitalRead(dWPin);
+  
+  totalWStateOff = bWState || cWState || dWState;
+
+  if(bWState != bWBuffer && bWState){
     desiredSpeed = 2;
     desiredHeading = 0;
     Serial.println("Move Forward Fast");
     playSong(2);
   }
+
+  if(cWState != cWBuffer && cWState){
+    desiredSpeed = 1;
+    desiredHeading = 0;
+    Serial.println("Move Forward Medium");
+    playSong(1);
+  }
+
+  if(dWState != dWBuffer && dWState){
+    desiredSpeed = 0;
+    desiredHeading = 0;
+    Serial.println("Standby");
+    playSong(0);
+  }
+
+  if(totalWStateOff != totalWBuffer && !totalWStateOff){
+    Serial.println("Stop");
+    playSong(0);
+  }
+  
+
+//  if(dWState != dWBuffer && dWState){
+//    //desiredSpeed = 0;
+//    escRangePwm = 0;
+//    desiredHeading = 0;
+//    Serial.println("Standby");
+//    playSong(0);
+//  }
+// 
   
   manualState = digitalRead(manualStatePin);
   buttonEstopOff = digitalRead(buttonEstopPin);
-  wirelessEstopOff = digitalRead(wirelessEstopPin);
 
 
   //if we haven't received a message from the NUC in a while, stop driving
@@ -142,25 +169,28 @@ void loop()
     //timeout = true;
   }
   
-  if (manualState || !buttonEstopOff || !wirelessEstopOff || timeout) {
+//  if (manualState || !buttonEstopOff || !totalWStateOff || timeout) {
 //    desiredSpeed = 0;
 //    currentSpeed = 0;
 //    desiredHeading = 0;
 //    currentHeading = 0;
 //    escDrive(0);
-  } else{
-    updateSpeed();
-    updateHeading();
-  }
+//  } else{
+//    updateSpeed();
+//    updateHeading();
+//  }
 
   updateHeading();
   updateSpeed();
 
   updateRcSteerRead();
   updateRcEscRead();
-  wirelessD0Buffer = wirelessD0State;
-  wirelessD1Buffer = wirelessD1State;
-  wirelessD2Buffer = wirelessD2State;
+  
+  bWBuffer = bWState;
+  cWBuffer = cWState;
+  dWBuffer = dWState;
+  totalWBuffer = totalWStateOff;
+  
   
   delay(50);
 }
@@ -182,7 +212,7 @@ void updateSpeed()
 
 float speedToPwm(float velocity)
 {
-  float outputPwm = 0.8675*(velocity*velocity) + 15.619*(velocity) + escCenterPwm;
+  float outputPwm = 11.185*(pow(velocity,3)) - 53.673*(pow(velocity,2)) + 98.625*velocity + escCenterPwm;
   return outputPwm;
 }
 
@@ -233,7 +263,7 @@ bool getMessage()
         message.concat("A,");
         message.concat(currentSpeed);
         message.concat(",");
-        message.concat(wirelessEstopOff);
+        message.concat(totalWStateOff);
         message.concat(",");
         message.concat(buttonEstopOff);
       }
@@ -251,8 +281,10 @@ void playSong(int number){
         tone(speakerOutputPin, songInformation0[thisNote], noteDuration);
       } else if(number == 1){
         tone(speakerOutputPin, songInformation1[thisNote], noteDuration);
-      } else{
+      } else if(number == 2){
         tone(speakerOutputPin, songInformation2[thisNote], noteDuration);
+      } else{
+        tone(speakerOutputPin, songInformation3[thisNote], noteDuration);
       }
       int pauseBetweenNotes = 162;
       delay(pauseBetweenNotes);
