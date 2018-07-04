@@ -7,7 +7,7 @@ const int rcEscPin = 2;
 const int rcSteerPin = 3;
 const int escPin = 4;
 const int steerPin = 5;
-const int manualStatePin = 6;
+const int isManualPin = 6;
 const int speakerOutputPin = 9;
 const int buttonEstopPin = 10;
 const int wirelessPinC = 14;
@@ -35,7 +35,7 @@ float desiredSpeed = 0;
 
 // Timeout Variables
 int lastMessageTime;
-bool timeout = false; 
+bool isTimedOut = true; 
 
 // E-Stop Variables (true means the car can't move)
 bool buttonEstopActive = false;
@@ -53,7 +53,7 @@ int songInformation2[2] = {NOTE_C4, NOTE_C5};
 int songInformation3[2] = {NOTE_C5, NOTE_C5};
 
 // Manual Variables (true means human drives)
-bool manualState = true;
+bool isManual = true;
 
 // Servo objects
 Servo esc;
@@ -62,7 +62,8 @@ Servo steering;
 enum ChassisState {
   STATE_MANUAL,
   STATE_AUTONOMOUS,
-  STATE_ESTOPPED
+  STATE_ESTOPPED,
+  STATE_TIMEOUT
 } currentState = STATE_ESTOPPED;
 
 void setup()
@@ -73,7 +74,7 @@ void setup()
     pinMode(buttonEstopPin, INPUT);
     pinMode(rcEscPin, INPUT);
     pinMode(rcSteerPin, INPUT);
-    pinMode(manualStatePin, INPUT);
+    pinMode(isManualPin, INPUT);
     
     pinMode(speakerOutputPin, OUTPUT);
     pinMode(escPin, OUTPUT);
@@ -88,6 +89,7 @@ void setup()
     Serial.begin(115200);
     
     lastMessageTime = millis();
+    isTimedOut = true;
     
     playSong(3);
 }
@@ -98,16 +100,16 @@ void loop()
 
   //if we haven't received a message from the NUC in a while, stop driving
   if(gotMessage) {
-    timeout = false;
+    isTimedOut = false;
     lastMessageTime = millis();
   } else if (lastMessageTime + 500 < millis()) {
-    timeout = true;
+    isTimedOut = true;
   }
   
   bool wirelessStateB = digitalRead(wirelessPinB);
   bool wirelessStateC = digitalRead(wirelessPinC);
   bool wirelessStateD = digitalRead(wirelessPinD);
-  manualState = digitalRead(manualStatePin);
+  isManual = digitalRead(isManualPin);
   buttonEstopActive = !digitalRead(buttonEstopPin);
   
   wirelessEstopActive = !(wirelessStateB || wirelessStateC || wirelessStateD);
@@ -136,19 +138,26 @@ void loop()
     steering.write(centerSteeringPwm);
     esc.write(centerSpeedPwm);
     playSong(0);
-  } else if(manualState && currentState != STATE_MANUAL) {
+  } else if(isManual && !isEstopped && currentState != STATE_MANUAL) {
     currentState = STATE_MANUAL;
     steering.write(centerSteeringPwm);
     esc.write(centerSpeedPwm);
-  } else if(timeout && currentState == STATE_AUTONOMOUS) { 
-    currentState = STATE_ESTOPPED;
+    playSong(3);
+  } else if( (currentState == STATE_ESTOPPED || currentState == STATE_MANUAL) && (!isEstopped && !isManual)) {
+    currentState = STATE_TIMEOUT;
     steering.write(centerSteeringPwm);
     esc.write(centerSpeedPwm);
-    playSong(0);
-  } else if(currentState != STATE_AUTONOMOUS) {
+    playSong(1);
+  } else if(currentState == STATE_TIMEOUT && !isTimedOut && !isEstopped && !isManual) {
     currentState = STATE_AUTONOMOUS;
     desiredSteeringAngle = 0.0;
     desiredSpeed = 0.0;
+    playSong(2);
+  } else if(currentState == STATE_AUTONOMOUS && isTimedOut && !isEstopped && !isManual) {
+    currentState = STATE_TIMEOUT;
+    steering.write(centerSteeringPwm);
+    esc.write(centerSpeedPwm);
+    playSong(1);
   }
 
   /*
