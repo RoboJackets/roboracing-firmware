@@ -102,7 +102,7 @@ void loop()
   if(gotMessage) {
     isTimedOut = false;
     lastMessageTime = millis();
-  } else if (lastMessageTime + 500 < millis()) {
+  } else if (lastMessageTime + 1000 < millis()) {
     isTimedOut = true;
   }
   
@@ -173,6 +173,8 @@ void loop()
     case STATE_AUTONOMOUS:
       runStateAutonomous();
       break;
+    case STATE_TIMEOUT:
+      break;
     default:
       break;
   }
@@ -186,7 +188,7 @@ void loop()
   prevWirelessStateC = wirelessStateC;
   prevWirelessStateD = wirelessStateD;
   
-  delay(50);
+  delay(25);
 }
 
 unsigned long escPwmFromMetersPerSecond(float velocity)
@@ -291,11 +293,15 @@ void runStateManual() {
 }
 
 void runStateAutonomous() {
-  currentSpeed = desiredSpeed;
-  currentSteeringAngle = desiredSteeringAngle;
-  unsigned long newEscPwm = escPwmFromMetersPerSecond(desiredSpeed);
-  unsigned long newSteerPwm = servoPwmFromRadians(desiredSteeringAngle);
-  esc.write(newEscPwm);
-  steering.write(newSteerPwm);
+  if(currentSpeed != desiredSpeed) {
+    currentSpeed = desiredSpeed;
+    unsigned long newEscPwm = escPwmFromMetersPerSecond(desiredSpeed);
+    esc.write(newEscPwm);
+  }
+  if(currentSteeringAngle != desiredSteeringAngle) {
+    currentSteeringAngle = desiredSteeringAngle;
+    unsigned long newSteerPwm = servoPwmFromRadians(desiredSteeringAngle);
+    steering.write(newSteerPwm);
+  }
 }
 
