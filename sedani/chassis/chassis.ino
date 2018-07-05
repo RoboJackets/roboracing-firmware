@@ -34,7 +34,7 @@ float currentSpeed = 0;
 float desiredSpeed = 0;
 
 // Timeout Variables
-int lastMessageTime;
+unsigned long lastMessageTime;
 bool isTimedOut = true; 
 
 // E-Stop Variables (true means the car can't move)
@@ -102,7 +102,7 @@ void loop()
   if(gotMessage) {
     isTimedOut = false;
     lastMessageTime = millis();
-  } else if (lastMessageTime + 1000 < millis()) {
+  } else if ((lastMessageTime + 1000) < millis()) {
     isTimedOut = true;
   }
   
