@@ -212,7 +212,7 @@ float metersPerSecondFromEscPwm(unsigned long pwm) {
 }
 
 float radiansFromServoPwm(unsigned long pwm) {
-  unsigned long distanceFromCenter = pwm - centerSteeringPwm;
+  float distanceFromCenter = ((int)pwm) - centerSteeringPwm;
   if(distanceFromCenter > 0) {
     float prop = distanceFromCenter / (maxSteeringPwm - centerSteeringPwm);
     return prop * maxSteeringAngle;
