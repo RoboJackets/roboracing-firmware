@@ -33,6 +33,15 @@ float desiredSteeringAngle = 0;
 float currentSpeed = 0;
 float desiredSpeed = 0;
 
+// RC Smoothing Buffers
+const int bufferSize = 10;
+float speedBuffer[bufferSize] = {0, 0, 0, 0, 0};
+float steerBuffer[bufferSize] = {0, 0, 0, 0, 0};
+int speedIndex = 0;
+int steerIndex = 0;
+float speedSum = 0;
+float steerSum = 0;
+
 // Timeout Variables
 unsigned long lastMessageTime;
 bool isTimedOut = true; 
@@ -208,6 +217,7 @@ unsigned long escPwmFromMetersPerSecond(float velocity)
 
 float metersPerSecondFromEscPwm(unsigned long pwm) {
   int index = pwm - centerSpeedPwm;
+  if(index < 0) return 0.0;
   return SpeedLUT[index][1];
 }
 
@@ -288,8 +298,16 @@ void playSong(int number){
 void runStateManual() {
   unsigned long currentEscPwm = pulseIn(rcEscPin,HIGH);
   unsigned long currentSteerPwm = pulseIn(rcSteerPin,HIGH);
-  currentSpeed = metersPerSecondFromEscPwm(currentEscPwm);
-  currentSteeringAngle = radiansFromServoPwm(currentSteerPwm);
+  speedBuffer[speedIndex] = metersPerSecondFromEscPwm(currentEscPwm);
+  steerBuffer[steerIndex] = radiansFromServoPwm(currentSteerPwm);
+  speedSum += speedBuffer[speedIndex];
+  steerSum += steerBuffer[steerIndex];
+  speedIndex = (speedIndex + 1) % bufferSize;
+  steerIndex = (steerIndex + 1) % bufferSize;
+  speedSum -= speedBuffer[speedIndex];
+  steerSum -= steerBuffer[steerIndex];
+  currentSpeed = speedSum / bufferSize;
+  currentSteeringAngle = steerSum / bufferSize;
 }
 
 void runStateAutonomous() {
