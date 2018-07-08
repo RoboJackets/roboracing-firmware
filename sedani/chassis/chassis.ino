@@ -217,7 +217,8 @@ unsigned long escPwmFromMetersPerSecond(float velocity)
 
 float metersPerSecondFromEscPwm(unsigned long pwm) {
   int index = pwm - centerSpeedPwm;
-  if(index < 0) return 0.0;
+  if(index < 0) index = 0;
+  if(index > 85) index = 85;
   return SpeedLUT[index][1];
 }
 
