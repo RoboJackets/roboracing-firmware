@@ -32,14 +32,15 @@ void setup() {
         // Failed to initialize MPU-9250
       SerialPort.println("Unable to communicate with MPU-9250");
           SerialPort.println("Check connections, and try again.");
-          SerialPort.println();
+          SerialPort.println();open()
           delay(5000);
     }
   }
 
 // Enable 6 axis quaternion calculation; enable gyroscope recalibration after 8 secs of no motion 
-  imu.dmpBegin(DMP_FEATURE_6X_LP_QUAT |
-         DMP_FEATURE_GYRO_CAL,
+  imu.dmpBegin(  DMP_FEATURE_6X_LP_QUAT |
+                 DMP_FEATURE_GYRO_CAL|
+                 DMP_FEATURE_SEND_CAL_GYRO, 
          10);
 
 // enable sensors: gyroscope, accelerometer, and compass
@@ -94,7 +95,7 @@ void printIMUData(void){
   String axes = String(String(imu.roll) + ", " + String(imu.pitch) + ", " + String(imu.yaw));
 
   SerialPort.println("ax," + accel); 
-  SerialPort.println("gx," + gyro);
+  SerialPort.println("gx," + gyro); 
   SerialPort.println("q0," + quat);
   SerialPort.println("mx," + mag);
   SerialPort.println("axes," + axes);
