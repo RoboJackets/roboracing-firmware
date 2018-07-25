@@ -32,7 +32,7 @@ void setup() {
         // Failed to initialize MPU-9250
       SerialPort.println("Unable to communicate with MPU-9250");
           SerialPort.println("Check connections, and try again.");
-          SerialPort.println();open()
+          SerialPort.println();
           delay(5000);
     }
   }
@@ -88,15 +88,41 @@ void loop() {
 }
 
 void printIMUData(void){  
-  String accel = String(String(accelX) + ", " + String(accelY) + ", " + String(accelZ));
-  String gyro = String(String(gyroX) + ", " + String(gyroY) + ", " + String(gyroZ));
-  String quat = String( String(q0, 4) + ", " + String(q1, 4) + ", " + String(q2, 4) +  ", " + String(q3, 4));
-  String mag = String(String(magX) + ", " + String(magY) + ", " + String(magZ));
-  String axes = String(String(imu.roll) + ", " + String(imu.pitch) + ", " + String(imu.yaw));
 
-  SerialPort.println("ax," + accel); 
-  SerialPort.println("gx," + gyro); 
-  SerialPort.println("q0," + quat);
-  SerialPort.println("mx," + mag);
-  SerialPort.println("axes," + axes);
+  SerialPort.print("ax,");
+  SerialPort.print(accelX);
+  SerialPort.print(",");
+  SerialPort.print(accelY);
+  SerialPort.print(",");
+  SerialPort.println(accelZ);
+  
+  SerialPort.print("gx,");
+  SerialPort.print(gyroX);
+  SerialPort.print(",");
+  SerialPort.print(gyroY);
+  SerialPort.print(",");
+  SerialPort.println(gyroZ);
+
+  SerialPort.print("q0,");
+  SerialPort.print(q0, 4);
+  SerialPort.print(",");
+  SerialPort.print(q1, 4);
+  SerialPort.print(",");
+  SerialPort.print(q2, 4);
+  SerialPort.print(",");
+  SerialPort.println(q3, 4);
+
+  SerialPort.print("mx,");
+  SerialPort.print(magX);
+  SerialPort.print(",");
+  SerialPort.print(magY);
+  SerialPort.print(",");
+  SerialPort.println(magZ);
+    
+  SerialPort.print("axes,");
+  SerialPort.print(imu.roll);
+  SerialPort.print(",");
+  SerialPort.print(imu.pitch);
+  SerialPort.print(",");
+  SerialPort.println(imu.yaw);
 }
