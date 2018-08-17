@@ -24,10 +24,27 @@ const double kP = 0.4;
 // const double kI = 0;
 // const double kD = 0;
 
+//Encoder Constants
+
+const float wheelCircumference = 0.246 * 3.14159; //meters
+const float ticksPerRot = 8637; // TODO update
+const float metersPerTick = wheelCircumference / ticksPerRot;
+
+float desiredSpeed = 0;
+float actualSpeed = 0;
+float lastDutyCycle = 0;
+uint32_t lastTime = 0;
+uint32_t currentTime = 0;
+
+// Pinouts
+AnalogIn pot(p15);
 PwmOut driverPinMotorA(p21);
 PwmOut driverPinMotorB(p22);
 PwmOut driverPinSteer(p23);
-AnalogIn pot(p15);
+const PinName encoderChannelB = p24;
+const PinName encoderChannelA = p25;
+
+QEI driveAxel (encoderChannelA,encoderChannelB, NC, -1, X2_ENCODING);
 Serial serial(USBTX, USBRX);
 Timer timer;
 
@@ -73,6 +90,17 @@ void drivePower(float x) {
   }
 }
 
+// find the current speed (m/s)
+void measureCurrentSpeed() {
+  encoderTicks = driveAxel.getPulses();
+  currentTime = timer.read_ms();
+
+  float ticksPerSec = (float)driveAxel.getPulses() * 1000.0 / (float)(currentTime-lastTime);
+  lastTime = currentTime;
+  actualSpeed = ticksPerSec * metersPerTick;
+  driveAxel.reset();
+}
+
 int main (void) {
   driverPinMotorA.period_us(drivePeriod);
   driverPinMotorB.period_us(drivePeriod);
@@ -109,21 +137,21 @@ int main (void) {
       double speedTarget = strtod(p, &p);
       double steeringTarget = strtod(p, &p);
 
-      // TODO read encoders and calculate speed here
-      // double speedMeasured = 0;
+      measureCurrentSpeed();
 
       drivePower(speedTarget);
       bangBangSteer(steeringTarget);
 
-      sprintf(buffer, "%.3f %.3f %.3f ", speedTarget, pot.read(), steeringTarget);
+      sprintf(buffer, "%.3f %.3f %.3f %.3f", speedTarget, pot.read(), steeringTarget, actualSpeed);
 
       n = client.send_all(buffer, sizeof(buffer));
       if (n <= 0)
         break;
 
       // lastUpdate = curTime;
+      wait(0.1);
     }
-
+    timer.stop();
     client.close();
   }
 }
