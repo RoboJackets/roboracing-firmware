@@ -1,6 +1,8 @@
 
 #include <MPU9250_RegisterMap.h>
 #include <SparkFunMPU9250-DMP.h> 
+
+
 //#include <Wire.h> // Depending on your Arduino version, you may need to include Wire.h
 #define SerialPort SerialUSB
 
@@ -20,6 +22,11 @@ float q0;
 float q1;
 float q2;
 float q3;
+
+
+float roll;
+float pitch;
+float yaw;
 
 
 void setup() {
@@ -47,12 +54,13 @@ void setup() {
   imu.setSensors(INV_XYZ_GYRO | INV_XYZ_ACCEL | INV_XYZ_COMPASS);
 
 // set sensor ranges and rates
-  imu.setGyroFSR(2000);       // (+/- 250, 500, 1000, or 2000) dps
+    imu.setGyroFSR(2000);       // (+/- 250, 500, 1000, or 2000) dps
     imu.setAccelFSR(2);       // (+/- 2, 4, 8, or 16) g
-    imu.setLPF(5);          // digital low-pass filter (188, 98, 42, 20, 10, 5) Hz
+    imu.setLPF(10);          // digital low-pass filter (188, 98, 42, 20, 10, 5) Hz
     imu.setSampleRate(10);      // (4 - 1000) Hz
     imu.setCompassSampleRate(10);   // (1-100) Hz
 }
+
 
 void loop() {
 
@@ -95,7 +103,7 @@ void printIMUData(void){
   SerialPort.print(accelY);
   SerialPort.print(",");
   SerialPort.println(accelZ);
-  
+ 
   SerialPort.print("gx,");
   SerialPort.print(gyroX);
   SerialPort.print(",");
@@ -118,11 +126,51 @@ void printIMUData(void){
   SerialPort.print(magY);
   SerialPort.print(",");
   SerialPort.println(magZ);
-    
+
+/*
   SerialPort.print("axes,");
   SerialPort.print(imu.roll);
   SerialPort.print(",");
   SerialPort.print(imu.pitch);
   SerialPort.print(",");
   SerialPort.println(imu.yaw);
+*/
+
+
+  toEulerianAngle(q0, q1, q2, q3, roll, pitch, yaw);
+  
+  SerialPort.print("axes,");
+  SerialPort.print(roll,4);
+  SerialPort.print(",");
+  SerialPort.print(pitch, 4);
+  SerialPort.print(",");
+  SerialPort.println(yaw, 4);
+
+
+
 }
+
+
+//https://forum.sparkfun.com/viewtopic.php?f=14&t=45516&hilit=9dof+razor+M0
+
+static void toEulerianAngle(float w, float x, float y, float z, float& roll, float& pitch, float& yaw){
+  double ysqr = y * y;
+
+  double t0 = +2.0 * (w * x + y * z);
+  double t1 = +1.0 - 2.0 * (x * x + ysqr);
+  roll = atan2(t0, t1);
+
+  double t2 = +2.0 * (w * y - z * x);
+  t2 = t2 > 1.0 ? 1.0 : t2;
+  t2 = t2 < -1.0 ? -1.0 : t2;
+  pitch = asin(t2);
+  
+  double t3 = +2.0 * (w * z + x * y);
+  double t4 = +1.0 - 2.0 * (ysqr + z * z);  
+  yaw = atan2(t3, t4);
+  
+}
+
+
+
+
