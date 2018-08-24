@@ -44,7 +44,7 @@ PwmOut driverPinSteer(p23);
 const PinName encoderChannelB = p24;
 const PinName encoderChannelA = p25;
 
-QEI driveAxel (encoderChannelA,encoderChannelB, NC, -1, X2_ENCODING);
+QEI driveAxel (encoderChannelA,encoderChannelB, NC, -1);
 Serial serial(USBTX, USBRX);
 Timer timer;
 
@@ -92,10 +92,11 @@ void drivePower(float x) {
 
 // find the current speed (m/s)
 void measureCurrentSpeed() {
+  int encoderTicks;
   encoderTicks = driveAxel.getPulses();
   currentTime = timer.read_ms();
 
-  float ticksPerSec = (float)driveAxel.getPulses() * 1000.0 / (float)(currentTime-lastTime);
+  float ticksPerSec = (float)encoderTicks * 1000.0 / (float)(currentTime-lastTime);
   lastTime = currentTime;
   actualSpeed = ticksPerSec * metersPerTick;
   driveAxel.reset();
