@@ -37,14 +37,18 @@ PIDConstants accelDrivePID, decelDrivePID, steerPID;
 
 PID accelDriveController;
 PID decelDriveController;
-PID steerController;
 
 
 float desiredSpeed = 0;
 float actualSpeed = 0;
 float dutyCycle = 0;
-uint32_t lastTime = 0;
-uint32_t currentTime = 0;
+
+float accelLastRunTime = 0;
+float decelLastRunTime = 0;
+float steerLastRunTime = 0;
+
+uint32_t encoderLastTime = 0;
+uint32_t encoderCurrentTime = 0;
 
 // Pinouts
 AnalogIn pot(p15);
@@ -58,18 +62,49 @@ QEI driveAxel (encoderChannelA,encoderChannelB, NC, -1);
 Serial serial(USBTX, USBRX);
 Timer timer;
 
-inline float clamp(float x, float minX, float maxX) {
-  return min(max(x, minX), maxX);
-}
 
-float linearRemap(float x, float x1, float x2, float y1, float y2) {
-    float proportion = (x - x1) / (x2 - x1);
-    return y1 + proportion * (y2 - y1);
-}
+// Timing
 
 unsigned int timeMillis() {
   return (unsigned int)(timer.read() * 1000.0);
 }
+
+// General Compute
+
+inline float clamp(float value, float minX, float maxX) {
+  return min(max(value, minX), maxX);
+}
+
+float linearRemap(float value, float minX, float maxX, float minY, float maxY) {
+    float proportion = (value - minX) / (maxX - minX);
+    return minY + proportion * (maxY - minY);
+}
+
+// Motor Controls
+
+void bangBangSteer(float targetPosition) {
+  float currentPosition = linearRemap(pot.read(), potMin, potMax, -1, 1);
+  currentPosition = clamp(currentPosition, -1, 1);
+  if (abs(current - targetPosition) < 0.1) {
+    steerPower(0);
+  } else {
+    steerPower(steerPID.p * (targetPosition - currentPosition));
+  }
+}
+
+float getPIDCorrection(float setPoint, float processValue, PID& controller, float& lastRun){
+  // TODO might need to move to end
+  float dt = millis() - lastRun;
+  controller.setInterval(dt * 1000); // Miliseconds to second runtime 
+  lastRun = millis();
+  //
+
+  controller.setSetPoint(setPoint);
+  controller.setProcessValue(processValue);
+  return controller.compute();
+}
+
+// Motor Power
 
 void steerPower(float x) {
   x = clamp(x, -0.83, 0.83); // -1 <= x <= 1
@@ -77,36 +112,6 @@ void steerPower(float x) {
   int width = (int)(steerPulseMinUs + (steerPulseRangeUs * x));
   driverPinSteer.pulsewidth_us(width);
   serial.printf("width: %d\r\n", width);
-}
-
-void bangBangSteer(float targetPosition) {
-  float current = linearRemap(pot.read(), potMin, potMax, -1, 1);
-  current = clamp(current, -1, 1);
-  if (abs(current - targetPosition) < 0.1) {
-    steerPower(0);
-  } else {
-    steerPower(steerPID.p * (targetPosition - current));
-  }
-}
-
-float getPIDCorrection(float desiredSpeed, float actualSpeed, PIDConstants constants){
-  float dt = millis() - lastDriveMillis;
-  lastDriveMillis = millis();
-
-  float error = desiredSpeed - actualSpeed;
-  float dError = error - lastError;
-  lastError = error;
-
-  errorHistoryIndex = (errorHistoryIndex + 1) % errorHistorySize;
-  errorHistory[errorHistoryIndex] = error;
-  float errorTotal = 0;
-  if(constants.i != 0){
-    for(int i = 0; i < errorHistorySize; i++) {
-      errorTotal += errorHistory[i];
-    }   
-  }
-  float pidCorrection = (constants.p * error) + (constants.i * errorTotal) + (constants.d * dError/dt);
-  return pidCorrection;
 }
 
 void drivePower(float dutyCycle) {
@@ -121,13 +126,14 @@ void drivePower(float dutyCycle) {
 }
 
 // find the current speed (m/s)
+
 void measureCurrentSpeed() {
   int encoderTicks;
   encoderTicks = driveAxel.getPulses();
-  currentTime = timer.read_ms();
+  encoderCurrentTime = timer.read_ms();
 
-  float ticksPerSec = (float)encoderTicks * 1000.0 / (float)(currentTime-lastTime);
-  lastTime = currentTime;
+  float ticksPerSec = (float)encoderTicks * 1000.0 / (float)(encoderCurrentTime-encoderLastTime);
+  encoderLastTime = encoderCurrentTime;
   actualSpeed = ticksPerSec * metersPerTick;
   driveAxel.reset();
 }
@@ -156,50 +162,62 @@ int main (void) {
 
     while (true) {
 
+      // Ethernet Input
       char inputBuffer[256];
-      char outputBuffer[256];
       int n = client.receive(inputBuffer, sizeof(inputBuffer));
       if (n <= 0) 
         break;
 
       char firstChar = inputBuffer[0];
       char* p = inputBuffer + 1;
+
+      char outputBuffer[256];
+
       if(firstChar == '$') {  // For normal control
-        float speedTarget = strtod(p, &p);
+        float desiredSpeed = strtod(p, &p);
         float steeringTarget = strtod(p, &p);
 
         measureCurrentSpeed();
-        dutyCycle += getPIDCorrection(speedTarget, actualSpeed);
+
+        if(actualSpeed - desiredSpeed < 0){
+          dutyCycle += getPIDCorrection(desiredSpeed, actualSpeed, accelDriveController, accelLastRunTime);
+        } else {
+          dutyCycle += getPIDCorrection(desiredSpeed, actualSpeed, decelDriveController, decelLastRunTime);
+          // TODO add brake code here
+        }
 
 
         drivePower(dutyCycle);
         bangBangSteer(steeringTarget);
-        sprintf(outputBuffer, "%.3f %.3f %.3f %.3f", speedTarget, pot.read(), steeringTarget, actualSpeed);
-        
+        sprintf(outputBuffer, "%.3f %.3f %.3f %.3f", desiredSpeed, pot.read(), steeringTarget, actualSpeed);
+
       } else if (firstChar == '#') {  // For PID constant init
         accelDrivePID.p = strtod(p,&p);
         accelDrivePID.i = strtod(p,&p);
         accelDrivePID.d = strtod(p,&p);
         
-        accelDriveController = PID(accelDrivePID.p, accelDrivePID.i, accelDrivePID.d, 1);
+        accelDriveController = PID(accelDrivePID.p, accelDrivePID.i, accelDrivePID.d, 0.25);
+        accelDriveController.setInputLimits(0, 1);
+        accelDriveController.setOutputLimits(0, 1);
 
         decelDrivePID.p = strtod(p,&p);
         decelDrivePID.i = strtod(p,&p);
         decelDrivePID.d = strtod(p,&p);
 
-        decelDriveController = PID(decelDrivePID.p, decelDrivePID.i, decelDrivePID.d, 1);
+        decelDriveController = PID(decelDrivePID.p, decelDrivePID.i, decelDrivePID.d, 0.25);
+        decelDriveController.setInputLimits(-1, 0);
+        decelDriveController.setOutputLimits(-1, 0);
 
         steerPID.p = strtod(p,&p);
         steerPID.i = strtod(p,&p);
         steerPID.d = strtod(p,&p);
 
-        steerController = PID(steerPID.p, steerPID.i, steerPID.d, 1);
-        snprintf(outputBuffer, 256, "PID Receive");
+        snprintf(outputBuffer, 256, "PID Received");
       }
 
 
       
-
+      // Output Ethernet
       n = client.send_all(outputBuffer, sizeof(outputBuffer));
       if (n <= 0)
         break;
