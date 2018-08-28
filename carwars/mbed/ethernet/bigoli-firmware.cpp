@@ -37,6 +37,7 @@ PIDConstants accelDrivePID, decelDrivePID, steerPID;
 
 PID accelDriveController;
 PID decelDriveController;
+PID steerController;
 
 
 float desiredSpeed = 0;
@@ -95,7 +96,7 @@ void bangBangSteer(float targetPosition) {
 float getPIDCorrection(float setPoint, float processValue, PID& controller, float& lastRun){
   // TODO might need to move to end
   float dt = millis() - lastRun;
-  controller.setInterval(dt * 1000); // Miliseconds to second runtime 
+  controller.setInterval(dt / 1000.0); // Miliseconds to second runtime 
   lastRun = millis();
   //
 
@@ -107,7 +108,7 @@ float getPIDCorrection(float setPoint, float processValue, PID& controller, floa
 // Motor Power
 
 void steerPower(float x) {
-  x = clamp(x, -0.83, 0.83); // -1 <= x <= 1
+  x = clamp(x, -1.0, 1.0); // -1 <= x <= 1
   x = linearRemap(x, -1, 1, 0, 1); // convert to 0 <= x <= 1
   int width = (int)(steerPulseMinUs + (steerPulseRangeUs * x));
   driverPinSteer.pulsewidth_us(width);
@@ -199,6 +200,7 @@ int main (void) {
         accelDriveController = PID(accelDrivePID.p, accelDrivePID.i, accelDrivePID.d, 0.25);
         accelDriveController.setInputLimits(0, 1);
         accelDriveController.setOutputLimits(0, 1);
+        accelLastRunTime = millis();
 
         decelDrivePID.p = strtod(p,&p);
         decelDrivePID.i = strtod(p,&p);
@@ -207,12 +209,18 @@ int main (void) {
         decelDriveController = PID(decelDrivePID.p, decelDrivePID.i, decelDrivePID.d, 0.25);
         decelDriveController.setInputLimits(-1, 0);
         decelDriveController.setOutputLimits(-1, 0);
+        decelLastRunTime = millis();
 
         steerPID.p = strtod(p,&p);
         steerPID.i = strtod(p,&p);
         steerPID.d = strtod(p,&p);
 
-        snprintf(outputBuffer, 256, "PID Received");
+        steerController = PID(steerPID.p, steerPID.i, steerPID.d, 0.25);
+        steerController.setInputLimits(-2, 2);
+        steerController.setOutputLimits(-1, 1);
+        decelLastRunTime = millis();
+
+        sprintf(outputBuffer, "PID Received");
       }
 
 
