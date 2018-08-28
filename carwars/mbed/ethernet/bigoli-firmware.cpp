@@ -14,7 +14,7 @@ struct PIDConstants {
   float i;
   float d;
 };
- 
+
 const unsigned char ECHO_SERVER_PORT = 7;
 const char* const MBED_IP = "192.168.2.2";
 
@@ -35,9 +35,9 @@ const float metersPerTick = wheelCircumference / ticksPerRot;
 
 PIDConstants accelDrivePID, decelDrivePID, steerPID;
 
-PID accelDriveController;
-PID decelDriveController;
-PID steerController;
+PID accelDriveController(0.0,0.0,0.0,1.0);
+PID decelDriveController(0.0,0.0,0.0,1.0);
+PID steerController(0.0,0.0,0.0,1.0);
 
 
 float desiredSpeed = 0;
@@ -63,6 +63,7 @@ QEI driveAxel (encoderChannelA,encoderChannelB, NC, -1);
 Serial serial(USBTX, USBRX);
 Timer timer;
 
+void steerPower(float);
 
 // Timing
 
@@ -86,7 +87,7 @@ float linearRemap(float value, float minX, float maxX, float minY, float maxY) {
 void bangBangSteer(float targetPosition) {
   float currentPosition = linearRemap(pot.read(), potMin, potMax, -1, 1);
   currentPosition = clamp(currentPosition, -1, 1);
-  if (abs(current - targetPosition) < 0.1) {
+  if (abs(currentPosition - targetPosition) < 0.1) {
     steerPower(0);
   } else {
     steerPower(steerPID.p * (targetPosition - currentPosition));
@@ -95,9 +96,9 @@ void bangBangSteer(float targetPosition) {
 
 float getPIDCorrection(float setPoint, float processValue, PID& controller, float& lastRun){
   // TODO might need to move to end
-  float dt = millis() - lastRun;
-  controller.setInterval(dt / 1000.0); // Miliseconds to second runtime 
-  lastRun = millis();
+  float dt = timeMillis() - lastRun;
+  controller.setInterval(dt / 1000.0); // Miliseconds to second runtime
+  lastRun = timeMillis();
   //
 
   controller.setSetPoint(setPoint);
@@ -160,19 +161,23 @@ int main (void) {
     TCPSocketConnection client;
     server.accept(client);
     client.set_blocking(false, 30000); // Timeout after 30s
+    printf("Accepted new client\r\n");
+
 
     while (true) {
 
       // Ethernet Input
       char inputBuffer[256];
       int n = client.receive(inputBuffer, sizeof(inputBuffer));
-      if (n <= 0) 
+      printf("Receive message: %d\r\n", n);
+      if (n <= 0)
         break;
 
       char firstChar = inputBuffer[0];
       char* p = inputBuffer + 1;
 
       char outputBuffer[256];
+      sprintf(outputBuffer,"");
 
       if(firstChar == '$') {  // For normal control
         float desiredSpeed = strtod(p, &p);
@@ -196,11 +201,11 @@ int main (void) {
         accelDrivePID.p = strtod(p,&p);
         accelDrivePID.i = strtod(p,&p);
         accelDrivePID.d = strtod(p,&p);
-        
+
         accelDriveController = PID(accelDrivePID.p, accelDrivePID.i, accelDrivePID.d, 0.25);
         accelDriveController.setInputLimits(0, 1);
         accelDriveController.setOutputLimits(0, 1);
-        accelLastRunTime = millis();
+        accelLastRunTime = timeMillis();
 
         decelDrivePID.p = strtod(p,&p);
         decelDrivePID.i = strtod(p,&p);
@@ -209,7 +214,7 @@ int main (void) {
         decelDriveController = PID(decelDrivePID.p, decelDrivePID.i, decelDrivePID.d, 0.25);
         decelDriveController.setInputLimits(-1, 0);
         decelDriveController.setOutputLimits(-1, 0);
-        decelLastRunTime = millis();
+        decelLastRunTime = timeMillis();
 
         steerPID.p = strtod(p,&p);
         steerPID.i = strtod(p,&p);
@@ -218,17 +223,19 @@ int main (void) {
         steerController = PID(steerPID.p, steerPID.i, steerPID.d, 0.25);
         steerController.setInputLimits(-2, 2);
         steerController.setOutputLimits(-1, 1);
-        decelLastRunTime = millis();
+        decelLastRunTime = timeMillis();
 
         sprintf(outputBuffer, "PID Received");
       }
 
-
-      
       // Output Ethernet
-      n = client.send_all(outputBuffer, sizeof(outputBuffer));
-      if (n <= 0)
-        break;
+
+      if (strlen(outputBuffer) > 0) {
+        printf(outputBuffer);
+        n = client.send_all(outputBuffer, sizeof(outputBuffer));
+        if (n <= 0)
+          break;
+      }
 
       // lastUpdate = curTime;
       wait(0.1);
