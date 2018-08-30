@@ -113,7 +113,7 @@ void steerPower(float x) {
   x = linearRemap(x, -1, 1, 0, 1); // convert to 0 <= x <= 1
   int width = (int)(steerPulseMinUs + (steerPulseRangeUs * x));
   driverPinSteer.pulsewidth_us(width);
-  serial.printf("width: %d\r\n", width);
+  printf("width: %d\r\n", width);
 }
 
 void drivePower(float dutyCycle) {
@@ -163,13 +163,15 @@ int main (void) {
     client.set_blocking(false, 30000); // Timeout after 30s
     printf("Accepted new client\r\n");
 
-
     while (true) {
 
       // Ethernet Input
       char inputBuffer[256];
       int n = client.receive(inputBuffer, sizeof(inputBuffer));
-      printf("Receive message: %d\r\n", n);
+      printf("Received bits: %d \r\n", n);
+      //printf("inputBuffer: ");
+      //printf(inputBuffer);
+
       if (n <= 0)
         break;
 
@@ -177,7 +179,8 @@ int main (void) {
       char* p = inputBuffer + 1;
 
       char outputBuffer[256];
-      sprintf(outputBuffer,"");
+      //sprintf(outputBuffer,"");
+      memset(outputBuffer, 0, sizeof(outputBuffer));
 
       if(firstChar == '$') {  // For normal control
         float desiredSpeed = strtod(p, &p);
@@ -195,12 +198,14 @@ int main (void) {
 
         drivePower(dutyCycle);
         bangBangSteer(steeringTarget);
-        sprintf(outputBuffer, "%.3f %.3f %.3f %.3f", desiredSpeed, pot.read(), steeringTarget, actualSpeed);
+        sprintf(outputBuffer, "%.3f %.3f %.3f %.3f\r\n", desiredSpeed, pot.read(), steeringTarget, actualSpeed);
 
       } else if (firstChar == '#') {  // For PID constant init
         accelDrivePID.p = strtod(p,&p);
         accelDrivePID.i = strtod(p,&p);
         accelDrivePID.d = strtod(p,&p);
+
+        printf("p: %0.2f i: %0.2f d: %0.2f\r\n", accelDrivePID.p, accelDrivePID.i, accelDrivePID.d); //debug
 
         accelDriveController = PID(accelDrivePID.p, accelDrivePID.i, accelDrivePID.d, 0.25);
         accelDriveController.setInputLimits(0, 1);
@@ -225,12 +230,13 @@ int main (void) {
         steerController.setOutputLimits(-1, 1);
         decelLastRunTime = timeMillis();
 
-        sprintf(outputBuffer, "PID Received");
+        sprintf(outputBuffer, "PID Received\r\n");
       }
 
       // Output Ethernet
 
       if (strlen(outputBuffer) > 0) {
+        printf("OutputBuffer: ");
         printf(outputBuffer);
         n = client.send_all(outputBuffer, sizeof(outputBuffer));
         if (n <= 0)
@@ -240,6 +246,8 @@ int main (void) {
       // lastUpdate = curTime;
       wait(0.1);
     }
+    steerPower(0); //end steering on disconnecting
+    drivePower(0);
     timer.stop();
     client.close();
   }
