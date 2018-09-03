@@ -108,16 +108,15 @@ void bangBangSteer(float targetPosition) {
   }
 }
 
-float getPIDCorrection(float setPoint, float processValue, PID& controller, float& lastRun){
+float getPIDCorrection(float setPoint, float processValue, PID *controller, float *lastRun){
   // TODO might need to move to end
-  float dt = timeMillis() - lastRun;
-  controller.setInterval(dt / 1000.0); // Miliseconds to second runtime
-  lastRun = timeMillis();
-  //
+  float dt = timeMillis() - (unsigned int)lastRun;
+  controller->setInterval(dt / 1000.0); // Miliseconds to second runtime
+  *lastRun = (float)timeMillis();
 
-  controller.setSetPoint(setPoint);
-  controller.setProcessValue(processValue);
-  return controller.compute();
+  controller->setSetPoint(setPoint);
+  controller->setProcessValue(processValue);
+  return controller->compute();
 }
 
 // Motor Power
@@ -132,8 +131,9 @@ void steerPower(float x) {
 
 void drivePower(float dutyCycle) {
   float clipDutyCycle = clamp(dutyCycle, -1.0, 1.0); // -1 <= x <= 1
-  printf("ClipDUTYCYLE: %0.2f", clipDutyCycle);
-  if (dutyCycle >= 0) {
+  printf("ClipDUTYCYLE: %0.2f \r\n", clipDutyCycle);
+  clipDutyCycle = -clipDutyCycle;
+  if (clipDutyCycle >= 0) {
     driverPinMotorA.write(abs(clipDutyCycle));
     driverPinMotorB.write(0.0f);
   } else {
@@ -184,9 +184,9 @@ int main (void) {
       char inputBuffer[256];
       int n = client.receive(inputBuffer, sizeof(inputBuffer));
       //printf("Received bits: %d \r\n", n);
-      printf("inputBuffer: ");
-      printf(inputBuffer);
-      printf("\r\n");
+      //printf("inputBuffer: ");
+      //printf(inputBuffer);
+      //printf("\r\n");
 
       if (n <= 0)
         break;
@@ -204,9 +204,15 @@ int main (void) {
         measureCurrentSpeed();
 
         if(actualSpeed - desiredSpeed < 0){
-          dutyCycle += getPIDCorrection(desiredSpeed, actualSpeed, accelDriveController, accelLastRunTime);
+          //acceleratre
+          dutyCycle += getPIDCorrection(desiredSpeed, actualSpeed, &accelDriveController, &accelLastRunTime);
         } else {
-          dutyCycle += getPIDCorrection(desiredSpeed, actualSpeed, decelDriveController, decelLastRunTime);
+          //slow down
+    printf("DESIREDSPD: %f", desiredSpeed);
+    printf("ACTUALSPD: %f", actualSpeed);
+    float pidCorrection = getPIDCorrection(desiredSpeed, actualSpeed, &decelDriveController, &decelLastRunTime);
+          dutyCycle += pidCorrection;
+    printf("PIDCORRECTION: %f", pidCorrection);
           // TODO add brake code here
         }
 
@@ -226,6 +232,7 @@ int main (void) {
         accelDriveController = PID(accelDrivePID.p, accelDrivePID.i, accelDrivePID.d, 0.25);
         accelDriveController.setInputLimits(0, 1);
         accelDriveController.setOutputLimits(0, 1);
+        accelDriveController.reset();
         accelLastRunTime = timeMillis();
 
         decelDrivePID.p = strtod(p,&p);
@@ -233,8 +240,9 @@ int main (void) {
         decelDrivePID.d = strtod(p,&p);
 
         decelDriveController = PID(decelDrivePID.p, decelDrivePID.i, decelDrivePID.d, 0.25);
-        decelDriveController.setInputLimits(-1, 0);
-        decelDriveController.setOutputLimits(-1, 0);
+        decelDriveController.setInputLimits(0, -1);
+        decelDriveController.setOutputLimits(0, -1);
+        decelDriveController.reset();
         decelLastRunTime = timeMillis();
 
         steerPID.p = strtod(p,&p);
@@ -244,6 +252,7 @@ int main (void) {
         steerController = PID(steerPID.p, steerPID.i, steerPID.d, 0.25);
         steerController.setInputLimits(-2, 2);
         steerController.setOutputLimits(-1, 1);
+        steerController.reset();
         decelLastRunTime = timeMillis();
 
         sprintf(outputBuffer, "@PID Received"); //Put data in buffer for tcp client @NOTE @ symbol denotes ok status
@@ -254,6 +263,7 @@ int main (void) {
       if (strlen(outputBuffer) > 0) {
         printf("OutputBuffer: ");
         printf(outputBuffer);
+        printf("\r\n");
         n = client.send_all(outputBuffer, sizeof(outputBuffer));
         if (n <= 0)
           break;
