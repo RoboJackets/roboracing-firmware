@@ -9,6 +9,20 @@
 #include <cstdlib>
 #include <cmath>
 
+
+/*
+  @NOTE
+  This firmware is designed to be used with the bigoli_ethernet_drive_relay ROS node
+  PID message is prefaced with a # ; EX: #p i d p i d p i d
+  Steering and speed message is prefaced with a $ ; EX: $speed steeringANgle
+
+  On receiving a message, this server must respond with an @ and an optional message EX: @PID Received
+  This @ symbol denotes messages received properly (OK status)
+  The client will wait for the @ symbol before next msg
+
+*/
+
+
 struct PIDConstants {
   float p;
   float i;
@@ -25,8 +39,8 @@ const int steerPulseMinUs = 1250;
 const int steerPulseMaxUs = 1750;
 const int steerPulseRangeUs = steerPulseMaxUs - steerPulseMinUs;
 
-const float potMin = 0.125;
-const float potMax = 0.825;
+const float potMin = 0.360;
+const float potMax = 0.610;
 
 //Encoder Constants
 const float wheelCircumference = 0.246 * 3.14159; //meters
@@ -118,11 +132,12 @@ void steerPower(float x) {
 
 void drivePower(float dutyCycle) {
   float clipDutyCycle = clamp(dutyCycle, -1.0, 1.0); // -1 <= x <= 1
+  printf("ClipDUTYCYLE: %0.2f", clipDutyCycle);
   if (dutyCycle >= 0) {
     driverPinMotorA.write(abs(clipDutyCycle));
-    driverPinMotorB.write(0);
+    driverPinMotorB.write(0.0f);
   } else {
-    driverPinMotorA.write(0);
+    driverPinMotorA.write(0.0f);
     driverPinMotorB.write(abs(clipDutyCycle));
   }
 }
@@ -168,9 +183,10 @@ int main (void) {
       // Ethernet Input
       char inputBuffer[256];
       int n = client.receive(inputBuffer, sizeof(inputBuffer));
-      printf("Received bits: %d \r\n", n);
-      //printf("inputBuffer: ");
-      //printf(inputBuffer);
+      //printf("Received bits: %d \r\n", n);
+      printf("inputBuffer: ");
+      printf(inputBuffer);
+      printf("\r\n");
 
       if (n <= 0)
         break;
@@ -179,8 +195,7 @@ int main (void) {
       char* p = inputBuffer + 1;
 
       char outputBuffer[256];
-      //sprintf(outputBuffer,"");
-      memset(outputBuffer, 0, sizeof(outputBuffer));
+      memset(outputBuffer, 0, sizeof(outputBuffer)); //clear output buffer
 
       if(firstChar == '$') {  // For normal control
         float desiredSpeed = strtod(p, &p);
@@ -198,7 +213,8 @@ int main (void) {
 
         drivePower(dutyCycle);
         bangBangSteer(steeringTarget);
-        sprintf(outputBuffer, "%.3f %.3f %.3f %.3f\r\n", desiredSpeed, pot.read(), steeringTarget, actualSpeed);
+        //Put data in buffer for tcp client
+        sprintf(outputBuffer, "@%.3f %.3f %.3f %.3f", desiredSpeed, pot.read(), steeringTarget, actualSpeed); //@NOTE @ symbol denotes ok status
 
       } else if (firstChar == '#') {  // For PID constant init
         accelDrivePID.p = strtod(p,&p);
@@ -230,7 +246,7 @@ int main (void) {
         steerController.setOutputLimits(-1, 1);
         decelLastRunTime = timeMillis();
 
-        sprintf(outputBuffer, "PID Received\r\n");
+        sprintf(outputBuffer, "@PID Received"); //Put data in buffer for tcp client @NOTE @ symbol denotes ok status
       }
 
       // Output Ethernet
