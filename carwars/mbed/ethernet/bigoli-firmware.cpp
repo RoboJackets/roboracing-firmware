@@ -47,10 +47,9 @@ const float wheelCircumference = 0.246 * 3.14159; //meters
 const float ticksPerRot = 8637; // TODO update
 const float metersPerTick = wheelCircumference / ticksPerRot;
 
-PIDConstants accelDrivePID, decelDrivePID, steerPID;
+PIDConstants drivePID, steerPID;
 
-PID accelDriveController(0.0,0.0,0.0,1.0);
-PID decelDriveController(0.0,0.0,0.0,1.0);
+PID driveController(0.0,0.0,0.0,1.0);
 PID steerController(0.0,0.0,0.0,1.0);
 
 
@@ -58,8 +57,7 @@ float desiredSpeed = 0;
 float actualSpeed = 0;
 float dutyCycle = 0;
 
-float accelLastRunTime = 0;
-float decelLastRunTime = 0;
+float driveLastRunTime = 0;
 float steerLastRunTime = 0;
 
 uint32_t encoderLastTime = 0;
@@ -147,11 +145,12 @@ void drivePower(float dutyCycle) {
 void measureCurrentSpeed() {
   int encoderTicks;
   encoderTicks = driveAxel.getPulses();
-  encoderCurrentTime = timer.read_ms();
+  encoderCurrentTime = timeMillis();
 
   float ticksPerSec = (float)encoderTicks * 1000.0 / (float)(encoderCurrentTime-encoderLastTime);
   encoderLastTime = encoderCurrentTime;
   actualSpeed = ticksPerSec * metersPerTick;
+
   driveAxel.reset();
 }
 
@@ -160,10 +159,12 @@ int main (void) {
   driverPinMotorB.period_us(drivePeriod);
   driverPinSteer.period_ms(steerPeriodMs);
 
+  printf("connect EthernetInterface\r\n");
   EthernetInterface eth;
   eth.init(MBED_IP, 0, 0);
   eth.connect(100000);
 
+  printf("connect TCPSocketServer\r\n");
   TCPSocketServer server;
   server.bind(ECHO_SERVER_PORT);
   server.listen();
@@ -203,19 +204,11 @@ int main (void) {
 
         measureCurrentSpeed();
 
-        if(actualSpeed - desiredSpeed < 0){
-          //acceleratre
-          dutyCycle += getPIDCorrection(desiredSpeed, actualSpeed, &accelDriveController, &accelLastRunTime);
-        } else {
-          //slow down
-    printf("DESIREDSPD: %f", desiredSpeed);
-    printf("ACTUALSPD: %f", actualSpeed);
-    float pidCorrection = getPIDCorrection(desiredSpeed, actualSpeed, &decelDriveController, &decelLastRunTime);
-          dutyCycle += pidCorrection;
-    printf("PIDCORRECTION: %f", pidCorrection);
-          // TODO add brake code here
-        }
-
+        printf("DESIREDSPD: %f", desiredSpeed);
+        printf("ACTUALSPD: %f", actualSpeed);
+        float pidCorrection = getPIDCorrection(desiredSpeed, actualSpeed, &driveController, &driveLastRunTime);
+        dutyCycle += pidCorrection;
+        printf("PIDCORRECTION: %f", pidCorrection);
 
         drivePower(dutyCycle);
         bangBangSteer(steeringTarget);
@@ -223,27 +216,22 @@ int main (void) {
         sprintf(outputBuffer, "@%.3f %.3f %.3f %.3f", desiredSpeed, pot.read(), steeringTarget, actualSpeed); //@NOTE @ symbol denotes ok status
 
       } else if (firstChar == '#') {  // For PID constant init
-        accelDrivePID.p = strtod(p,&p);
-        accelDrivePID.i = strtod(p,&p);
-        accelDrivePID.d = strtod(p,&p);
+        drivePID.p = strtod(p,&p);
+        drivePID.i = strtod(p,&p);
+        drivePID.d = strtod(p,&p);
 
-        printf("p: %0.2f i: %0.2f d: %0.2f\r\n", accelDrivePID.p, accelDrivePID.i, accelDrivePID.d); //debug
+        printf("p: %0.2f i: %0.2f d: %0.2f\r\n", drivePID.p, drivePID.i, drivePID.d); //debug
 
-        accelDriveController = PID(accelDrivePID.p, accelDrivePID.i, accelDrivePID.d, 0.25);
-        accelDriveController.setInputLimits(0, 1);
-        accelDriveController.setOutputLimits(0, 1);
-        accelDriveController.reset();
-        accelLastRunTime = timeMillis();
+        driveController = PID(drivePID.p, drivePID.i, drivePID.d, 0.25);
+        driveController.setInputLimits(0, 1);
+        driveController.setOutputLimits(0, 1);
+        driveController.reset();
+        driveLastRunTime = timeMillis();
 
-        decelDrivePID.p = strtod(p,&p);
-        decelDrivePID.i = strtod(p,&p);
-        decelDrivePID.d = strtod(p,&p);
-
-        decelDriveController = PID(decelDrivePID.p, decelDrivePID.i, decelDrivePID.d, 0.25);
-        decelDriveController.setInputLimits(0, -1);
-        decelDriveController.setOutputLimits(0, -1);
-        decelDriveController.reset();
-        decelLastRunTime = timeMillis();
+        // reading too many PID constants
+        strtod(p,&p);
+        strtod(p,&p);
+        strtod(p,&p);
 
         steerPID.p = strtod(p,&p);
         steerPID.i = strtod(p,&p);
@@ -253,7 +241,7 @@ int main (void) {
         steerController.setInputLimits(-2, 2);
         steerController.setOutputLimits(-1, 1);
         steerController.reset();
-        decelLastRunTime = timeMillis();
+        steerLastRunTime = timeMillis();
 
         sprintf(outputBuffer, "@PID Received"); //Put data in buffer for tcp client @NOTE @ symbol denotes ok status
       }
