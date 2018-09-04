@@ -101,7 +101,7 @@ float linearRemap(float value, float minX, float maxX, float minY, float maxY) {
 void bangBangSteer(float targetPosition) {
   float currentPosition = linearRemap(pot.read(), potMin, potMax, -1, 1);
   currentPosition = clamp(currentPosition, -1, 1);
-  if (abs(currentPosition - targetPosition) < 0.1) {
+  if (abs(currentPosition - targetPosition) < 0.05) {
     steerPower(0);
   } else {
     steerPower(steerPID.p * (targetPosition - currentPosition));
