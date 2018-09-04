@@ -44,7 +44,7 @@ const float potMax = 0.610;
 
 //Encoder Constants
 const float wheelCircumference = 0.246 * 3.14159; //meters
-const float ticksPerRot = 8637; // TODO update
+const float ticksPerRot = -8637; // TODO update
 const float metersPerTick = wheelCircumference / ticksPerRot;
 
 PIDConstants drivePID, steerPID;
@@ -129,9 +129,12 @@ void steerPower(float x) {
 
 void drivePower(float dutyCycle) {
   float clipDutyCycle = clamp(dutyCycle, -1.0, 1.0); // -1 <= x <= 1
-  printf("ClipDUTYCYLE: %0.2f \r\n", clipDutyCycle);
   clipDutyCycle = -clipDutyCycle;
-  if (clipDutyCycle >= 0) {
+  printf("ClipDUTYCYLE: %0.2f \r\n", clipDutyCycle);
+  if (clipDutyCycle =< 0.02f && clipDutyCycle >= -0.02f) {
+    clipDutyCycle = 0.0f; //clip the minimum value so we don't shift around 0 speed
+  }
+  if (clipDutyCycle >= 0.0f) {
     driverPinMotorA.write(abs(clipDutyCycle));
     driverPinMotorB.write(0.0f);
   } else {
@@ -145,6 +148,7 @@ void drivePower(float dutyCycle) {
 void measureCurrentSpeed() {
   int encoderTicks;
   encoderTicks = driveAxel.getPulses();
+  printf("ENCODER TICKS: %d \r\n", encoderTicks);
   encoderCurrentTime = timeMillis();
 
   float ticksPerSec = (float)encoderTicks * 1000.0 / (float)(encoderCurrentTime-encoderLastTime);
@@ -223,8 +227,9 @@ int main (void) {
         printf("p: %0.2f i: %0.2f d: %0.2f\r\n", drivePID.p, drivePID.i, drivePID.d); //debug
 
         driveController = PID(drivePID.p, drivePID.i, drivePID.d, 0.25);
-        driveController.setInputLimits(0, 1);
-        driveController.setOutputLimits(0, 1);
+        driveController.setInputLimits(-1000.0, 1000.0);
+        driveController.setOutputLimits(-1.0, 1.0);
+        driveController.setBias(0.0);
         driveController.reset();
         driveLastRunTime = timeMillis();
 
