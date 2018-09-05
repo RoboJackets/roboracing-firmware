@@ -42,8 +42,8 @@ const int brakeServoPeriodMs = 20;
 const int brakeServoStopPulse = 1000; //activate braking
 const int brakeServoMovePulse = 2000; //deactivate braking
 
-const float potMin = 0.360;
-const float potMax = 0.610;
+const float potMin = 0.485;//0.360;
+const float potMax = 0.725;//0.610;
 
 //Encoder Constants
 const float wheelCircumference = 0.246 * 3.14159; //meters
@@ -128,13 +128,13 @@ void steerPower(float x) {
   x = linearRemap(x, -1, 1, 0, 1); // convert to 0 <= x <= 1
   int width = (int)(steerPulseMinUs + (steerPulseRangeUs * x));
   driverPinSteer.pulsewidth_us(width);
-  printf("width: %d\r\n", width);
+  //printf("width: %d\r\n", width);
 }
 
 void drivePower(float dutyCycle) {
   float clipDutyCycle = clamp(dutyCycle, -1.0, 1.0); // -1 <= x <= 1
   clipDutyCycle = -clipDutyCycle;
-  printf("ClipDUTYCYLE: %0.2f \r\n", clipDutyCycle);
+  //printf("ClipDUTYCYLE: %0.2f \r\n", clipDutyCycle);
   if (clipDutyCycle <= 0.02f && clipDutyCycle >= -0.02f) {
     clipDutyCycle = 0.0f; //clip the minimum value so we don't shift around 0 speed
   }
@@ -152,7 +152,7 @@ void drivePower(float dutyCycle) {
 void measureCurrentSpeed() {
   int encoderTicks;
   encoderTicks = driveAxel.getPulses();
-  printf("ENCODER TICKS: %d \r\n", encoderTicks);
+  //printf("ENCODER TICKS: %d \r\n", encoderTicks);
   encoderCurrentTime = timeMillis();
 
   float ticksPerSec = (float)encoderTicks * 1000.0 / (float)(encoderCurrentTime-encoderLastTime);
@@ -167,15 +167,15 @@ int main (void) {
   driverPinMotorB.period_us(drivePeriod);
   driverPinSteer.period_ms(steerPeriodMs);
   driverPinBrakeServo.period_ms(brakeServoPeriodMs);
-  
+
   driverPinBrakeServo.pulsewidth_us(brakeServoMovePulse); //deactivates brakes to allow movement
 
-  printf("connect EthernetInterface\r\n");
+  //printf("connect EthernetInterface\r\n");
   EthernetInterface eth;
   eth.init(MBED_IP, 0, 0);
   eth.connect(100000);
 
-  printf("connect TCPSocketServer\r\n");
+  //printf("connect TCPSocketServer\r\n");
   TCPSocketServer server;
   server.bind(ECHO_SERVER_PORT);
   server.listen();
@@ -188,7 +188,7 @@ int main (void) {
     TCPSocketConnection client;
     server.accept(client);
     client.set_blocking(false, 30000); // Timeout after 30s
-    printf("Accepted new client\r\n");
+    //printf("Accepted new client\r\n");
 
     while (true) {
 
@@ -215,11 +215,11 @@ int main (void) {
 
         measureCurrentSpeed();
 
-        printf("DESIREDSPD: %f", desiredSpeed);
-        printf("ACTUALSPD: %f", actualSpeed);
+        //printf("DESIREDSPD: %f", desiredSpeed);
+        //printf("ACTUALSPD: %f", actualSpeed);
         float pidCorrection = getPIDCorrection(desiredSpeed, actualSpeed, &driveController, &driveLastRunTime);
         dutyCycle += pidCorrection;
-        printf("PIDCORRECTION: %f", pidCorrection);
+        //printf("PIDCORRECTION: %f", pidCorrection);
 
         if (desiredSpeed == 0.0f) {
           //apply brakes
@@ -238,7 +238,7 @@ int main (void) {
         drivePID.i = strtod(p,&p);
         drivePID.d = strtod(p,&p);
 
-        printf("p: %0.2f i: %0.2f d: %0.2f\r\n", drivePID.p, drivePID.i, drivePID.d); //debug
+        //printf("p: %0.2f i: %0.2f d: %0.2f\r\n", drivePID.p, drivePID.i, drivePID.d); //debug
 
         driveController = PID(drivePID.p, drivePID.i, drivePID.d, 0.25);
         driveController.setInputLimits(-1000.0, 1000.0);
@@ -268,16 +268,16 @@ int main (void) {
       // Output Ethernet
 
       if (strlen(outputBuffer) > 0) {
-        printf("OutputBuffer: ");
-        printf(outputBuffer);
-        printf("\r\n");
+        //printf("OutputBuffer: ");
+        //printf(outputBuffer);
+        //printf("\r\n");
         n = client.send_all(outputBuffer, sizeof(outputBuffer));
         if (n <= 0)
           break;
       }
 
       // lastUpdate = curTime;
-      wait(0.1);
+      //wait(0.1); //rate limit
     }
     steerPower(0); //end steering on disconnecting
     drivePower(0);
