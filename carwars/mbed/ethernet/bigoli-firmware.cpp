@@ -38,6 +38,9 @@ const int steerPeriodMs = 16;
 const int steerPulseMinUs = 1250;
 const int steerPulseMaxUs = 1750;
 const int steerPulseRangeUs = steerPulseMaxUs - steerPulseMinUs;
+const int brakeServoPeriodMs = 20;
+const int brakeServoStopPulse = 1000; //activate braking
+const int brakeServoMovePulse = 2000; //deactivate braking
 
 const float potMin = 0.360;
 const float potMax = 0.610;
@@ -68,6 +71,7 @@ AnalogIn pot(p15);
 PwmOut driverPinMotorA(p21);
 PwmOut driverPinMotorB(p22);
 PwmOut driverPinSteer(p23);
+PwmOut driverPinBrakeServo(p26);
 const PinName encoderChannelB = p24;
 const PinName encoderChannelA = p25;
 
@@ -131,7 +135,7 @@ void drivePower(float dutyCycle) {
   float clipDutyCycle = clamp(dutyCycle, -1.0, 1.0); // -1 <= x <= 1
   clipDutyCycle = -clipDutyCycle;
   printf("ClipDUTYCYLE: %0.2f \r\n", clipDutyCycle);
-  if (clipDutyCycle =< 0.02f && clipDutyCycle >= -0.02f) {
+  if (clipDutyCycle <= 0.02f && clipDutyCycle >= -0.02f) {
     clipDutyCycle = 0.0f; //clip the minimum value so we don't shift around 0 speed
   }
   if (clipDutyCycle >= 0.0f) {
@@ -162,6 +166,9 @@ int main (void) {
   driverPinMotorA.period_us(drivePeriod);
   driverPinMotorB.period_us(drivePeriod);
   driverPinSteer.period_ms(steerPeriodMs);
+  driverPinBrakeServo.period_ms(brakeServoPeriodMs);
+  
+  driverPinBrakeServo.pulsewidth_us(brakeServoMovePulse); //deactivates brakes to allow movement
 
   printf("connect EthernetInterface\r\n");
   EthernetInterface eth;
@@ -214,6 +221,13 @@ int main (void) {
         dutyCycle += pidCorrection;
         printf("PIDCORRECTION: %f", pidCorrection);
 
+        if (desiredSpeed == 0.0f) {
+          //apply brakes
+          driverPinBrakeServo.pulsewidth_us(brakeServoStopPulse);
+          dutyCycle = 0.0f; //don't send power to motor
+        } else {
+          driverPinBrakeServo.pulsewidth_us(brakeServoMovePulse); //move servo out of the way
+        }
         drivePower(dutyCycle);
         bangBangSteer(steeringTarget);
         //Put data in buffer for tcp client
