@@ -37,13 +37,14 @@ const int mainLoopMillis = 50;
 const int steerPeriodMs = 16;
 const int steerPulseMinUs = 1250;
 const int steerPulseMaxUs = 1750;
+const int steerPulseMidUs = 1500;
 const int steerPulseRangeUs = steerPulseMaxUs - steerPulseMinUs;
 const int brakeServoPeriodMs = 20;
 const int brakeServoStopPulse = 1000; //activate braking
 const int brakeServoMovePulse = 2000; //deactivate braking
 
-const float potMin = 0.485;//0.360;
-const float potMax = 0.725;//0.610;
+const float potMin = 0.370;//0.360;
+const float potMax = 0.642;//0.610;
 
 //Encoder Constants
 const float wheelCircumference = 0.246 * 3.14159; //meters
@@ -74,12 +75,15 @@ PwmOut driverPinSteer(p23);
 PwmOut driverPinBrakeServo(p26);
 const PinName encoderChannelB = p24;
 const PinName encoderChannelA = p25;
+DigitalIn eStopPin(p8, PullUp);
+//eStopPin.mode(PullUp);
 
 QEI driveAxel (encoderChannelA,encoderChannelB, NC, -1);
 Serial serial(USBTX, USBRX);
 Timer timer;
 
 void steerPower(float);
+float getPIDCorrection(float setPoint, float processValue, PID *controller, float *lastRun);
 
 // Timing
 
@@ -110,6 +114,14 @@ void bangBangSteer(float targetPosition) {
   }
 }
 
+void steerControl(float targetPosition) {
+  float currentPosition = linearRemap(pot.read(), potMin, potMax, -1, 1);
+  currentPosition = clamp(currentPosition, -1, 1);
+  float steerPidCorrection = getPIDCorrection(targetPosition, currentPosition, &steerController, &steerLastRunTime);
+  steerPower(steerPidCorrection);
+
+}
+
 float getPIDCorrection(float setPoint, float processValue, PID *controller, float *lastRun){
   // TODO might need to move to end
   float dt = timeMillis() - (unsigned int)lastRun;
@@ -125,10 +137,10 @@ float getPIDCorrection(float setPoint, float processValue, PID *controller, floa
 
 void steerPower(float x) {
   x = clamp(x, -1.0, 1.0); // -1 <= x <= 1
-  x = linearRemap(x, -1, 1, 0, 1); // convert to 0 <= x <= 1
-  int width = (int)(steerPulseMinUs + (steerPulseRangeUs * x));
+  //x = linearRemap(x, -1, 1, 0, 1); // convert to 0 <= x <= 1
+  int width = (int)(steerPulseMidUs + (steerPulseRangeUs * x * 0.5f));
   driverPinSteer.pulsewidth_us(width);
-  //printf("width: %d\r\n", width);
+  printf("width: %d\r\n", width);
 }
 
 void drivePower(float dutyCycle) {
@@ -169,6 +181,8 @@ int main (void) {
   driverPinBrakeServo.period_ms(brakeServoPeriodMs);
 
   driverPinBrakeServo.pulsewidth_us(brakeServoMovePulse); //deactivates brakes to allow movement
+
+  eStopPin.mode(PullUp);
 
   //printf("connect EthernetInterface\r\n");
   EthernetInterface eth;
@@ -217,9 +231,18 @@ int main (void) {
 
         //printf("DESIREDSPD: %f", desiredSpeed);
         //printf("ACTUALSPD: %f", actualSpeed);
-        float pidCorrection = getPIDCorrection(desiredSpeed, actualSpeed, &driveController, &driveLastRunTime);
-        dutyCycle += pidCorrection;
-        //printf("PIDCORRECTION: %f", pidCorrection);
+        if (eStopPin.read()) {
+          //printf("HECK\r\n");
+          float drivePidCorrection = getPIDCorrection(desiredSpeed, actualSpeed, &driveController, &driveLastRunTime);
+          dutyCycle += drivePidCorrection;
+          //printf("PIDCORRECTION: %f", pidCorrection);
+        } else{
+          //E-STOP ON!!!
+          //printf("E-STOP ENABLED\n\r");
+          dutyCycle = 0.0f;
+          driveController.reset(); //resetaccumulated error
+          steerController.reset();
+        }
 
         if (desiredSpeed == 0.0f) {
           //apply brakes
@@ -229,7 +252,8 @@ int main (void) {
           driverPinBrakeServo.pulsewidth_us(brakeServoMovePulse); //move servo out of the way
         }
         drivePower(dutyCycle);
-        bangBangSteer(steeringTarget);
+        //bangBangSteer(steeringTarget);
+        steerControl(steeringTarget);
         //Put data in buffer for tcp client
         sprintf(outputBuffer, "@%.3f %.3f %.3f %.3f", desiredSpeed, pot.read(), steeringTarget, actualSpeed); //@NOTE @ symbol denotes ok status
 
@@ -257,8 +281,9 @@ int main (void) {
         steerPID.d = strtod(p,&p);
 
         steerController = PID(steerPID.p, steerPID.i, steerPID.d, 0.25);
-        steerController.setInputLimits(-2, 2);
+        steerController.setInputLimits(-1, 1);
         steerController.setOutputLimits(-1, 1);
+        steerController.setBias(0.0f);
         steerController.reset();
         steerLastRunTime = timeMillis();
 
