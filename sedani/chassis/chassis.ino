@@ -27,9 +27,6 @@ const int maxSteeringPwm = 1773;
 const int minSteeringPwm = 1347;
 const int centerSteeringPwm = 1560;
 
-const unsigned long backwardsPwm = 1350;
-const long backwardsTime = 300;
-
 // Control Variables
 float currentSteeringAngle = 0;
 float desiredSteeringAngle = 0;
@@ -205,11 +202,8 @@ void loop()
 
 unsigned long escPwmFromMetersPerSecond(float velocity)
 {
-  if(velocity < 0) {
-    return backwardsPwm;
-  }
-  if(velocity == 0){
-    return 0;
+  if(velocity <= 0) {
+    return SpeedLUT[0][0];
   }
   double prevLUTVelocity = 0.0;
   for(int i = 1; i < 86; i++) {
@@ -269,6 +263,7 @@ bool getMessage()
 void sendFeedback(const double* feedbackValues, const int feedbackCount) {
   String message = "$";
   for (int i = 0; i < feedbackCount; i++) {
+    message.concat(feedbackValues[i]);
     if(i < feedbackCount-1) {
       message.concat(",");
     }
@@ -317,21 +312,15 @@ void runStateManual() {
 }
 
 void runStateAutonomous() {
+  if(currentSpeed != desiredSpeed) {
+    currentSpeed = desiredSpeed;
+    unsigned long newEscPwm = escPwmFromMetersPerSecond(desiredSpeed);
+    esc.write(newEscPwm);
+  }
   if(currentSteeringAngle != desiredSteeringAngle) {
     currentSteeringAngle = desiredSteeringAngle;
     unsigned long newSteerPwm = servoPwmFromRadians(desiredSteeringAngle);
     steering.write(newSteerPwm);
   }
-//  if(currentSpeed != desiredSpeed) {
-    currentSpeed = desiredSpeed;
-    unsigned long newEscPwm = escPwmFromMetersPerSecond(desiredSpeed);
-    if(newEscPwm < SpeedLUT[0][0]){
-      delay(backwardsTime);
-      esc.write(0);
-      delay(backwardsTime);
-    }
-    esc.write(newEscPwm);
-    
-//  }
 }
 
