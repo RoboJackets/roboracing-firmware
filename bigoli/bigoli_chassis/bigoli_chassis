@@ -12,14 +12,14 @@
 
 /*
   @NOTE
-  This firmware is designed to be used with the bigoli_ethernet_drive_relay ROS node
+    This firmware is for MBED based shield for Bigoli that controls both the drive and steering of the chassis.
+  Use this with the rr_platform/bigoli_ethernet_drive_relay ROS node
   PID message is prefaced with a # ; EX: #p i d p i d p i d
-  Steering and speed message is prefaced with a $ ; EX: $speed steeringANgle
+  Steering and speed message is prefaced with a $ ; EX: $speed steeringAngle
 
   On receiving a message, this server must respond with an @ and an optional message EX: @PID Received
   This @ symbol denotes messages received properly (OK status)
   The client will wait for the @ symbol before next msg
-
 */
 
 
