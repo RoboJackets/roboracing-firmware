@@ -15,7 +15,7 @@ const int wirelessPinB = 15;
 const int wirelessPinD = 16;
 
 // Control Limits
-const float maxSpeed = 3; // maximum velocity 
+const float maxSpeed = 3; // maximum velocity
 const float minSpeed = -1;
 
 const int centerSpeedPwm = 1492;
@@ -44,7 +44,7 @@ float steerSum = 0;
 
 // Timeout Variables
 unsigned long lastMessageTime;
-bool isTimedOut = true; 
+bool isTimedOut = true;
 
 // E-Stop Variables (true means the car can't move)
 bool buttonEstopActive = false;
@@ -84,11 +84,11 @@ void setup()
     pinMode(rcEscPin, INPUT);
     pinMode(rcSteerPin, INPUT);
     pinMode(isManualPin, INPUT);
-    
+
     pinMode(speakerOutputPin, OUTPUT);
     pinMode(escPin, OUTPUT);
     pinMode(steerPin, OUTPUT);
-    
+
     esc.attach(escPin);
     steering.attach(steerPin);
 
@@ -96,15 +96,15 @@ void setup()
     esc.write(centerSpeedPwm);
 
     Serial.begin(115200);
-    
+
     lastMessageTime = millis();
     isTimedOut = true;
-    
+
     playSong(3);
 }
 
 void loop()
-{   
+{
   bool gotMessage = getMessage();
 
   //if we haven't received a message from the NUC in a while, stop driving
@@ -114,13 +114,13 @@ void loop()
   } else if ((lastMessageTime + 1000) < millis()) {
     isTimedOut = true;
   }
-  
+
   bool wirelessStateB = digitalRead(wirelessPinB);
   bool wirelessStateC = digitalRead(wirelessPinC);
   bool wirelessStateD = digitalRead(wirelessPinD);
   isManual = digitalRead(isManualPin);
   buttonEstopActive = !digitalRead(buttonEstopPin);
-  
+
   wirelessEstopActive = !(wirelessStateB || wirelessStateC || wirelessStateD);
 
   bool isEstopped = wirelessEstopActive || buttonEstopActive;
@@ -192,11 +192,11 @@ void loop()
     double values[] = {currentState, currentSpeed, currentSteeringAngle};
     sendFeedback(values, sizeof(values)/sizeof(double));
   }
-  
+
   prevWirelessStateB = wirelessStateB;
   prevWirelessStateC = wirelessStateC;
   prevWirelessStateD = wirelessStateD;
-  
+
   delay(25);
 }
 
@@ -222,26 +222,31 @@ float metersPerSecondFromEscPwm(unsigned long pwm) {
   return SpeedLUT[index][1];
 }
 
+float linearMap(float x, float in_min, float in_max, float out_min, float out_max) {
+  //@note this is the same as the arduino map() function but with floating point math
+  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
 float radiansFromServoPwm(unsigned long pwm) {
-  float distanceFromCenter = ((int)pwm) - centerSteeringPwm;
-  if(distanceFromCenter > 0) {
-    float prop = distanceFromCenter / (maxSteeringPwm - centerSteeringPwm);
-    return prop * maxSteeringAngle;
+  //@note the maximum steering pwm is actually going to a negative radian value (to the left)
+  //and the min steering pwm is actually going to the right in the positive direction
+  if(pwm < centerSteeringPwm) {
+    return linearMap((float)pwm, centerSteeringPwm, maxSteeringPwm, 0.0, minSteeringAngle);
   } else {
-    float prop = distanceFromCenter / (minSteeringPwm - centerSteeringPwm);
-    return prop * minSteeringAngle;
+    return linearMap((float)pwm, minSteeringPwm, centerSteeringPwm, minSteeringAngle. 0.0);
   }
 }
 
 unsigned long servoPwmFromRadians(float radians) {
-  if(radians > 0) {
-    float prop = radians / maxSteeringAngle;
-    return (prop * ( maxSteeringPwm - centerSteeringPwm)) + centerSteeringPwm;
+  //@note the maximum steering pwm is actually going to a negative radian value (to the left)
+  //and the min steering pwm is actually going to the right in the positive direction
+  if (radians < 0.0) {
+    return linearMap(radians, minSteeringAngle, 0.0, maxSteeringPwm, centerSteeringPwm);
   } else {
-    float prop = radians / minSteeringAngle;
-    return (prop * (minSteeringPwm - centerSteeringPwm)) + centerSteeringPwm;
+    return linearMap(radians, 0.0, maxSteeringAngle, centerSteeringPwm, minSteeringPwm);
   }
 }
+
 
 bool getMessage()
 {
@@ -323,4 +328,3 @@ void runStateAutonomous() {
     steering.write(newSteerPwm);
   }
 }
-
