@@ -7,11 +7,11 @@ import subprocess
 import time
 from glob import glob
 
-if len(sys.argv) != 2:
-    print "usage: mbed-run [path to main file]"
+if len(sys.argv) != 3:
+    print "usage: mbed-run [path to main file] [path to MBED]"
     sys.exit(-1)
 
-mbed_dir = path.expandvars("/media/$USER/MBED")
+mbed_dir = sys.argv[2]
 root = path.dirname(path.abspath(__file__))
 libs_dir = path.join(root, "mbed-libs")
 arm_libs_dir = path.join(root, "mbed-libs/mbed/TARGET_LPC1768/TOOLCHAIN_GCC_ARM")
