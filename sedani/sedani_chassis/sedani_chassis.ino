@@ -55,6 +55,14 @@ bool prevWirelessStateB = false;
 bool prevWirelessStateC = false;
 bool prevWirelessStateD = false;
 
+//Speed Calculation
+const int speedSensor = 2;
+
+volatile float speed = 0.0;
+volatile long pTime = micros();
+volatile int interruptCount = 0;
+int pInterruptCount = 0;
+
 // Songs!
 int songInformation0[2] = {NOTE_C4, NOTE_C4};
 int songInformation1[2] = {NOTE_C5, NOTE_C4};
@@ -84,7 +92,8 @@ void setup()
     pinMode(rcEscPin, INPUT);
     pinMode(rcSteerPin, INPUT);
     pinMode(isManualPin, INPUT);
-    
+    pinMode(speedSensor, INPUT);
+    attachInterrupt(digitalPinToInterrupt(speedSensor), calcSpeed, RISING);
     pinMode(speakerOutputPin, OUTPUT);
     pinMode(escPin, OUTPUT);
     pinMode(steerPin, OUTPUT);
@@ -189,14 +198,15 @@ void loop()
   }
 
   if(gotMessage) {
-    double values[] = {currentState, currentSpeed, currentSteeringAngle};
+    double values[] = {currentState, speed, currentSteeringAngle};
     sendFeedback(values, sizeof(values)/sizeof(double));
   }
   
   prevWirelessStateB = wirelessStateB;
   prevWirelessStateC = wirelessStateC;
   prevWirelessStateD = wirelessStateD;
-  
+
+  pInterruptCount = interruptCount;
   delay(25);
 }
 
@@ -307,7 +317,11 @@ void runStateManual() {
   steerIndex = (steerIndex + 1) % bufferSize;
   speedSum -= speedBuffer[speedIndex];
   steerSum -= steerBuffer[steerIndex];
-  currentSpeed = speedSum / bufferSize;
+  //currentSpeed = speedSum / bufferSize;
+  if(interruptCount-pInterruptCount == 0){
+    speed = 0;
+  }
+  currentSpeed = speed;
   currentSteeringAngle = steerSum / bufferSize;
 }
 
@@ -324,3 +338,14 @@ void runStateAutonomous() {
   }
 }
 
+void calcSpeed(){
+  long cTime = micros();
+  if(pTime != cTime){
+    speed = 1000000.0/(cTime - pTime);
+  }
+  else{
+    speed = 0;
+  }
+  pTime = cTime;
+  interruptCount ++;
+}
