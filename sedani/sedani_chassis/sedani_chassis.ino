@@ -228,8 +228,7 @@ float linearMap(float x, float in_min, float in_max, float out_min, float out_ma
 }
 
 float radiansFromServoPwm(unsigned long pwm) {
-  //@note the maximum steering pwm is actually going to a negative radian value (to the left)
-  //and the min steering pwm is actually going to the right in the positive direction
+  //@note This is split into two to ensure that a center pwm actually maps to our 0 exactly
   if(pwm < centerSteeringPwm) {
     return linearMap((float)pwm, minSteeringPwm, centerSteeringPwm, minSteeringAngle, 0.0);
   } else {
@@ -238,8 +237,7 @@ float radiansFromServoPwm(unsigned long pwm) {
 }
 
 unsigned long servoPwmFromRadians(float radians) {
-  //@note the maximum steering pwm is actually going to a negative radian value (to the left)
-  //and the min steering pwm is actually going to the right in the positive direction
+  //@note This is split into two to ensure that 0 radians actually maps to our center pwm exactly
   if (radians < 0.0) {
     return linearMap(radians, minSteeringAngle, 0.0, minSteeringPwm, centerSteeringPwm);
   } else {
