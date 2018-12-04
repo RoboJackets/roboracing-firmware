@@ -13,7 +13,7 @@
 //   NEO_GRB     Pixels are wired for GRB bitstream (most NeoPixel products)
 //   NEO_RGB     Pixels are wired for RGB bitstream (v1 FLORA pixels, not v2)
 //   NEO_RGBW    Pixels are wired for RGBW bitstream (NeoPixel RGBW products)
-Adafruit_NeoPixel strip = Adafruit_NeoPixel(180, PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(180, PIN, NEO_RGBW + NEO_KHZ800);
 
 // IMPORTANT: To reduce NeoPixel burnout risk, add 1000 uF capacitor across
 // pixel power leads, add 300 - 500 Ohm resistor on first pixel's data input
@@ -27,21 +27,42 @@ void setup() {
   #endif
   // End of trinket special code
 
-
+  randomSeed(6);
   strip.begin();
+  Serial.begin(9600);
   strip.show(); // Initialize all pixels to 'off'
 }
 
 void loop() {
-  strip.setPixelColor(119, color);
+  colorWipe();
 }
 
 // Fill the dots one after the other with a color
-void colorWipe(uint32_t c, uint8_t wait) {
-  for(uint16_t i=0; i<strip.numPixels(); i++) {
-    strip.setPixelColor(i, c);
+void colorWipe() {
+  for(uint16_t i=0; i< 180; i++) {
+    if (i == 0) {
+      strip.setPixelColor(179, 0, 0, 0, 0);
+      strip.setPixelColor(0, 0, 0, 0, 0);
+    } else {
+      strip.setPixelColor(i - 1, 0, 0, 0, 0);
+      strip.setPixelColor(180 - (i - 1), 0, 0, 0, 0);
+    }
+    int r = random(0, 255);
+    int g = random(0, 255);
+    int b = random(0, 255);
+    int w = random(255);
+    if (w % 3 == 0){
+    strip.setPixelColor(i, r, 0, 0, 0);
+    strip.setPixelColor(180 - i, r, 0, 0, 0);
+    } else if (w % 3 == 1){
+    strip.setPixelColor(i, 0, g, 0, 0);
+    strip.setPixelColor(180 - i, 0, g, 0, 0);
+    } else{
+    strip.setPixelColor(i, 0, 0, b, 0);
+    strip.setPixelColor(180 - i, 0, 0, b, 0);
+    }
     strip.show();
-    delay(wait);
+    delay(10);
   }
 }
 
