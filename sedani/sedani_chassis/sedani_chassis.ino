@@ -56,12 +56,12 @@ bool prevWirelessStateC = false;
 bool prevWirelessStateD = false;
 
 //Speed Calculation
-const int speedSensor = 2;
-
-volatile float speed = 0.0;
-volatile long pTime = micros();
+const int speedSensorPin = 2;
+volatile float measuredSpeed = 0.0;
+volatile unsigned long prevTime = micros();
 volatile int interruptCount = 0;
-int pInterruptCount = 0;
+const float speedScalingFactor = 1000000.0;
+int prevInterruptCount = 0;
 
 // Songs!
 int songInformation0[2] = {NOTE_C4, NOTE_C4};
@@ -92,8 +92,8 @@ void setup()
     pinMode(rcEscPin, INPUT);
     pinMode(rcSteerPin, INPUT);
     pinMode(isManualPin, INPUT);
-    pinMode(speedSensor, INPUT);
-    attachInterrupt(digitalPinToInterrupt(speedSensor), calcSpeed, RISING);
+    pinMode(speedSensorPin, INPUT_PULLUP);
+    attachInterrupt(digitalPinToInterrupt(speedSensorPin), calcSpeed, RISING);
     pinMode(speakerOutputPin, OUTPUT);
     pinMode(escPin, OUTPUT);
     pinMode(steerPin, OUTPUT);
@@ -198,7 +198,7 @@ void loop()
   }
 
   if(gotMessage) {
-    double values[] = {currentState, speed, currentSteeringAngle};
+    double values[] = {currentState, measuredSpeed, currentSteeringAngle};
     sendFeedback(values, sizeof(values)/sizeof(double));
   }
   
@@ -206,7 +206,7 @@ void loop()
   prevWirelessStateC = wirelessStateC;
   prevWirelessStateD = wirelessStateD;
 
-  pInterruptCount = interruptCount;
+  prevInterruptCount = interruptCount;
   delay(25);
 }
 
@@ -318,10 +318,10 @@ void runStateManual() {
   speedSum -= speedBuffer[speedIndex];
   steerSum -= steerBuffer[steerIndex];
   //currentSpeed = speedSum / bufferSize;
-  if(interruptCount-pInterruptCount == 0){
-    speed = 0;
+  if((interruptCount - prevInterruptCount) == 0){
+    measuredSpeed = 0;
   }
-  currentSpeed = speed;
+  currentSpeed = measuredSpeed;
   currentSteeringAngle = steerSum / bufferSize;
 }
 
@@ -339,13 +339,13 @@ void runStateAutonomous() {
 }
 
 void calcSpeed(){
-  long cTime = micros();
-  if(pTime != cTime){
-    speed = 1000000.0/(cTime - pTime);
+  unsigned long currentTime = micros();
+  if(prevTime != currentTime){
+    measuredSpeed = speedScalingFactor/(currentTime - prevTime);
   }
   else{
-    speed = 0;
+    measuredSpeed = 0.0;
   }
-  pTime = cTime;
+  prevTime = currentTime;
   interruptCount ++;
 }
