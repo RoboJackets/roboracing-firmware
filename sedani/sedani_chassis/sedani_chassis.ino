@@ -44,7 +44,7 @@ float steerSum = 0;
 
 // Timeout Variables
 unsigned long lastMessageTime;
-bool isTimedOut = true; 
+bool isTimedOut = false; 
 
 // E-Stop Variables (true means the car can't move)
 bool buttonEstopActive = false;
@@ -56,12 +56,16 @@ bool prevWirelessStateC = false;
 bool prevWirelessStateD = false;
 
 //Speed Calculation
-const int speedSensorPin = 2;
-volatile float measuredSpeed = 0.0;
-volatile unsigned long prevTime = micros();
-volatile int interruptCount = 0;
-const float speedScalingFactor = 1000000.0;
-int prevInterruptCount = 0;
+const int speedSensorPin = 7;
+float measuredSpeed = 0.0;
+volatile unsigned long prevSampleTime = micros();
+volatile unsigned long currSampleTime = micros();
+volatile unsigned int interruptCount = 0;
+unsigned int prevInterruptCount = 0;
+//Use a speedScaling factor of 2426595.48 for RPM
+//Converts frequency of sensor to m/s
+const float speedScalingFactor = 9312.53;
+
 
 // Songs!
 int songInformation0[2] = {NOTE_C4, NOTE_C4};
@@ -93,7 +97,7 @@ void setup()
     pinMode(rcSteerPin, INPUT);
     pinMode(isManualPin, INPUT);
     pinMode(speedSensorPin, INPUT_PULLUP);
-    attachInterrupt(digitalPinToInterrupt(speedSensorPin), calcSpeed, RISING);
+    attachInterrupt(digitalPinToInterrupt(speedSensorPin), measureSpeed, FALLING);
     pinMode(speakerOutputPin, OUTPUT);
     pinMode(escPin, OUTPUT);
     pinMode(steerPin, OUTPUT);
@@ -107,7 +111,7 @@ void setup()
     Serial.begin(115200);
     
     lastMessageTime = millis();
-    isTimedOut = true;
+    //isTimedOut = true;
     
     playSong(3);
 }
@@ -121,8 +125,10 @@ void loop()
     isTimedOut = false;
     lastMessageTime = millis();
   } else if ((lastMessageTime + 1000) < millis()) {
-    isTimedOut = true;
+    //isTimedOut = true;
   }
+
+  calculateSpeed();
   
   bool wirelessStateB = digitalRead(wirelessPinB);
   bool wirelessStateC = digitalRead(wirelessPinC);
@@ -318,10 +324,6 @@ void runStateManual() {
   speedSum -= speedBuffer[speedIndex];
   steerSum -= steerBuffer[steerIndex];
   //currentSpeed = speedSum / bufferSize;
-  if((interruptCount - prevInterruptCount) == 0){
-    measuredSpeed = 0;
-  }
-  currentSpeed = measuredSpeed;
   currentSteeringAngle = steerSum / bufferSize;
 }
 
@@ -338,14 +340,21 @@ void runStateAutonomous() {
   }
 }
 
-void calcSpeed(){
-  unsigned long currentTime = micros();
-  if(prevTime != currentTime){
-    measuredSpeed = speedScalingFactor/(currentTime - prevTime);
-  }
-  else{
-    measuredSpeed = 0.0;
-  }
-  prevTime = currentTime;
-  interruptCount ++;
+void measureSpeed(){
+  currSampleTime = micros();  
+  interruptCount++;
 }
+
+void calculateSpeed(){
+  const unsigned long currTime = currSampleTime;
+  const unsigned long prevTime = prevSampleTime;
+  if(currTime != prevTime){
+    measuredSpeed = (speedScalingFactor*(interruptCount-prevInterruptCount))/(currTime - prevTime);
+    prevSampleTime = currSampleTime;
+  }else{
+    measuredSpeed = 0;
+    interruptCount = 0;
+  }
+  prevInterruptCount = interruptCount;
+}
+
