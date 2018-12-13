@@ -44,7 +44,7 @@ float steerSum = 0;
 
 // Timeout Variables
 unsigned long lastMessageTime;
-bool isTimedOut = false; 
+bool isTimedOut = true; 
 
 // E-Stop Variables (true means the car can't move)
 bool buttonEstopActive = false;
@@ -111,7 +111,7 @@ void setup()
     Serial.begin(115200);
     
     lastMessageTime = millis();
-    //isTimedOut = true;
+    isTimedOut = true;
     
     playSong(3);
 }
@@ -125,7 +125,7 @@ void loop()
     isTimedOut = false;
     lastMessageTime = millis();
   } else if ((lastMessageTime + 1000) < millis()) {
-    //isTimedOut = true;
+    isTimedOut = true;
   }
 
   calculateSpeed();
