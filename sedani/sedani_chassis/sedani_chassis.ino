@@ -175,7 +175,7 @@ void loop()
     steering.write(centerSteeringPwm);
     esc.write(centerSpeedPwm);
     playSong(0);
-  } else if(isManual && !isEstopped && currentState != STATE_MANUAL) {
+  } else if(isManual && currentState != STATE_MANUAL) {
     currentState = STATE_MANUAL;
     steering.write(centerSteeringPwm);
     esc.write(centerSpeedPwm);
@@ -197,11 +197,11 @@ void loop()
     currentState = STATE_BRAKING;
     consecutiveZeroSpeed = 0;
     playSong(4);
-  } else if(currentState == STATE_BRAKING && !isTimedOut && !isEstopped && !isManual && consecutiveZeroSpeed > minConsecutiveZero) {
+  } else if(currentState == STATE_BRAKING && !isTimedOut && !isEstopped && !isManual && consecutiveZeroSpeed > minConsecutiveZero && desiredSpeed < 0.0) {
     currentState = STATE_STOPPED;
     consecutiveStop = 0;
     playSong(5);
-  } else if(currentState == STATE_STOPPED && !isTimedOut && !isEstopped && !isManual && consecutiveStop > minConsecutiveStop) {
+  } else if(currentState == STATE_STOPPED && !isTimedOut && !isEstopped && !isManual && consecutiveStop > minConsecutiveStop && desiredSpeed < 0.0) {
     currentState = STATE_REVERSE;
   }
 
@@ -413,8 +413,6 @@ void runStateReverse() {
    unsigned long noteDuration = 50;
    tone(speakerOutputPin, NOTE_C7, noteDuration);
    noTone(speakerOutputPin);
-   
-  
 }
 
 // Speed measurement
