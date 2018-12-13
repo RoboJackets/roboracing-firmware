@@ -67,11 +67,21 @@ unsigned int prevInterruptCount = 0;
 const float speedScalingFactor = 9312.53;
 
 
+// Reverse
+const unsigned long brakePwm = 1300;
+byte consecutiveZeroSpeed = 0;
+const byte minConsecutiveZero = 3;
+unsigned int consecutiveStop = 0;
+unsigned int minConsecutiveStop = 200;
+const unsigned long reversePwm = 1375;
+
 // Songs!
 int songInformation0[2] = {NOTE_C4, NOTE_C4};
 int songInformation1[2] = {NOTE_C5, NOTE_C4};
 int songInformation2[2] = {NOTE_C4, NOTE_C5};
 int songInformation3[2] = {NOTE_C5, NOTE_C5};
+int songInformation4[2] = {NOTE_C4, NOTE_C6};
+int songInformation5[2] = {NOTE_C6, NOTE_C6};
 
 // Manual Variables (true means human drives)
 bool isManual = true;
@@ -84,7 +94,10 @@ enum ChassisState {
   STATE_MANUAL,
   STATE_AUTONOMOUS,
   STATE_ESTOPPED,
-  STATE_TIMEOUT
+  STATE_TIMEOUT,
+  STATE_BRAKING,
+  STATE_STOPPED,
+  STATE_REVERSE
 } currentState = STATE_ESTOPPED;
 
 void setup()
@@ -167,21 +180,29 @@ void loop()
     steering.write(centerSteeringPwm);
     esc.write(centerSpeedPwm);
     playSong(3);
-  } else if( (currentState == STATE_ESTOPPED || currentState == STATE_MANUAL) && (!isEstopped && !isManual)) {
+  } else if((currentState == STATE_ESTOPPED || currentState == STATE_MANUAL) && (!isEstopped && !isManual)) {
     currentState = STATE_TIMEOUT;
     steering.write(centerSteeringPwm);
     esc.write(centerSpeedPwm);
     playSong(1);
-  } else if(currentState == STATE_TIMEOUT && !isTimedOut && !isEstopped && !isManual) {
+  } else if((!isTimedOut && !isEstopped && !isManual) && (currentState == STATE_TIMEOUT || currentState == STATE_BRAKING || currentState == STATE_STOPPED || currentState == STATE_REVERSE)  && desiredSpeed > 0.0) {
     currentState = STATE_AUTONOMOUS;
-    desiredSteeringAngle = 0.0;
-    desiredSpeed = 0.0;
     playSong(2);
   } else if(currentState == STATE_AUTONOMOUS && isTimedOut && !isEstopped && !isManual) {
     currentState = STATE_TIMEOUT;
     steering.write(centerSteeringPwm);
     esc.write(centerSpeedPwm);
     playSong(1);
+  } else if(currentState == STATE_AUTONOMOUS && !isTimedOut && !isEstopped && !isManual && desiredSpeed <= 0.0) {
+    currentState = STATE_BRAKING;
+    consecutiveZeroSpeed = 0;
+    playSong(4);
+  } else if(currentState == STATE_BRAKING && !isTimedOut && !isEstopped && !isManual && consecutiveZeroSpeed > minConsecutiveZero) {
+    currentState = STATE_STOPPED;
+    consecutiveStop = 0;
+    playSong(5);
+  } else if(currentState == STATE_STOPPED && !isTimedOut && !isEstopped && !isManual && consecutiveStop > minConsecutiveStop) {
+    currentState = STATE_REVERSE;
   }
 
   /*
@@ -199,6 +220,15 @@ void loop()
       break;
     case STATE_TIMEOUT:
       break;
+    case STATE_BRAKING:
+      runStateBraking();
+      break;
+    case STATE_STOPPED:
+      runStateStopped();
+      break;
+    case STATE_REVERSE:
+      runStateReverse();
+      break;
     default:
       break;
   }
@@ -212,7 +242,6 @@ void loop()
   prevWirelessStateC = wirelessStateC;
   prevWirelessStateD = wirelessStateD;
 
-  prevInterruptCount = interruptCount;
   delay(25);
 }
 
@@ -289,7 +318,7 @@ void sendFeedback(const double* feedbackValues, const int feedbackCount) {
 
 void playSong(int number){
   for (int thisNote = 0; thisNote < 2; thisNote++) {
-    int noteDuration = 125;
+    unsigned long noteDuration = 125;
     switch(number) {
       case 0:
         tone(speakerOutputPin, songInformation0[thisNote], noteDuration);
@@ -303,6 +332,12 @@ void playSong(int number){
       case 3:
         tone(speakerOutputPin, songInformation3[thisNote], noteDuration);
         break;
+      case 4:
+        tone(speakerOutputPin, songInformation4[thisNote], noteDuration);
+        break;
+      case 5:
+        tone(speakerOutputPin, songInformation5[thisNote], noteDuration);
+        break;
       default:
         break;
     }
@@ -311,6 +346,8 @@ void playSong(int number){
     noTone(speakerOutputPin);
   }
 }
+
+// State functions
 
 void runStateManual() {
   unsigned long currentEscPwm = pulseIn(rcEscPin,HIGH);
@@ -339,6 +376,48 @@ void runStateAutonomous() {
     steering.write(newSteerPwm);
   }
 }
+
+void runStateBraking() {
+  if(measuredSpeed != 0.0){
+    esc.write(brakePwm);
+  }else{
+    consecutiveZeroSpeed++;
+  }
+
+  if(currentSteeringAngle != desiredSteeringAngle) {
+    currentSteeringAngle = desiredSteeringAngle;
+    unsigned long newSteerPwm = servoPwmFromRadians(desiredSteeringAngle);
+    steering.write(newSteerPwm);
+  }
+}
+
+void runStateStopped() {
+  esc.write(centerSpeedPwm);
+  consecutiveStop++;
+
+  if(currentSteeringAngle != desiredSteeringAngle) {
+    currentSteeringAngle = desiredSteeringAngle;
+    unsigned long newSteerPwm = servoPwmFromRadians(desiredSteeringAngle);
+    steering.write(newSteerPwm);
+  }
+}
+
+void runStateReverse() {
+  esc.write(reversePwm);
+  if(currentSteeringAngle != desiredSteeringAngle) {
+    currentSteeringAngle = desiredSteeringAngle;
+    unsigned long newSteerPwm = servoPwmFromRadians(desiredSteeringAngle);
+    steering.write(newSteerPwm);
+   }
+   //Back up beeps >)
+   unsigned long noteDuration = 50;
+   tone(speakerOutputPin, NOTE_C7, noteDuration);
+   noTone(speakerOutputPin);
+   
+  
+}
+
+// Speed measurement
 
 void measureSpeed(){
   currSampleTime = micros();  
