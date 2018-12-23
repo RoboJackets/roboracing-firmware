@@ -66,6 +66,14 @@ unsigned int prevInterruptCount = 0;
 //Converts frequency of sensor to m/s
 const float speedScalingFactor = 9312.53;
 
+//PID Speed Control
+double integral = 0.0;
+double derivative = 0.0;
+double prevError = 0.0;
+double kP = 0.0;
+double kI = 0.0;
+double kD = 0.0;
+
 
 // Reverse
 const unsigned long brakePwm = 1300;
@@ -258,6 +266,26 @@ unsigned long escPwmFromMetersPerSecond(float velocity)
     }
   }
   return SpeedLUT[85][0];
+}
+
+
+unsigned long escPwmPID(float velocity)
+{
+  if(velocity <= 0) {
+    return SpeedLUT[0][0];
+  }
+  else{
+    double error = velocity - measuredSpeed;
+    int pwm = kP * error + kI * integral + kD * derivative;
+    pwm = constrain(pwm, 0, maxPwm); //control limits
+    if(pwm != maxPwm){ //integral windup protection
+        integral += 0.025 * (prevError + error) * 0.25; //Trapezoid Rule integration.  Assumes 25ms execution time for every loop
+    }
+    derivative += (error - prevError)/ 0.025; //difference derivative.  Also assumes 25ms execution time
+    prevError = error;
+    return pwm;
+  }
+
 }
 
 float metersPerSecondFromEscPwm(unsigned long pwm) {
