@@ -268,6 +268,7 @@ unsigned long escPwmFromMetersPerSecond(float velocity)
   return SpeedLUT[85][0];
 }
 
+float maxPwm = escPwmFromMetersPerSecond(maxSpeed);
 
 unsigned long escPwmPID(float velocity)
 {
@@ -276,14 +277,14 @@ unsigned long escPwmPID(float velocity)
   }
   else{
     double error = velocity - measuredSpeed;
-    int pwm = kP * error + kI * integral + kD * derivative;
+    int pwm = kP * error + kI * integral + kD * derivative + escPwmFromMetersPerSecond(velocity);
     pwm = constrain(pwm, 0, maxPwm); //control limits
     if(pwm != maxPwm){ //integral windup protection
         integral += 0.025 * (prevError + error) * 0.25; //Trapezoid Rule integration.  Assumes 25ms execution time for every loop
     }
     derivative += (error - prevError)/ 0.025; //difference derivative.  Also assumes 25ms execution time
     prevError = error;
-    return pwm;
+    return pwm + centerSpeedPwm;
   }
 
 }
