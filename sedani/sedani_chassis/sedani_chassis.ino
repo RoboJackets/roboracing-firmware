@@ -77,10 +77,14 @@ double kD = 0.0;
 
 // Reverse
 const unsigned long brakePwm = 1300;
-byte consecutiveZeroSpeed = 0;
-const byte minConsecutiveZero = 3;
+const float minBrakingSpeed = 0.05;
+
+unsigned int consecutiveZeroSpeed = 0;
+const unsigned int minConsecutiveZero = 3;
+
 unsigned int consecutiveStop = 0;
-unsigned int minConsecutiveStop = 200;
+const unsigned int minConsecutiveStop = 8;
+
 const unsigned long reversePwm = 1375;
 
 // Songs!
@@ -100,7 +104,7 @@ Servo steering;
 
 enum ChassisState {
   STATE_MANUAL,
-  STATE_AUTONOMOUS,
+  STATE_FORWARD,
   STATE_ESTOPPED,
   STATE_TIMEOUT,
   STATE_BRAKING,
@@ -178,38 +182,39 @@ void loop()
   /*
    * STATE MACHINE TRANSITIONS
    */
-  if(isEstopped && currentState != STATE_ESTOPPED) {
+  if(isEstopped) {
+    if(currentState != STATE_ESTOPPED){
+      playSong(0);
+    }
     currentState = STATE_ESTOPPED;
     steering.write(centerSteeringPwm);
     esc.write(centerSpeedPwm);
-    playSong(0);
-  } else if(isManual && currentState != STATE_MANUAL) {
+  } else if(isManual) {
+    if(currentState != STATE_MANUAL){
+      playSong(3);
+    }
     currentState = STATE_MANUAL;
     steering.write(centerSteeringPwm);
     esc.write(centerSpeedPwm);
-    playSong(3);
-  } else if((currentState == STATE_ESTOPPED || currentState == STATE_MANUAL) && (!isEstopped && !isManual)) {
+  } else if(isTimedOut && (currentState != STATE_ESTOPPED || currentState != STATE_MANUAL)) {
+    if(currentState != STATE_TIMEOUT){
+      playSong(1);
+    }
     currentState = STATE_TIMEOUT;
     steering.write(centerSteeringPwm);
     esc.write(centerSpeedPwm);
-    playSong(1);
-  } else if((!isTimedOut && !isEstopped && !isManual) && (currentState == STATE_TIMEOUT || currentState == STATE_BRAKING || currentState == STATE_STOPPED || currentState == STATE_REVERSE)  && desiredSpeed > 0.0) {
-    currentState = STATE_AUTONOMOUS;
+  } else if(desiredSpeed >= 0.0 && currentState != STATE_FORWARD) {
+    currentState = STATE_FORWARD;
     playSong(2);
-  } else if(currentState == STATE_AUTONOMOUS && isTimedOut && !isEstopped && !isManual) {
-    currentState = STATE_TIMEOUT;
-    steering.write(centerSteeringPwm);
-    esc.write(centerSpeedPwm);
-    playSong(1);
-  } else if(currentState == STATE_AUTONOMOUS && !isTimedOut && !isEstopped && !isManual && desiredSpeed <= 0.0) {
+  } else if(desiredSpeed < 0.0 && currentState == STATE_FORWARD) {
     currentState = STATE_BRAKING;
     consecutiveZeroSpeed = 0;
     playSong(4);
-  } else if(currentState == STATE_BRAKING && !isTimedOut && !isEstopped && !isManual && consecutiveZeroSpeed > minConsecutiveZero && desiredSpeed < 0.0) {
+  } else if(desiredSpeed < 0.0 && consecutiveZeroSpeed > minConsecutiveZero && currentState == STATE_BRAKING) {
     currentState = STATE_STOPPED;
     consecutiveStop = 0;
     playSong(5);
-  } else if(currentState == STATE_STOPPED && !isTimedOut && !isEstopped && !isManual && consecutiveStop > minConsecutiveStop && desiredSpeed < 0.0) {
+  } else if(desiredSpeed < 0.0 && consecutiveStop > minConsecutiveStop && currentState == STATE_STOPPED) {
     currentState = STATE_REVERSE;
   }
 
@@ -223,8 +228,8 @@ void loop()
     case STATE_MANUAL:
       runStateManual();
       break;
-    case STATE_AUTONOMOUS:
-      runStateAutonomous();
+    case STATE_FORWARD:
+      runStateForward();
       break;
     case STATE_TIMEOUT:
       break;
@@ -393,12 +398,11 @@ void runStateManual() {
   currentSteeringAngle = steerSum / bufferSize;
 }
 
-void runStateAutonomous() {
-  if(currentSpeed != desiredSpeed) {
-    currentSpeed = desiredSpeed;
-    unsigned long newEscPwm = escPwmFromMetersPerSecond(desiredSpeed);
-    esc.write(newEscPwm);
-  }
+void runStateForward() {
+  currentSpeed = desiredSpeed;
+  unsigned long newEscPwm = escPwmFromMetersPerSecond(desiredSpeed);
+  esc.write(newEscPwm);
+  
   if(currentSteeringAngle != desiredSteeringAngle) {
     currentSteeringAngle = desiredSteeringAngle;
     unsigned long newSteerPwm = servoPwmFromRadians(desiredSteeringAngle);
@@ -407,7 +411,8 @@ void runStateAutonomous() {
 }
 
 void runStateBraking() {
-  if(measuredSpeed != 0.0){
+  if(measuredSpeed > minBrakingSpeed){
+    Serial.println(measuredSpeed);
     esc.write(brakePwm);
   }else{
     consecutiveZeroSpeed++;
@@ -433,15 +438,16 @@ void runStateStopped() {
 
 void runStateReverse() {
   esc.write(reversePwm);
+  
   if(currentSteeringAngle != desiredSteeringAngle) {
     currentSteeringAngle = desiredSteeringAngle;
     unsigned long newSteerPwm = servoPwmFromRadians(desiredSteeringAngle);
     steering.write(newSteerPwm);
-   }
-   //Back up beeps >)
-   unsigned long noteDuration = 50;
-   tone(speakerOutputPin, NOTE_C7, noteDuration);
-   noTone(speakerOutputPin);
+  }
+  
+//  //Back up beeps >)
+//  unsigned long noteDuration = 50;
+//  tone(speakerOutputPin, NOTE_C7, noteDuration);
 }
 
 // Speed measurement
