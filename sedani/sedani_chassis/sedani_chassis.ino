@@ -183,26 +183,26 @@ void loop()
    * STATE MACHINE TRANSITIONS
    */
   if(isEstopped) {
+    steering.write(centerSteeringPwm);
+    esc.write(centerSpeedPwm);
     if(currentState != STATE_ESTOPPED){
       playSong(0);
     }
     currentState = STATE_ESTOPPED;
+  } else if(isManual) {
     steering.write(centerSteeringPwm);
     esc.write(centerSpeedPwm);
-  } else if(isManual) {
     if(currentState != STATE_MANUAL){
       playSong(3);
     }
     currentState = STATE_MANUAL;
+  } else if(isTimedOut && (currentState != STATE_ESTOPPED || currentState != STATE_MANUAL)) {
     steering.write(centerSteeringPwm);
     esc.write(centerSpeedPwm);
-  } else if(isTimedOut && (currentState != STATE_ESTOPPED || currentState != STATE_MANUAL)) {
     if(currentState != STATE_TIMEOUT){
       playSong(1);
     }
     currentState = STATE_TIMEOUT;
-    steering.write(centerSteeringPwm);
-    esc.write(centerSpeedPwm);
   } else if(desiredSpeed >= 0.0 && currentState != STATE_FORWARD) {
     currentState = STATE_FORWARD;
     playSong(2);
@@ -402,48 +402,32 @@ void runStateForward() {
   currentSpeed = desiredSpeed;
   unsigned long newEscPwm = escPwmFromMetersPerSecond(desiredSpeed);
   esc.write(newEscPwm);
-  
-  if(currentSteeringAngle != desiredSteeringAngle) {
-    currentSteeringAngle = desiredSteeringAngle;
-    unsigned long newSteerPwm = servoPwmFromRadians(desiredSteeringAngle);
-    steering.write(newSteerPwm);
-  }
+
+  steer();
 }
 
 void runStateBraking() {
   if(measuredSpeed > minBrakingSpeed){
+    consecutiveZeroSpeed = 0;
     esc.write(brakePwm);
   }else{
     consecutiveZeroSpeed++;
   }
 
-  if(currentSteeringAngle != desiredSteeringAngle) {
-    currentSteeringAngle = desiredSteeringAngle;
-    unsigned long newSteerPwm = servoPwmFromRadians(desiredSteeringAngle);
-    steering.write(newSteerPwm);
-  }
+  steer();
 }
 
 void runStateStopped() {
   esc.write(centerSpeedPwm);
   consecutiveStop++;
 
-  if(currentSteeringAngle != desiredSteeringAngle) {
-    currentSteeringAngle = desiredSteeringAngle;
-    unsigned long newSteerPwm = servoPwmFromRadians(desiredSteeringAngle);
-    steering.write(newSteerPwm);
-  }
+  steer();
 }
 
 void runStateReverse() {
   esc.write(reversePwm);
   
-  if(currentSteeringAngle != desiredSteeringAngle) {
-    currentSteeringAngle = desiredSteeringAngle;
-    unsigned long newSteerPwm = servoPwmFromRadians(desiredSteeringAngle);
-    steering.write(newSteerPwm);
-  }
-  
+  steer();
 //  //Back up beeps >)
 //  unsigned long noteDuration = 50;
 //  tone(speakerOutputPin, NOTE_C7, noteDuration);
@@ -467,5 +451,13 @@ void calculateSpeed(){
     interruptCount = 0;
   }
   prevInterruptCount = interruptCount;
+}
+
+// Steering
+
+void steer(){
+  currentSteeringAngle = desiredSteeringAngle;
+  unsigned long newSteerPwm = servoPwmFromRadians(desiredSteeringAngle);
+  steering.write(newSteerPwm);
 }
 
