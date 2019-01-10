@@ -412,7 +412,6 @@ void runStateForward() {
 
 void runStateBraking() {
   if(measuredSpeed > minBrakingSpeed){
-    Serial.println(measuredSpeed);
     esc.write(brakePwm);
   }else{
     consecutiveZeroSpeed++;
