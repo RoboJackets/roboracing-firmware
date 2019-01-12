@@ -411,13 +411,20 @@ void runStateForward() {
 void runStateBraking() {
   if(measuredSpeed > minBrakingSpeed){
     //DEBUG
+    Serial.print("Positive: ");
     Serial.println(measuredSpeed);
     consecutiveZeroSpeed = 0;
     drive(brakePwm);
+  }else if(measuredSpeed < -minBrakingSpeed){
+    //DEBUG
+    Serial.print("Negative: ");
+    Serial.println(measuredSpeed);
+    consecutiveZeroSpeed = 0;
+    drive(centerSpeedPwm);
   }else{
     consecutiveZeroSpeed++;
   }
-
+  
   steer();
 }
 
