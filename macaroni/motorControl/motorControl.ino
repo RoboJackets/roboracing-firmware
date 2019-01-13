@@ -8,13 +8,15 @@ void limitDesiredSpeed(float& desiredSpeed);
 void limitDesiredHeading(float& desiredHeading);
 void updateHeading();
 void updateSpeed();
+//void updateRcEscRead();
+void updateRcSteerRead();
 void encoderCallback();
 bool getMessage();
 void measureCurrentSpeed();
 
 //tracking distance traveled
-const int encoderA = 2;
-const int encoderB = 7;
+const int encoderA = 7;
+const int encoderB = 8;
 static volatile int currentTicks = 0; //volatile data for manipulation in interrupt routines
 
 //control limits
@@ -52,14 +54,20 @@ const int estopPin = 10;
 bool estop = false;
 
 //autonomous or human control
-const int muxStatePin = A5;
+const int muxStatePin = A6;
 bool muxState = false;
+
+//RC Remote Monitoring
+static float currentEscValue = 0;
+const int rcEscPin = 2;
+static float currentSteerValue = 0;
+const int rcSteerPin = 3;
 
 //Motor objects
 Servo esc;
-const int escPin = 9;
+const int escPin = 6;
 Servo steering;
-const int steerPin = 3;
+const int steerPin = 5;
 
 int led_state = HIGH;
 
@@ -72,13 +80,17 @@ void setup()
     pinMode(steerPin, OUTPUT);
     steering.attach(steerPin);
 
+    //RC Remote Monitoring Init
+    pinMode(rcEscPin, INPUT);
+    pinMode(rcSteerPin, INPUT);
+
     pinMode(encoderA, INPUT);
     attachInterrupt(digitalPinToInterrupt(encoderA), encoderCallback, CHANGE);
     pinMode(encoderB, INPUT);
 
     pinMode(muxState, INPUT);
 
-    pinMode(13, OUTPUT);
+    //pinMode(13, OUTPUT);
       
     motor(0);
     steer(0);
@@ -90,7 +102,7 @@ void setup()
 
 void loop()
 {   
-  digitalWrite(13, led_state = !led_state);
+  //digitalWrite(13, led_state = !led_state);
   muxState = !digitalRead(muxStatePin);
   estop = digitalRead(estopPin);
   if (estop) {
@@ -112,6 +124,9 @@ void update()
       limitDesiredSpeed(desiredSpeed);
       limitDesiredHeading(desiredHeading); 
   }
+  
+  updateRcSteerRead();
+//updateRcEscRead();
   updateHeading();
   updateSpeed();
   
@@ -152,9 +167,32 @@ void updateSpeed()
     float deltaPWM = (pid_p * error) + (pid_d * dError);
     deltaPWM = max(min(deltaPWM, 2), -2);
     currentMotorPWM += deltaPWM;
-
 	  motor(currentMotorPWM);
    }
+}
+
+//void updateRcEscRead()
+//{
+//  //In RC remote mode, read ESC
+//  if(muxState && !estop && !timeout){
+//    currentEscValue = pulseIn(rcEscPin,HIGH);
+//  }
+//}
+
+void updateRcSteerRead()
+{
+  //In RC remote mode, read Steer
+  // && !estop && !timeout
+  if(!muxState){
+    float currentSteerPWM = float(pulseIn(rcSteerPin,HIGH));
+    currentSteerPWM = min(max((currentSteerPWM-1500.0)/500.0,-1),1);
+    
+    if(currentSteerPWM > 0){
+      currentSteerValue = currentSteerPWM*maxHeading;
+    } else{
+      currentSteerValue = -1*currentSteerPWM*minHeading;
+    }
+  }
 }
 
 void steer(int val)
@@ -195,11 +233,17 @@ bool getMessage()
       Serial.println(currentSpeed);
       gotMessage = true;
       String message = "$";
-      message.concat(currentSpeed);
-      message.concat(",");
-      message.concat(muxState);
-      message.concat(",");
-      message.concat(estop);
+      //If in RC control
+      if(!muxState){
+         message.concat("D,");
+         message.concat(currentSteerValue);
+      }
+      else{
+        message.concat("A,");
+        message.concat(currentSpeed);
+        message.concat(",");
+        message.concat(estop);
+      }
       Serial.println(message);
     }
   }
