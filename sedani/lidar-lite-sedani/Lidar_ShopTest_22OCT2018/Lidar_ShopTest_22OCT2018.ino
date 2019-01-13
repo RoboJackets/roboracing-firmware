@@ -1,3 +1,9 @@
+/*
+TO DO:
+get a calibration curve for the lidars
+
+*/
+
 #include <Wire.h>
 #include <LIDARLite.h>
 
