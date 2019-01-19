@@ -97,9 +97,9 @@ int songInformation2[2] = {NOTE_C4, NOTE_C5};
 int songInformation3[2] = {NOTE_C5, NOTE_C5};
 int songInformation4[2] = {NOTE_C4, NOTE_C6};
 int songInformation5[2] = {NOTE_C6, NOTE_C6};
-// int songInformation6[2] = 
-// int songInformation7[2] =
-// int songInformation8[2] =  
+int songInformation6[2] = {NOTE_C6, NOTE_C5};
+int songInformation7[2] = {NOTE_C5, NOTE_C6};
+int songInformation8[2] = {NOTE_C4, NOTE_C6};
 
 // Manual Variables (true means human drives)
 bool isManual = true;
@@ -203,9 +203,9 @@ void loop()
       /*----------------------
               LOGIC
       ----------------------*/
-        steering.write(centerSteeringPwm);
-        drive(centerSpeedPwm);
-               
+
+        runHold();
+
       /*----------------------
             TRANSITIONS
       ----------------------*/
@@ -240,9 +240,9 @@ void loop()
       /*----------------------
               LOGIC
       ----------------------*/
-      steering.write(centerSteeringPwm);
-      drive(centerSpeedPwm);
-            
+
+        runHold();
+
       /*----------------------
             TRANSITIONS
       ----------------------*/
@@ -276,6 +276,7 @@ void loop()
       /*----------------------
               LOGIC
       ----------------------*/
+
       runStateManual();      
           
       /*----------------------
@@ -288,7 +289,7 @@ void loop()
         break;
       }
       // Transition to Timeout State
-      if (isTimedOut){
+      if (isTimedOut && !isManual){
         currentState = STATE_TIMEOUT;
         playSong(1);
         break;
@@ -311,6 +312,7 @@ void loop()
       /*----------------------
               LOGIC
       ----------------------*/
+
       runStateForward();
       
       /*----------------------
@@ -337,6 +339,7 @@ void loop()
       // Transition to Forward Braking State
       if ((desiredSpeed <= 0) && (measuredSpeed > 0)){
         currentState = STATE_FORWARD_BRAKING;
+        consecutiveZeroSpeed = 0; // Reset zero speed cycle counter
         playSong(4);
         break;
       }
@@ -352,8 +355,8 @@ void loop()
       /*----------------------
               LOGIC
       ----------------------*/
+
       runStateBraking();
-      consecutiveZeroSpeed = 0;
       
       /*----------------------
             TRANSITIONS
@@ -383,8 +386,9 @@ void loop()
         break;
       }
       // Transition to Reverse Transition State
-      if ((desiredSpeed < 0) && (measuredSpeed >= 0)){
+      if ((desiredSpeed < 0) && (measuredSpeed == 0)){
         currentState = STATE_REVERSE_TRANSITION;
+        consecutiveStop = 0; // Reset stop cycle counter
         playSong(7);
         break;
       }
@@ -406,7 +410,7 @@ void loop()
       /*----------------------
               LOGIC
       ----------------------*/       
-          
+        runHold();
       /*----------------------
             TRANSITIONS
       ----------------------*/
@@ -440,8 +444,14 @@ void loop()
         playSong(6);
         break;
       }
+
+      if ((desiredSpeed == 0) && (measuredSpeed == 0)){
+        currentState = STATE_IDLE;
+        playSong(8);
+      }
       // Default Loop Case
       currentState = STATE_REVERSE_COAST;
+      break;
     }
          
     ////////////////////////////////////////////////////////
@@ -450,7 +460,8 @@ void loop()
     case STATE_REVERSE:{
       /*----------------------
               LOGIC
-      ----------------------*/       
+      ----------------------*/ 
+
       runStateReverse();
 
       /*----------------------
@@ -476,7 +487,7 @@ void loop()
       }
       // Transition to Forward State
       if (desiredSpeed > 0){
-        currentState = STATE_FORWARD
+        currentState = STATE_FORWARD;
         playSong(3);
         break;
       }
@@ -530,7 +541,6 @@ void loop()
       // Transition to Reverse State (must wait for a minimum number of stop cycles before going to reverse)
       if ((desiredSpeed < 0) && (consecutiveStop > minConsecutiveStop)){
         currentState = STATE_REVERSE;
-        consecutiveStop = 0;  // Reset stop cycle counter
         playSong(6);
         break;
       }
@@ -553,7 +563,7 @@ void loop()
       /*----------------------
               LOGIC
       ----------------------*/
-      
+      runHold();
           
      /*----------------------
             TRANSITIONS
@@ -582,14 +592,15 @@ void loop()
         playSong(3);
         break;
       }
+      // Transition to Forward Braking
       if ((desiredSpeed <= 0) && (measuredSpeed >= 0)){
-         currentState = STATE_FORWARD_BRAKING;
-         playSong(4);
-         break;
+        currentState = STATE_FORWARD_BRAKING;
+        playSong(4);
+        break;
       }
       //Default Loop Case
       currentState = STATE_IDLE;
-      break
+      break;
     }
   }
   ///////////////////////////
@@ -723,6 +734,15 @@ void playSong(int number){
       case 5:
         tone(speakerOutputPin, songInformation5[thisNote], noteDuration);
         break;
+      case 6:
+        tone(speakerOutputPin, songInformation6[thisNote], noteDuration);
+        break;
+      case 7:
+        tone(speakerOutputPin, songInformation7[thisNote], noteDuration);
+        break;
+      case 8:
+        tone(speakerOutputPin, songInformation8[thisNote], noteDuration);
+        break;
       default:
         break;
     }
@@ -733,6 +753,11 @@ void playSong(int number){
 }
 
 // State functions
+
+void runHold(){
+  steering.write(centerSteeringPwm);
+  drive(centerSpeedPwm);
+}
 
 void runStateManual() {
   unsigned long currentEscPwm = pulseIn(rcEscPin,HIGH);
