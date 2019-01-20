@@ -46,6 +46,7 @@ float steerSum = 0;
 // Timeout Variables
 unsigned long lastMessageTime;
 bool isTimedOut = true; 
+unsigned long timeoutDuration = 1000;
 
 // E-Stop Variables (true means the car can't move)
 bool buttonEstopActive = false;
@@ -81,12 +82,13 @@ const unsigned long brakePwm = 1300;
 const float minBrakingSpeed = 0.05;
 
 unsigned int consecutiveZeroSpeed = 0;
-const unsigned int minConsecutiveZero = 3;
+const unsigned int minConsecutiveZeroSpeed = 3;
 
 unsigned int consecutiveStop = 0;
 const unsigned int minConsecutiveStop = 8;
 
 const unsigned long reversePwm = 1375;
+const unsigned long reverseHoldPwm = 1490;
 
 bool reverseTag = false;
 
@@ -158,7 +160,7 @@ void loop()
   if(gotMessage) {
     isTimedOut = false;
     lastMessageTime = millis();
-  } else if ((lastMessageTime + 1000) < millis()) {
+  } else if ((lastMessageTime + timeoutDuration) < millis()) {
     isTimedOut = true;
   }
 
@@ -253,9 +255,15 @@ void loop()
         break;
       }
       // Transition to Manual State
-      if (isManual && !isTimedOut){
+      if (isManual){
         currentState = STATE_MANUAL;
         playSong(2);
+        break;
+      }
+      // Transition to Forward State
+      if (desiredSpeed > 0 && !isTimedOut){
+        currentState = STATE_FORWARD;
+        playSong(3);
         break;
       }
       // Transition to Idle State
@@ -386,7 +394,7 @@ void loop()
         break;
       }
       // Transition to Reverse Transition State
-      if ((desiredSpeed < 0) && (measuredSpeed == 0)){
+      if ((desiredSpeed < 0) && (measuredSpeed == 0) && consecutiveZeroSpeed > minConsecutiveZeroSpeed){
         currentState = STATE_REVERSE_TRANSITION;
         consecutiveStop = 0; // Reset stop cycle counter
         playSong(7);
@@ -394,7 +402,7 @@ void loop()
       }
       //Transition to Idle State
       if ((desiredSpeed == 0) && (measuredSpeed == 0)){
-        currentState == STATE_IDLE;
+        currentState = STATE_IDLE;
         playSong(8);
         break;
       }
@@ -439,15 +447,16 @@ void loop()
         break;
       }
       // Transition to Reverse State
-      if (desiredSpeed < 0){
+      if (desiredSpeed < 0 && measuredSpeed < 0){
         currentState = STATE_REVERSE;
         playSong(6);
         break;
       }
-
+      // Transition to Idle
       if ((desiredSpeed == 0) && (measuredSpeed == 0)){
         currentState = STATE_IDLE;
         playSong(8);
+        break;
       }
       // Default Loop Case
       currentState = STATE_REVERSE_COAST;
@@ -593,9 +602,16 @@ void loop()
         break;
       }
       // Transition to Forward Braking
-      if ((desiredSpeed <= 0) && (measuredSpeed >= 0)){
+      if ((desiredSpeed <= 0 && measuredSpeed > 0)){
         currentState = STATE_FORWARD_BRAKING;
         playSong(4);
+        break;
+      }
+      // Transition to Reverse Transition
+      if ((desiredSpeed < 0 && measuredSpeed == 0)){
+        currentState = STATE_REVERSE_TRANSITION;
+        consecutiveStop = 0; // Reset stop cycle counter
+        playSong(7);
         break;
       }
       //Default Loop Case
@@ -772,6 +788,7 @@ void runStateManual() {
   steerSum -= steerBuffer[steerIndex];
   //currentSpeed = speedSum / bufferSize;
   currentSteeringAngle = steerSum / bufferSize;
+  runHold();
 }
 
 void runStateForward() {
@@ -783,15 +800,9 @@ void runStateForward() {
 
 void runStateBraking() {
   if(measuredSpeed > minBrakingSpeed){
-    //DEBUG
-    Serial.print("Positive: ");
-    Serial.println(measuredSpeed);
     consecutiveZeroSpeed = 0;
     drive(brakePwm);
   }else if(measuredSpeed < -minBrakingSpeed){
-    //DEBUG
-    Serial.print("Negative: ");
-    Serial.println(measuredSpeed);
     consecutiveZeroSpeed = 0;
     drive(centerSpeedPwm);
   }else{
@@ -802,9 +813,8 @@ void runStateBraking() {
 }
 
 void runStateStopped() {
-  drive(centerSpeedPwm);
+  drive(reverseHoldPwm);
   consecutiveStop++;
-
   steer();
 }
 
@@ -828,20 +838,6 @@ void calculateSpeed(){
   const unsigned long prevTime = prevSampleTime;
   if(currTime != prevTime){
     measuredSpeed = (speedScalingFactor*(interruptCount-prevInterruptCount))/(currTime - prevTime);
-    
-    if(measuredSpeed < minBrakingSpeed){
-      if(currentEscPwm >= centerSpeedPwm){
-        reverseTag = false;
-        //DEBUG
-        Serial.println("Direction change: forward");
-      }
-      else{
-        reverseTag = true;
-        //DEBUG
-        Serial.println("Direction change: reverse");
-      }
-    }
-    
     if(reverseTag){
       measuredSpeed *= -1.0;
     }
@@ -850,7 +846,14 @@ void calculateSpeed(){
   }else{
     measuredSpeed = 0;
     interruptCount = 0;
+    if(currentEscPwm >= centerSpeedPwm){
+      reverseTag = false;
+    }
+    else{
+      reverseTag = true;
+    }
   }
+  
   prevInterruptCount = interruptCount;
 }
 
