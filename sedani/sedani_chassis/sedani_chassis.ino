@@ -199,7 +199,8 @@ void loop()
     ////////////////////////////////////////////////////////
     //               (0)  DISABLED STATE                  //
     //   Centers steering angle and sets speed command    //
-    //                    to zero.                        //
+    //   to zero. Enter this state if the wireless remote //
+    //   or emergency pushbutton are pressed.             //
     ////////////////////////////////////////////////////////
     case STATE_DISABLED:{     
       /*----------------------
@@ -211,20 +212,20 @@ void loop()
       /*----------------------
             TRANSITIONS
       ----------------------*/
-      // Transition to Timeout State
-      if (isTimedOut && !isEstopped && measuredSpeed == 0){
-        currentState = STATE_TIMEOUT;
-        playSong(1);
-        break;
-      }
       // Transition to Manual State
-      if (isManual && !isEstopped && measuredSpeed == 0){
+      if (!isEstopped && isManual){
         currentState = STATE_MANUAL;
         playSong(2);
         break;
       }
-      // Transition to Idle State
-      if (!isManual && !isEstopped && measuredSpeed == 0){
+      // Transition to Timeout State
+      if (!isEstopped && !isManual && isTimedOut){
+        currentState = STATE_TIMEOUT;
+        playSong(1);
+        break;
+      }
+      // Transition to Idle State (only transition if not moving)
+      if (!isEstopped && !isManual && !isTimedOut && measuredSpeed == 0){
         currentState = STATE_IDLE;
         playSong(8);
         break;
@@ -236,7 +237,10 @@ void loop()
 
     ////////////////////////////////////////////////////////
     //              (1) TIMEOUT STATE                     //
-    //    Sets Speed and Steering Angle to Zero           //
+    //    Sets Speed and Steering Angle to Zero. If       // 
+    //    communication has not occured since             //
+    //    timeoutDuration (in ms) and in Auto, go to this //
+    //    state.                                          //
     ////////////////////////////////////////////////////////
     case STATE_TIMEOUT:{
       /*----------------------
@@ -255,23 +259,23 @@ void loop()
         break;
       }
       // Transition to Manual State
-      if (isManual){
+      if (!isEstopped && isManual){
         currentState = STATE_MANUAL;
         playSong(2);
         break;
       }
-      // Transition to Forward State
-      if (desiredSpeed > 0 && !isTimedOut){
-        currentState = STATE_FORWARD;
-        playSong(3);
-        break;
-      }
       // Transition to Idle State
-      if (!isManual && (desiredSpeed == 0) && (measuredSpeed == 0) && !isTimedOut){
+      if (!isEstopped && !isManual && !isTimedOut && desiredSpeed == 0){
         currentState = STATE_IDLE;
         playSong(8);
         break;
       }      
+      // Transition to Forward State
+      if (!isEstopped && !isManual && !isTimedOut && desiredSpeed > 0){
+        currentState = STATE_FORWARD;
+        playSong(3);
+        break;
+      }
       // Default Loop Case
       currentState = STATE_TIMEOUT;
       break;
@@ -297,15 +301,21 @@ void loop()
         break;
       }
       // Transition to Timeout State
-      if (isTimedOut && !isManual){
+      if (!isEstopped && !isManual && isTimedOut){
         currentState = STATE_TIMEOUT;
         playSong(1);
         break;
       }
       // Transition to Idle State
-      if (!isTimedOut && !isManual){
+      if (!isEstopped && !isManual && !isTimedOut && desiredSpeed == 0){
         currentState = STATE_IDLE;
         playSong(8);
+        break;
+      }
+      // Transition to Forward State
+      if (!isEstopped && !isManual && !isTimedOut && desiredSpeed > 0){
+        currentState = STATE_FORWARD;
+        playSong(3);
         break;
       }
       // Default Loop Case
@@ -332,20 +342,26 @@ void loop()
         playSong(0);
         break;
       }
-      // Transition to Timeout State
-      if (isTimedOut){
-        currentState = STATE_TIMEOUT;
-        playSong(1);
-        break;
-      }
       // Transition to Manual State
-      if (isManual){
+      if (!isEstopped && isManual){
         currentState = STATE_MANUAL;
         playSong(2);
         break;
       }
+      // Transition to Timeout State
+      if (!isEstopped && !isManual && isTimedOut){
+        currentState = STATE_TIMEOUT;
+        playSong(1);
+        break;
+      }
+      // Transition to Idle
+      if (!isEstopped && !isManual && !isTimedOut && desiredSpeed == 0 && measuredSpeed == 0){
+        currentState = STATE_IDLE;
+        playSong(8);
+        break;
+      }
       // Transition to Forward Braking State
-      if ((desiredSpeed <= 0) && (measuredSpeed > 0)){
+      if (!isEstopped && !isManual && !isTimedOut && desiredSpeed <= 0 && measuredSpeed > 0){
         currentState = STATE_FORWARD_BRAKING;
         consecutiveZeroSpeed = 0; // Reset zero speed cycle counter
         playSong(4);
@@ -375,33 +391,33 @@ void loop()
         playSong(0);
         break;
       }
-      // Transition to Timeout State
-      if (isTimedOut){
-        currentState = STATE_TIMEOUT;
-        playSong(1);
-        break;
-      }
       // Transition to Manual State
-      if (isManual){
+      if (!isEstopped && isManual){
         currentState = STATE_MANUAL;
         playSong(2);
         break;
       }
+      // Transition to Timeout State
+      if (!isEstopped && !isManual && isTimedOut){
+        currentState = STATE_TIMEOUT;
+        playSong(1);
+        break;
+      }
       // Transition to Forward State
-      if (desiredSpeed > 0){
+      if (!isEstopped && !isManual && !isTimedOut && desiredSpeed > 0){
         currentState = STATE_FORWARD;
         playSong(3);
         break;
       }
       // Transition to Reverse Transition State
-      if ((desiredSpeed < 0) && (measuredSpeed == 0) && consecutiveZeroSpeed > minConsecutiveZeroSpeed){
+      if (!isEstopped && !isManual && !isTimedOut && desiredSpeed < 0 && measuredSpeed == 0 && consecutiveZeroSpeed > minConsecutiveZeroSpeed){
         currentState = STATE_REVERSE_TRANSITION;
         consecutiveStop = 0; // Reset stop cycle counter
         playSong(7);
         break;
       }
       //Transition to Idle State
-      if ((desiredSpeed == 0) && (measuredSpeed == 0)){
+      if (!isEstopped && !isManual && !isTimedOut && desiredSpeed == 0 && measuredSpeed == 0){
         currentState = STATE_IDLE;
         playSong(8);
         break;
@@ -428,32 +444,32 @@ void loop()
         playSong(0);
         break;
       }
-      // Transition to Timeout State
-      if (isTimedOut){
-        currentState = STATE_TIMEOUT;
-        playSong(1);
-        break;
-      }
       // Transition to Manual State
-      if (isManual){
+      if (!isEstopped && isManual){
         currentState = STATE_MANUAL;
         playSong(2);
         break;
       }
+      // Transition to Timeout State
+      if (!isEstopped && !isManual && isTimedOut){
+        currentState = STATE_TIMEOUT;
+        playSong(1);
+        break;
+      }
       // Transition to Forward State
-      if (desiredSpeed > 0){
+      if (!isEstopped && !isManual && !isTimedOut && desiredSpeed > 0){
         currentState = STATE_FORWARD;
         playSong(3);
         break;
       }
       // Transition to Reverse State
-      if (desiredSpeed < 0 && measuredSpeed < 0){
+      if (!isEstopped && !isManual && !isTimedOut && desiredSpeed < 0 && measuredSpeed < 0){
         currentState = STATE_REVERSE;
         playSong(6);
         break;
       }
       // Transition to Idle
-      if ((desiredSpeed == 0) && (measuredSpeed == 0)){
+      if (!isEstopped && !isManual && !isTimedOut && desiredSpeed == 0 && measuredSpeed == 0){
         currentState = STATE_IDLE;
         playSong(8);
         break;
@@ -482,26 +498,26 @@ void loop()
         playSong(0);
         break;
       }
-      // Transition to Timeout State
-      if (isTimedOut){
-        currentState = STATE_TIMEOUT;
-        playSong(1);
-        break;
-      }
       // Transition to Manual State
-      if (isManual){
+      if (!isEstopped && isManual){
         currentState = STATE_MANUAL;
         playSong(2);
         break;
       }
+      // Transition to Timeout State
+      if (!isEstopped && !isManual && isTimedOut){
+        currentState = STATE_TIMEOUT;
+        playSong(1);
+        break;
+      }
       // Transition to Forward State
-      if (desiredSpeed > 0){
+      if (!isEstopped && !isManual && !isTimedOut && desiredSpeed > 0){
         currentState = STATE_FORWARD;
         playSong(3);
         break;
       }
       // Transition to Reverse Coast State
-      if ((measuredSpeed < 0) && (desiredSpeed == 0)){
+      if (!isEstopped && !isManual && !isTimedOut && desiredSpeed == 0 && measuredSpeed < 0){
         currentState = STATE_REVERSE_COAST;
         playSong(5);
         break;
@@ -529,34 +545,34 @@ void loop()
         playSong(0);
         break;
       }
-      // Transition to Timeout State
-      if (isTimedOut){
-        currentState = STATE_TIMEOUT;
-        playSong(1);
-        break;
-      }
       // Transition to Manual State
-      if (isManual){
+      if (!isEstopped && isManual){
         currentState = STATE_MANUAL;
         playSong(2);
         break;
       }
+      // Transition to Timeout State
+      if (!isEstopped && !isManual && isTimedOut){
+        currentState = STATE_TIMEOUT;
+        playSong(1);
+        break;
+      }
+      //Transition to Idle State
+      if (!isEstopped && !isManual && !isTimedOut && desiredSpeed == 0 && measuredSpeed == 0){
+        currentState == STATE_IDLE;
+        playSong(8);
+        break;
+      }
       // Transition to Forward State
-      if (desiredSpeed > 0){
+      if (!isEstopped && !isManual && !isTimedOut && desiredSpeed > 0){
         currentState = STATE_FORWARD;
         playSong(3);
         break;
       }
       // Transition to Reverse State (must wait for a minimum number of stop cycles before going to reverse)
-      if ((desiredSpeed < 0) && (consecutiveStop > minConsecutiveStop)){
+      if (!isEstopped && !isManual && !isTimedOut && desiredSpeed < 0 && consecutiveStop > minConsecutiveStop){
         currentState = STATE_REVERSE;
         playSong(6);
-        break;
-      }
-       //Transition to Idle State
-      if ((desiredSpeed == 0) && (measuredSpeed == 0)){
-        currentState == STATE_IDLE;
-        playSong(8);
         break;
       }
       // Default Loop Case
@@ -577,38 +593,39 @@ void loop()
      /*----------------------
             TRANSITIONS
       ----------------------*/
-     // Transition to Disabled State
+      // Transition to Disabled State
       if (isEstopped){
         currentState = STATE_DISABLED;
         playSong(0);
         break;
       }
-      // Transition to Timeout State
-      if (isTimedOut){
-        currentState = STATE_TIMEOUT;
-        playSong(1);
-        break;
-      }
       // Transition to Manual State
-      if (isManual){
+      if (!isEstopped && isManual){
         currentState = STATE_MANUAL;
         playSong(2);
         break;
       }
+      // Transition to Timeout State
+      if (!isEstopped && !isManual && isTimedOut){
+        currentState = STATE_TIMEOUT;
+        playSong(1);
+        break;
+      }
       // Transition to Forward State
-      if (desiredSpeed > 0){
+      if (!isEstopped && !isManual && !isTimedOut && desiredSpeed > 0){
         currentState = STATE_FORWARD;
         playSong(3);
         break;
       }
       // Transition to Forward Braking
-      if ((desiredSpeed <= 0 && measuredSpeed > 0)){
+      if (!isEstopped && !isManual && !isTimedOut && desiredSpeed <= 0 && measuredSpeed > 0){
         currentState = STATE_FORWARD_BRAKING;
+        consecutiveZeroSpeed = 0; // Reset zero speed cycle counter
         playSong(4);
         break;
       }
       // Transition to Reverse Transition
-      if ((desiredSpeed < 0 && measuredSpeed == 0)){
+      if (!isEstopped && !isManual && !isTimedOut && desiredSpeed < 0 && measuredSpeed == 0){
         currentState = STATE_REVERSE_TRANSITION;
         consecutiveStop = 0; // Reset stop cycle counter
         playSong(7);
@@ -636,8 +653,7 @@ void loop()
   delay(25);
 }
 
-unsigned long escPwmFromMetersPerSecond(float velocity)
-{
+unsigned long escPwmFromMetersPerSecond(float velocity) {
   if(velocity <= 0) {
     return SpeedLUT[0][0];
   }
@@ -653,8 +669,7 @@ unsigned long escPwmFromMetersPerSecond(float velocity)
 
 float maxPwm = escPwmFromMetersPerSecond(maxSpeed);
 
-unsigned long escPwmPID(float velocity)
-{
+unsigned long escPwmPID(float velocity) {
   if(velocity <= 0) {
     return SpeedLUT[0][0];
   }
@@ -776,15 +791,15 @@ void runHold(){
 }
 
 void runStateManual() {
-  unsigned long currentEscPwm = pulseIn(rcEscPin,HIGH);
+  //unsigned long currentEscPwm = pulseIn(rcEscPin,HIGH);
   unsigned long currentSteerPwm = pulseIn(rcSteerPin,HIGH);
-  speedBuffer[speedIndex] = metersPerSecondFromEscPwm(currentEscPwm);
+  //speedBuffer[speedIndex] = metersPerSecondFromEscPwm(currentEscPwm);
   steerBuffer[steerIndex] = radiansFromServoPwm(currentSteerPwm);
-  speedSum += speedBuffer[speedIndex];
+  //speedSum += speedBuffer[speedIndex];
   steerSum += steerBuffer[steerIndex];
-  speedIndex = (speedIndex + 1) % bufferSize;
+  //speedIndex = (speedIndex + 1) % bufferSize;
   steerIndex = (steerIndex + 1) % bufferSize;
-  speedSum -= speedBuffer[speedIndex];
+  //speedSum -= speedBuffer[speedIndex];
   steerSum -= steerBuffer[steerIndex];
   //currentSpeed = speedSum / bufferSize;
   currentSteeringAngle = steerSum / bufferSize;
@@ -794,7 +809,6 @@ void runStateManual() {
 void runStateForward() {
   currentSpeed = desiredSpeed;
   drive(escPwmFromMetersPerSecond(desiredSpeed));
-
   steer();
 }
 
