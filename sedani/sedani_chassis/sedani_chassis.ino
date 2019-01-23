@@ -198,15 +198,15 @@ unsigned long escPwmPID(float velocity) {
   }
 }
 
-float metersPerSecondFromEscPwm(unsigned long pwm) {
-  int index = pwm - centerSpeedPwm;
+float metersPerSecondFromEscPwm(unsigned long escPwm) {
+  int index = escPwm - centerSpeedPwm;
   if(index < 0) index = 0;
   if(index > 85) index = 85;
   return SpeedLUT[index][1];
 }
 
-float radiansFromServoPwm(unsigned long pwm) {
-  float distanceFromCenter = ((int)pwm) - centerSteeringPwm;
+float radiansFromServoPwm(unsigned long servoPwm) {
+  float distanceFromCenter = ((int)servoPwm) - centerSteeringPwm;
   if(distanceFromCenter > 0) {
     float prop = distanceFromCenter / (maxSteeringPwm - centerSteeringPwm);
     return prop * maxSteeringAngle;
