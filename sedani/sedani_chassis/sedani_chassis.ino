@@ -19,19 +19,19 @@ const int wirelessPinD = 16;
 const float maxSpeed = 3; // maximum velocity 
 const float minSpeed = -1;
 
-const int centerSpeedPwm = 1492;
+const unsigned int centerSpeedPwm = 1492;
+const unsigned int maxPwm = SpeedLUT[85][0];
 
 const float maxSteeringAngle = 0.463; // Radians
 const float minSteeringAngle = -0.463; // Radians
 
-const int maxSteeringPwm = 1773;
-const int minSteeringPwm = 1347;
-const int centerSteeringPwm = 1560;
+const unsigned int maxSteeringPwm = 1773;
+const unsigned int minSteeringPwm = 1347;
+const unsigned int centerSteeringPwm = 1560;
 
 // Control Variables
 float currentSteeringAngle = 0;
 float desiredSteeringAngle = 0;
-float currentSpeed = 0;
 float desiredSpeed = 0;
 unsigned long currentEscPwm = 0;
 
@@ -63,12 +63,12 @@ unsigned int prevInterruptCount = 0;
 const float speedScalingFactor = 9312.53;
 
 // PID Speed Control
-double integral = 0.0;
-double derivative = 0.0;
-double prevError = 0.0;
-double kP = 0.0;
-double kI = 0.0;
-double kD = 0.0;
+float integral = 0.0;
+float derivative = 0.0;
+float prevError = 0.0;
+const float kP = 0.0;
+const float kI = 0.0;
+const float kD = 0.0;
 
 // Reverse
 const unsigned long brakePwm = 1300;
@@ -86,15 +86,15 @@ const unsigned long reverseHoldPwm = 1490;
 bool reverseTag = false;
 
 // Songs!
-int songInformation0[2] = {NOTE_C4, NOTE_C4};
-int songInformation1[2] = {NOTE_C5, NOTE_C4};
-int songInformation2[2] = {NOTE_C4, NOTE_C5};
-int songInformation3[2] = {NOTE_C5, NOTE_C5};
-int songInformation4[2] = {NOTE_C4, NOTE_C6};
-int songInformation5[2] = {NOTE_C6, NOTE_C6};
-int songInformation6[2] = {NOTE_C6, NOTE_C5};
-int songInformation7[2] = {NOTE_C5, NOTE_C6};
-int songInformation8[2] = {NOTE_C4, NOTE_C6};
+const int songInformation0[2] = {NOTE_C4, NOTE_C4};
+const int songInformation1[2] = {NOTE_C5, NOTE_C4};
+const int songInformation2[2] = {NOTE_C4, NOTE_C5};
+const int songInformation3[2] = {NOTE_C5, NOTE_C5};
+const int songInformation4[2] = {NOTE_C4, NOTE_C6};
+const int songInformation5[2] = {NOTE_C6, NOTE_C6};
+const int songInformation6[2] = {NOTE_C6, NOTE_C5};
+const int songInformation7[2] = {NOTE_C5, NOTE_C6};
+const int songInformation8[2] = {NOTE_C4, NOTE_C6};
 
 // Servo objects
 Servo esc;
@@ -113,8 +113,7 @@ enum ChassisState {
   STATE_IDLE
 } currentState = STATE_DISABLED;
 
-void setup()
-{
+void setup() {
     pinMode(wirelessPinB,INPUT);
     pinMode(wirelessPinC,INPUT);
     pinMode(wirelessPinD,INPUT);
@@ -123,7 +122,8 @@ void setup()
     pinMode(rcSteerPin, INPUT);
     pinMode(isManualPin, INPUT);
     pinMode(speedSensorPin, INPUT_PULLUP);
-    attachInterrupt(digitalPinToInterrupt(speedSensorPin), measureSpeed, FALLING);
+    attachInterrupt(digitalPinToInterrupt(speedSensorPin),
+                    measureSpeed, FALLING);
     pinMode(speakerOutputPin, OUTPUT);
     pinMode(escPin, OUTPUT);
     pinMode(steerPin, OUTPUT);
@@ -134,16 +134,15 @@ void setup()
     steering.write(centerSteeringPwm);
     drive(centerSpeedPwm);
 
-    Serial.begin(115200);
     
     lastMessageTime = millis();
     isTimedOut = true;
     
+    Serial.begin(115200);
     playSong(3);
 }
 
-void loop()
-{   
+void loop() {   
   bool gotMessage = getMessage();
 
   // If we haven't received a message from the NUC in a while, stop driving
@@ -159,8 +158,8 @@ void loop()
   executeStateMachine();
 
   if(gotMessage) {
-    double values[] = {currentState, measuredSpeed, currentSteeringAngle};
-    sendFeedback(values, sizeof(values)/sizeof(double));
+    float values[] = {currentState, measuredSpeed, currentSteeringAngle};
+    sendFeedback(values, sizeof(values)/sizeof(float));
   }
   
   delay(25);
@@ -170,9 +169,9 @@ unsigned long escPwmFromMetersPerSecond(float velocity) {
   if(velocity <= 0) {
     return SpeedLUT[0][0];
   }
-  double prevLUTVelocity = 0.0;
+  float prevLUTVelocity = 0.0;
   for(int i = 1; i < 86; i++) {
-    double LUTVelocity = SpeedLUT[i][1];
+    float LUTVelocity = SpeedLUT[i][1];
     if(fabs(velocity - LUTVelocity) > fabs(velocity - prevLUTVelocity)) {
       return SpeedLUT[i-1][0];
     }
@@ -180,33 +179,33 @@ unsigned long escPwmFromMetersPerSecond(float velocity) {
   return SpeedLUT[85][0];
 }
 
-unsigned long escPwmPID(float velocity) {
+
+unsigned int escPwmPID(float velocity) { 
   if(velocity <= 0) {
     return SpeedLUT[0][0];
   }
   else{
-    float maxPwm = escPwmFromMetersPerSecond(maxSpeed);
-    double error = velocity - measuredSpeed;
-    int pwm = kP * error + kI * integral + kD * derivative + escPwmFromMetersPerSecond(velocity);
-    pwm = constrain(pwm, 0, maxPwm); //control limits
-    if(pwm != maxPwm){ //integral windup protection
-        integral += 0.025 * (prevError + error) * 0.25; //Trapezoid Rule integration.  Assumes 25ms execution time for every loop
+    float error = velocity - measuredSpeed;
+    unsigned int writePwm = kP * error + kI * integral + kD * derivative 
+              + escPwmFromMetersPerSecond(velocity);
+    writePwm = constrain(writePwm, 0, maxPwm); //control limits
+    if(writePwm != maxPwm){ //integral windup protection
+        integral += 0.025 * (prevError + error) * 0.25; //Trapezoid Rule integration Assumes 25ms execution time for every loop
     }
     derivative += (error - prevError)/ 0.025; //difference derivative.  Also assumes 25ms execution time
     prevError = error;
-    return pwm + centerSpeedPwm;
+    return writePwm + centerSpeedPwm;
   }
 }
 
-float metersPerSecondFromEscPwm(unsigned long escPwm) {
-  int index = escPwm - centerSpeedPwm;
-  if(index < 0) index = 0;
+float metersPerSecondFromEscPwm(unsigned int escPwm) {
+  int index = escPwm - centerSpeedPwm; if(index < 0) index = 0;
   if(index > 85) index = 85;
   return SpeedLUT[index][1];
 }
 
-float radiansFromServoPwm(unsigned long servoPwm) {
-  float distanceFromCenter = ((int)servoPwm) - centerSteeringPwm;
+float radiansFromServoPwm(unsigned int servoPwm) {
+  int distanceFromCenter = servoPwm - centerSteeringPwm;
   if(distanceFromCenter > 0) {
     float prop = distanceFromCenter / (maxSteeringPwm - centerSteeringPwm);
     return prop * maxSteeringAngle;
@@ -216,7 +215,7 @@ float radiansFromServoPwm(unsigned long servoPwm) {
   }
 }
 
-unsigned long servoPwmFromRadians(float radians) {
+unsigned int steeringPwmFromRadians(float radians) {
   if(radians > 0) {
     float prop = radians / maxSteeringAngle;
     return (prop * ( maxSteeringPwm - centerSteeringPwm)) + centerSteeringPwm;
@@ -236,13 +235,14 @@ bool getMessage() {
       desiredSpeed = Serial.parseFloat();
       desiredSteeringAngle = Serial.parseFloat();
       desiredSpeed = min(maxSpeed, max(desiredSpeed, minSpeed));
-      desiredSteeringAngle = min(maxSteeringAngle, max(desiredSteeringAngle, minSteeringAngle));
+      desiredSteeringAngle = min(maxSteeringAngle, 
+                             max(desiredSteeringAngle, minSteeringAngle));
     }
   }
   return gotMessage;
 }
 
-void sendFeedback(const double* feedbackValues, const int feedbackCount) {
+void sendFeedback(const float* feedbackValues, const int feedbackCount) {
   String message = "$";
   for (int i = 0; i < feedbackCount; i++) {
     message.concat(feedbackValues[i]);
@@ -342,7 +342,7 @@ void executeStateMachine(){
               LOGIC
       ----------------------*/
 
-        runHold();
+      runHold();
 
       /*----------------------
             TRANSITIONS
@@ -360,9 +360,16 @@ void executeStateMachine(){
         break;
       }
       // Transition to Idle State (only transition if not moving)
-      if (!isEstopped && !isManual && !isTimedOut && measuredSpeed == 0){
+      if (!isEstopped && !isManual && !isTimedOut &&
+          desiredSpeed == 0 && measuredSpeed == 0){
         currentState = STATE_IDLE;
         playSong(8);
+        break;
+      }
+      // Transition to Forward State
+      if (!isEstopped && !isManual && !isTimedOut && desiredSpeed > 0){
+        currentState = STATE_FORWARD;
+        playSong(3);
         break;
       }
       // Default Loop State
@@ -382,7 +389,7 @@ void executeStateMachine(){
               LOGIC
       ----------------------*/
 
-        runHold();
+      runHold();
 
       /*----------------------
             TRANSITIONS
@@ -400,7 +407,8 @@ void executeStateMachine(){
         break;
       }
       // Transition to Idle State
-      if (!isEstopped && !isManual && !isTimedOut && desiredSpeed == 0 && measuredSpeed == 0){
+      if (!isEstopped && !isManual && !isTimedOut &&
+          desiredSpeed == 0 && measuredSpeed == 0){
         currentState = STATE_IDLE;
         playSong(8);
         break;
@@ -442,7 +450,8 @@ void executeStateMachine(){
         break;
       }
       // Transition to Idle State
-      if (!isEstopped && !isManual && !isTimedOut && desiredSpeed == 0 && measuredSpeed == 0){
+      if (!isEstopped && !isManual && !isTimedOut &&
+          desiredSpeed == 0 && measuredSpeed == 0){
         currentState = STATE_IDLE;
         playSong(8);
         break;
@@ -490,13 +499,15 @@ void executeStateMachine(){
         break;
       }
       // Transition to Idle
-      if (!isEstopped && !isManual && !isTimedOut && desiredSpeed == 0 && measuredSpeed == 0){
+      if (!isEstopped && !isManual && !isTimedOut && 
+          desiredSpeed == 0 && measuredSpeed == 0){
         currentState = STATE_IDLE;
         playSong(8);
         break;
       }
       // Transition to Forward Braking State
-      if (!isEstopped && !isManual && !isTimedOut && desiredSpeed <= 0 && measuredSpeed > 0){
+      if (!isEstopped && !isManual && !isTimedOut && 
+          desiredSpeed <= 0 && measuredSpeed > 0){
         currentState = STATE_FORWARD_BRAKING;
         consecutiveZeroSpeed = 0; // Reset zero speed cycle counter
         playSong(4);
@@ -788,7 +799,6 @@ void runStateManual() {
 }
 
 void runStateForward() {
-  currentSpeed = desiredSpeed;
   drive(escPwmFromMetersPerSecond(desiredSpeed));
   steer();
 }
@@ -854,7 +864,7 @@ void calculateSpeed(){
 
 void steer(){
   currentSteeringAngle = desiredSteeringAngle;
-  unsigned long newSteerPwm = servoPwmFromRadians(desiredSteeringAngle);
+  unsigned long newSteerPwm = steeringPwmFromRadians(desiredSteeringAngle);
   steering.write(newSteerPwm);
 }
 
