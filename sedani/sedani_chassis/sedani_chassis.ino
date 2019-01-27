@@ -469,6 +469,8 @@ void executeStateMachine(){
        
     ////////////////////////////////////////////////////////
     //              (3) FORWARD STATE                     //
+    //         Autonomous forward motion following        //
+    //         inputs from NUC                            //
     ////////////////////////////////////////////////////////
     case STATE_FORWARD:{          
       /*----------------------
@@ -520,6 +522,8 @@ void executeStateMachine(){
 
     ////////////////////////////////////////////////////////
     //           (4) FORWARD BRAKING STATE                //
+    //          If you are going forward and want to go   //
+    //          to zero or negative speed                 //
     ////////////////////////////////////////////////////////
     case STATE_FORWARD_BRAKING:{      
       /*----------------------
@@ -556,7 +560,9 @@ void executeStateMachine(){
         break;
       }
       // Transition to Reverse Transition State
-      if (!isEstopped && !isManual && !isTimedOut && desiredSpeed < 0 && measuredSpeed == 0 && consecutiveZeroSpeed > minConsecutiveZeroSpeed){
+      if (!isEstopped && !isManual && !isTimedOut && 
+      	   desiredSpeed < 0 && measuredSpeed == 0 && 
+      	   consecutiveZeroSpeed > minConsecutiveZeroSpeed){
         currentState = STATE_REVERSE_TRANSITION;
         consecutiveStop = 0; // Reset stop cycle counter
         playSong(7);
@@ -575,12 +581,15 @@ void executeStateMachine(){
 
     ////////////////////////////////////////////////////////
     //           (5) REVERSE COAST STATE                  //
+    //     If speed is negative, this state allows us     //
+    //     to return to zero speed by coasting until      //
+    //     we stop.  Braking isn't possible due to ESC.   //
     ////////////////////////////////////////////////////////
     case STATE_REVERSE_COAST:{
       /*----------------------
               LOGIC
       ----------------------*/       
-        runHold();
+      runHold();
       /*----------------------
             TRANSITIONS
       ----------------------*/
@@ -609,13 +618,15 @@ void executeStateMachine(){
         break;
       }
       // Transition to Reverse State
-      if (!isEstopped && !isManual && !isTimedOut && desiredSpeed < 0 && measuredSpeed < 0){
+      if (!isEstopped && !isManual && !isTimedOut && 
+      		desiredSpeed < 0 && measuredSpeed < 0){
         currentState = STATE_REVERSE;
         playSong(6);
         break;
       }
       // Transition to Idle
-      if (!isEstopped && !isManual && !isTimedOut && desiredSpeed == 0 && measuredSpeed == 0){
+      if (!isEstopped && !isManual && !isTimedOut && 
+      	    desiredSpeed == 0 && measuredSpeed == 0){
         currentState = STATE_IDLE;
         playSong(8);
         break;
@@ -626,7 +637,8 @@ void executeStateMachine(){
     }
          
     ////////////////////////////////////////////////////////
-    //           (6) REVERSE STATE                        //
+    //                (6) REVERSE STATE                   //
+    //         When we are actively moving in reverse     //
     ////////////////////////////////////////////////////////
     case STATE_REVERSE:{
       /*----------------------
@@ -663,7 +675,8 @@ void executeStateMachine(){
         break;
       }
       // Transition to Reverse Coast State
-      if (!isEstopped && !isManual && !isTimedOut && desiredSpeed == 0 && measuredSpeed < 0){
+      if (!isEstopped && !isManual && !isTimedOut && 
+      		desiredSpeed == 0 && measuredSpeed < 0){
         currentState = STATE_REVERSE_COAST;
         playSong(5);
         break;
@@ -675,6 +688,10 @@ void executeStateMachine(){
 
     ////////////////////////////////////////////////////////
     //           (7) REVERSE TRANSITION STATE             //
+    //         State between braking and reversing where  //
+    //         the robot must remain stationary for       //
+    //         a short period of time to keep the ESC     //
+    //         happy.                                     //
     ////////////////////////////////////////////////////////
     case STATE_REVERSE_TRANSITION:{
       /*----------------------
@@ -704,7 +721,8 @@ void executeStateMachine(){
         break;
       }
       //Transition to Idle State
-      if (!isEstopped && !isManual && !isTimedOut && desiredSpeed == 0 && measuredSpeed == 0){
+      if (!isEstopped && !isManual && !isTimedOut && 
+      		desiredSpeed == 0 && measuredSpeed == 0){
         currentState == STATE_IDLE;
         playSong(8);
         break;
@@ -716,7 +734,8 @@ void executeStateMachine(){
         break;
       }
       // Transition to Reverse State (must wait for a minimum number of stop cycles before going to reverse)
-      if (!isEstopped && !isManual && !isTimedOut && desiredSpeed < 0 && consecutiveStop > minConsecutiveStop){
+      if (!isEstopped && !isManual && !isTimedOut && 
+      		desiredSpeed < 0 && consecutiveStop > minConsecutiveStop){
         currentState = STATE_REVERSE;
         playSong(6);
         break;
@@ -729,6 +748,9 @@ void executeStateMachine(){
      
     ////////////////////////////////////////////////////////
     //             (8) IDLE STATE                         //
+    //          When the robot is at zero speed.          //
+    //          External influence means we are not       //
+    //          guaranteed to be at zero speed.           //
     ////////////////////////////////////////////////////////
     case STATE_IDLE:{
       /*----------------------
