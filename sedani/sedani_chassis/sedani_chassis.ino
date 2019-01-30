@@ -78,7 +78,7 @@ unsigned int consecutiveZeroSpeed = 0;
 const unsigned int minConsecutiveZeroSpeed = 3;
 
 unsigned int consecutiveStop = 0;
-const unsigned int minConsecutiveStop = 8;
+const unsigned int minConsecutiveStop = 18;
 
 const unsigned long reversePwm = 1375;
 const unsigned long reverseHoldPwm = 1490;
@@ -96,21 +96,23 @@ const int songInformation6[2] = {NOTE_C6, NOTE_C5};
 const int songInformation7[2] = {NOTE_C5, NOTE_C6};
 const int songInformation8[2] = {NOTE_C4, NOTE_C6};
 
+const bool soundActive = false;
+
 // Servo objects
 Servo esc;
 Servo steering;
 
 // State machine possible states
 enum ChassisState {
-  STATE_DISABLED,
-  STATE_TIMEOUT,
-  STATE_MANUAL,
-  STATE_FORWARD,
-  STATE_FORWARD_BRAKING,
-  STATE_REVERSE,
-  STATE_REVERSE_COAST,
-  STATE_REVERSE_TRANSITION,
-  STATE_IDLE
+  STATE_DISABLED = 0,
+  STATE_TIMEOUT = 1,
+  STATE_MANUAL = 2,
+  STATE_FORWARD = 3,
+  STATE_FORWARD_BRAKING = 4,
+  STATE_REVERSE = 5,
+  STATE_REVERSE_COAST = 6,
+  STATE_REVERSE_TRANSITION = 7,
+  STATE_IDLE = 8
 } currentState = STATE_DISABLED;
 
 void setup() {
@@ -256,42 +258,44 @@ void sendFeedback(const float* feedbackValues, const int feedbackCount) {
 // Playing songs
 
 void playSong(int number) {
-  for (int thisNote = 0; thisNote < 2; thisNote++) {
-    unsigned long noteDuration = 125;
-    switch(number) {
-      case 0:
-        tone(speakerOutputPin, songInformation0[thisNote], noteDuration);
-        break;
-      case 1:
-        tone(speakerOutputPin, songInformation1[thisNote], noteDuration);
-        break;
-      case 2:
-        tone(speakerOutputPin, songInformation2[thisNote], noteDuration);
-        break;
-      case 3:
-        tone(speakerOutputPin, songInformation3[thisNote], noteDuration);
-        break;
-      case 4:
-        tone(speakerOutputPin, songInformation4[thisNote], noteDuration);
-        break;
-      case 5:
-        tone(speakerOutputPin, songInformation5[thisNote], noteDuration);
-        break;
-      case 6:
-        tone(speakerOutputPin, songInformation6[thisNote], noteDuration);
-        break;
-      case 7:
-        tone(speakerOutputPin, songInformation7[thisNote], noteDuration);
-        break;
-      case 8:
-        tone(speakerOutputPin, songInformation8[thisNote], noteDuration);
-        break;
-      default:
-        break;
+  if(soundActive){
+    for (int thisNote = 0; thisNote < 2; thisNote++) {
+      unsigned long noteDuration = 125;
+      switch(number) {
+        case 0:
+          tone(speakerOutputPin, songInformation0[thisNote], noteDuration);
+          break;
+        case 1:
+          tone(speakerOutputPin, songInformation1[thisNote], noteDuration);
+          break;
+        case 2:
+          tone(speakerOutputPin, songInformation2[thisNote], noteDuration);
+          break;
+        case 3:
+          tone(speakerOutputPin, songInformation3[thisNote], noteDuration);
+          break;
+        case 4:
+          tone(speakerOutputPin, songInformation4[thisNote], noteDuration);
+          break;
+        case 5:
+          tone(speakerOutputPin, songInformation5[thisNote], noteDuration);
+          break;
+        case 6:
+          tone(speakerOutputPin, songInformation6[thisNote], noteDuration);
+          break;
+        case 7:
+          tone(speakerOutputPin, songInformation7[thisNote], noteDuration);
+          break;
+        case 8:
+          tone(speakerOutputPin, songInformation8[thisNote], noteDuration);
+          break;
+        default:
+          break;
+      }
+      int pauseBetweenNotes = 162;
+      delay(pauseBetweenNotes);
+      noTone(speakerOutputPin);
     }
-    int pauseBetweenNotes = 162;
-    delay(pauseBetweenNotes);
-    noTone(speakerOutputPin);
   }
 }
 
@@ -580,7 +584,7 @@ void executeStateMachine(){
     } 
 
     ////////////////////////////////////////////////////////
-    //           (5) REVERSE COAST STATE                  //
+    //           (6) REVERSE COAST STATE                  //
     //     If speed is negative, this state allows us     //
     //     to return to zero speed by coasting until      //
     //     we stop.  Braking isn't possible due to ESC.   //
@@ -619,7 +623,7 @@ void executeStateMachine(){
       }
       // Transition to Reverse State
       if (!isEstopped && !isManual && !isTimedOut && 
-      		desiredSpeed < 0 && measuredSpeed < 0){
+      		desiredSpeed < 0 && measuredSpeed <= 0){
         currentState = STATE_REVERSE;
         playSong(6);
         break;
@@ -637,7 +641,7 @@ void executeStateMachine(){
     }
          
     ////////////////////////////////////////////////////////
-    //                (6) REVERSE STATE                   //
+    //                (5) REVERSE STATE                   //
     //         When we are actively moving in reverse     //
     ////////////////////////////////////////////////////////
     case STATE_REVERSE:{
@@ -679,6 +683,13 @@ void executeStateMachine(){
       		desiredSpeed == 0 && measuredSpeed < 0){
         currentState = STATE_REVERSE_COAST;
         playSong(5);
+        break;
+      }
+      // Transition to Idle state
+      if (!isEstopped && !isManual && !isTimedOut && 
+          desiredSpeed == 0 && measuredSpeed == 0){
+        currentState = STATE_IDLE;
+        playSong(8);
         break;
       }
       // Default Loop Case
@@ -723,7 +734,7 @@ void executeStateMachine(){
       //Transition to Idle State
       if (!isEstopped && !isManual && !isTimedOut && 
       		desiredSpeed == 0 && measuredSpeed == 0){
-        currentState == STATE_IDLE;
+        currentState = STATE_IDLE;
         playSong(8);
         break;
       }
@@ -786,19 +797,19 @@ void executeStateMachine(){
         break;
       }
       // Transition to Forward Braking
-      if (!isEstopped && !isManual && !isTimedOut && desiredSpeed <= 0 && measuredSpeed > 0){
+      if (!isEstopped && !isManual && !isTimedOut && desiredSpeed < 0 && measuredSpeed >= 0){
         currentState = STATE_FORWARD_BRAKING;
         consecutiveZeroSpeed = 0; // Reset zero speed cycle counter
         playSong(4);
         break;
       }
       // Transition to Reverse Transition
-      if (!isEstopped && !isManual && !isTimedOut && desiredSpeed < 0 && measuredSpeed == 0){
-        currentState = STATE_REVERSE_TRANSITION;
-        consecutiveStop = 0; // Reset stop cycle counter
-        playSong(7);
-        break;
-      }
+//      if (!isEstopped && !isManual && !isTimedOut && desiredSpeed < 0 && measuredSpeed == 0){
+//        currentState = STATE_REVERSE_TRANSITION;
+//        consecutiveStop = 0; // Reset stop cycle counter
+//        playSong(7);
+//        break;
+//      }
       //Default Loop Case
       currentState = STATE_IDLE;
       break;
@@ -826,15 +837,17 @@ void runStateForward() {
 }
 
 void runStateBraking() {
-  if(measuredSpeed > minBrakingSpeed){
-    consecutiveZeroSpeed = 0;
-    drive(brakePwm);
-  }else if(measuredSpeed < -minBrakingSpeed){
-    consecutiveZeroSpeed = 0;
-    drive(centerSpeedPwm);
-  }else{
-    consecutiveZeroSpeed++;
-  }
+//  if(measuredSpeed > minBrakingSpeed){
+//    consecutiveZeroSpeed = 0;
+//    drive(brakePwm);
+//  }else if(measuredSpeed < -minBrakingSpeed){
+//    consecutiveZeroSpeed = 0;
+//    drive(centerSpeedPwm);
+//  }else{
+//    consecutiveZeroSpeed++;
+//  }
+  consecutiveZeroSpeed++;
+  drive(brakePwm);
   steer();
 }
 
