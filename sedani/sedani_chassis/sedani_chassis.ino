@@ -84,6 +84,7 @@ const unsigned long reversePwm = 1375;
 const unsigned long reverseHoldPwm = 1490;
 
 bool reverseTag = false;
+bool reverseRequired = true;
 
 // Songs!
 const int songInformation0[2] = {NOTE_C4, NOTE_C4};
@@ -581,63 +582,6 @@ void executeStateMachine(){
       // Default Loop Case
       currentState = STATE_FORWARD_BRAKING;
       break;
-    } 
-
-    ////////////////////////////////////////////////////////
-    //           (6) REVERSE COAST STATE                  //
-    //     If speed is negative, this state allows us     //
-    //     to return to zero speed by coasting until      //
-    //     we stop.  Braking isn't possible due to ESC.   //
-    ////////////////////////////////////////////////////////
-    case STATE_REVERSE_COAST:{
-      /*----------------------
-              LOGIC
-      ----------------------*/       
-      runHold();
-      /*----------------------
-            TRANSITIONS
-      ----------------------*/
-      // Transition to Disabled State
-      if (isEstopped){
-        currentState = STATE_DISABLED;
-        playSong(0);
-        break;
-      }
-      // Transition to Manual State
-      if (!isEstopped && isManual){
-        currentState = STATE_MANUAL;
-        playSong(2);
-        break;
-      }
-      // Transition to Timeout State
-      if (!isEstopped && !isManual && isTimedOut){
-        currentState = STATE_TIMEOUT;
-        playSong(1);
-        break;
-      }
-      // Transition to Forward State
-      if (!isEstopped && !isManual && !isTimedOut && desiredSpeed > 0){
-        currentState = STATE_FORWARD;
-        playSong(3);
-        break;
-      }
-      // Transition to Reverse State
-      if (!isEstopped && !isManual && !isTimedOut && 
-      		desiredSpeed < 0 && measuredSpeed <= 0){
-        currentState = STATE_REVERSE;
-        playSong(6);
-        break;
-      }
-      // Transition to Idle
-      if (!isEstopped && !isManual && !isTimedOut && 
-      	    desiredSpeed == 0 && measuredSpeed == 0){
-        currentState = STATE_IDLE;
-        playSong(8);
-        break;
-      }
-      // Default Loop Case
-      currentState = STATE_REVERSE_COAST;
-      break;
     }
          
     ////////////////////////////////////////////////////////
@@ -698,6 +642,63 @@ void executeStateMachine(){
     }
 
     ////////////////////////////////////////////////////////
+    //           (6) REVERSE COAST STATE                  //
+    //     If speed is negative, this state allows us     //
+    //     to return to zero speed by coasting until      //
+    //     we stop.  Braking isn't possible due to ESC.   //
+    ////////////////////////////////////////////////////////
+    case STATE_REVERSE_COAST:{
+      /*----------------------
+              LOGIC
+      ----------------------*/       
+      runHold();
+      /*----------------------
+            TRANSITIONS
+      ----------------------*/
+      // Transition to Disabled State
+      if (isEstopped){
+        currentState = STATE_DISABLED;
+        playSong(0);
+        break;
+      }
+      // Transition to Manual State
+      if (!isEstopped && isManual){
+        currentState = STATE_MANUAL;
+        playSong(2);
+        break;
+      }
+      // Transition to Timeout State
+      if (!isEstopped && !isManual && isTimedOut){
+        currentState = STATE_TIMEOUT;
+        playSong(1);
+        break;
+      }
+      // Transition to Forward State
+      if (!isEstopped && !isManual && !isTimedOut && desiredSpeed > 0){
+        currentState = STATE_FORWARD;
+        playSong(3);
+        break;
+      }
+      // Transition to Reverse State
+      if (!isEstopped && !isManual && !isTimedOut && 
+          desiredSpeed < 0 && measuredSpeed <= 0){
+        currentState = STATE_REVERSE;
+        playSong(6);
+        break;
+      }
+      // Transition to Idle
+      if (!isEstopped && !isManual && !isTimedOut && 
+            desiredSpeed == 0 && measuredSpeed == 0){
+        currentState = STATE_IDLE;
+        playSong(8);
+        break;
+      }
+      // Default Loop Case
+      currentState = STATE_REVERSE_COAST;
+      break;
+    }
+
+    ////////////////////////////////////////////////////////
     //           (7) REVERSE TRANSITION STATE             //
     //         State between braking and reversing where  //
     //         the robot must remain stationary for       //
@@ -754,8 +755,7 @@ void executeStateMachine(){
       // Default Loop Case
       currentState = STATE_REVERSE_TRANSITION;
       break;
-    }         
-      
+    }          
      
     ////////////////////////////////////////////////////////
     //             (8) IDLE STATE                         //
@@ -837,17 +837,16 @@ void runStateForward() {
 }
 
 void runStateBraking() {
-//  if(measuredSpeed > minBrakingSpeed){
-//    consecutiveZeroSpeed = 0;
-//    drive(brakePwm);
-//  }else if(measuredSpeed < -minBrakingSpeed){
-//    consecutiveZeroSpeed = 0;
-//    drive(centerSpeedPwm);
-//  }else{
-//    consecutiveZeroSpeed++;
-//  }
-  consecutiveZeroSpeed++;
-  drive(brakePwm);
+  if(measuredSpeed > minBrakingSpeed || reverseRequired){
+    consecutiveZeroSpeed = 0;
+    drive(brakePwm);
+    reversedRequired = false;
+  }else if(measuredSpeed < -minBrakingSpeed){
+    consecutiveZeroSpeed = 0;
+    drive(centerSpeedPwm);
+  }else{
+    consecutiveZeroSpeed++;
+  }
   steer();
 }
 
@@ -907,5 +906,8 @@ void steer(){
 
 void drive(unsigned long desiredSentPwm){
   currentEscPwm = desiredSentPwm;
+  if(desiredSentPwm > centerSpeedPwm){
+      reverseRequired = true;
+  }
   esc.write(currentEscPwm);
 }
