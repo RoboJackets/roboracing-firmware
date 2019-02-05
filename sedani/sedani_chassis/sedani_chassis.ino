@@ -19,7 +19,7 @@ const int wirelessPinD = 16;
 const float maxSpeed = 3; // maximum velocity 
 const float minSpeed = -1;
 
-const unsigned int centerSpeedPwm = 1492;
+const unsigned int centerSpeedPwm = 1472;
 const unsigned int maxPwm = SpeedLUT[85][0];
 
 const float maxSteeringAngle = 0.463; // Radians
@@ -57,6 +57,7 @@ volatile unsigned long prevSampleTime = micros();
 volatile unsigned long currSampleTime = micros();
 volatile unsigned int interruptCount = 0;
 unsigned int prevInterruptCount = 0;
+void measureSpeed();
 
 // Use a speedScaling factor of 2426595.48 for RPM
 // Converts frequency of sensor to m/s
@@ -80,8 +81,8 @@ const unsigned int minConsecutiveZeroSpeed = 3;
 unsigned int consecutiveStop = 0;
 const unsigned int minConsecutiveStop = 18;
 
-const unsigned long reversePwm = 1375;
-const unsigned long reverseHoldPwm = 1490;
+const unsigned long reversePwm = 1350;
+const unsigned long reverseHoldPwm = 1470;
 
 bool reverseTag = false;
 bool reverseRequired = true;
@@ -161,7 +162,7 @@ void loop() {
   executeStateMachine();
 
   if(gotMessage) {
-    float values[] = {currentState, measuredSpeed, currentSteeringAngle};
+    float values[] = {currentState, measuredSpeed, (float)(currentEscPwm)};
     sendFeedback(values, sizeof(values)/sizeof(float));
   }
   
@@ -824,11 +825,21 @@ void runHold(){
   drive(centerSpeedPwm);
 }
 
+void runHoldDoNotTrack(){
+  steering.write(centerSteeringPwm);
+  esc.write(centerSpeedPwm);
+}
+
 void runStateManual() {
-  unsigned long currentSteerPwm = pulseIn(rcSteerPin,HIGH);
-  currentSteeringAngle = radiansFromServoPwm(currentSteerPwm);
+  unsigned long currentReadSteerPwm = pulseIn(rcSteerPin,HIGH);
+  unsigned long currentReadEscPwm = pulseIn(rcEscPin,HIGH);
+  currentEscPwm = currentReadEscPwm;
+  if(currentEscPwm > centerSpeedPwm){
+    reverseRequired = true;
+  }
+  currentSteeringAngle = radiansFromServoPwm(currentReadSteerPwm);
   // Speed measurement is handled by calculate speed
-  runHold();
+  runHoldDoNotTrack();
 }
 
 void runStateForward() {
@@ -837,14 +848,21 @@ void runStateForward() {
 }
 
 void runStateBraking() {
-  if(measuredSpeed > minBrakingSpeed || reverseRequired){
+  if(measuredSpeed > minBrakingSpeed){
     consecutiveZeroSpeed = 0;
     drive(brakePwm);
-    reversedRequired = false;
-  }else if(measuredSpeed < -minBrakingSpeed){
-    consecutiveZeroSpeed = 0;
-    drive(centerSpeedPwm);
-  }else{
+  }
+//  else if(measuredSpeed < -minBrakingSpeed){
+//    consecutiveZeroSpeed = 0;
+//    drive(centerSpeedPwm);
+//  }
+//  else if(reverseRequired && measuredSpeed == 0.0){
+//    drive(brakePwm);
+//    consecutiveZeroSpeed++;
+//    if(consecutiveZeroSpeed > minConsecutiveZeroSpeed){
+//      reverseRequired = false;
+//    }
+  else{
     consecutiveZeroSpeed++;
   }
   steer();
