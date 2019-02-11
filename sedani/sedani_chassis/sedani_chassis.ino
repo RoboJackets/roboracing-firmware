@@ -162,7 +162,7 @@ void loop() {
   executeStateMachine();
 
   if(gotMessage) {
-    float values[] = {currentState, measuredSpeed, (float)(currentEscPwm)};
+    float values[] = {currentState, measuredSpeed, currentSteeringAngle};
     sendFeedback(values, sizeof(values)/sizeof(float));
   }
   
@@ -804,13 +804,6 @@ void executeStateMachine(){
         playSong(4);
         break;
       }
-      // Transition to Reverse Transition
-//      if (!isEstopped && !isManual && !isTimedOut && desiredSpeed < 0 && measuredSpeed == 0){
-//        currentState = STATE_REVERSE_TRANSITION;
-//        consecutiveStop = 0; // Reset stop cycle counter
-//        playSong(7);
-//        break;
-//      }
       //Default Loop Case
       currentState = STATE_IDLE;
       break;
@@ -852,16 +845,6 @@ void runStateBraking() {
     consecutiveZeroSpeed = 0;
     drive(brakePwm);
   }
-//  else if(measuredSpeed < -minBrakingSpeed){
-//    consecutiveZeroSpeed = 0;
-//    drive(centerSpeedPwm);
-//  }
-//  else if(reverseRequired && measuredSpeed == 0.0){
-//    drive(brakePwm);
-//    consecutiveZeroSpeed++;
-//    if(consecutiveZeroSpeed > minConsecutiveZeroSpeed){
-//      reverseRequired = false;
-//    }
   else{
     consecutiveZeroSpeed++;
   }
@@ -877,9 +860,6 @@ void runStateStopped() {
 void runStateReverse() {
   drive(reversePwm);
   steer();
-//  //Back up beeps >)
-//  unsigned long noteDuration = 50;
-//  tone(speakerOutputPin, NOTE_C7, noteDuration);
 }
 
 // Speed measurement
