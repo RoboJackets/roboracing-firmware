@@ -238,7 +238,7 @@ float radiansFromServoPwm(unsigned int servoPwm) {
 unsigned int steeringPwmFromRadians(float radiansToSteer) {
     if(radians > 0) {
         float prop = radiansToSteer / maxSteeringAngle;
-        return (prop * ( maxSteeringPwm - centerSteeringPwm)) + centerSteeringPwm;
+        return (prop * (maxSteeringPwm - centerSteeringPwm)) + centerSteeringPwm;
     } else {
         float prop = radiansToSteer / minSteeringAngle;
         return (prop * (minSteeringPwm - centerSteeringPwm)) + centerSteeringPwm;
@@ -317,7 +317,6 @@ void playSong(int number) {
 }
 
 // State Machine
-
 void executeStateMachine(){
     // Wireless State buttons
     bool wirelessStateB = digitalRead(wirelessPinB);
@@ -399,11 +398,11 @@ void executeStateMachine(){
         }
 
         ////////////////////////////////////////////////////////
-        //                            (1) TIMEOUT STATE                                         //
-        //        Sets Speed and Steering Angle to Zero. If             // 
-        //        communication has not occured since                         //
-        //        timeoutDuration (in ms) and in Auto, go to this //
-        //        state.                                                                                    //
+        //              (1) TIMEOUT STATE                     //
+        //    Sets Speed and Steering Angle to Zero. If       // 
+        //    communication has not occured since             //
+        //    timeoutDuration (in ms) and in Auto, go to this //
+        //    state.                                          //
         ////////////////////////////////////////////////////////
         case STATE_TIMEOUT:{
             /*----------------------
@@ -489,9 +488,9 @@ void executeStateMachine(){
         }
              
         ////////////////////////////////////////////////////////
-        //                            (3) FORWARD STATE                                         //
-        //                 Autonomous forward motion following                //
-        //                 inputs from NUC                                                        //
+        //              (3) FORWARD STATE                     //
+        //         Autonomous forward motion following        //
+        //                 inputs from NUC                    //
         ////////////////////////////////////////////////////////
         case STATE_FORWARD:{                    
             /*----------------------
@@ -542,9 +541,9 @@ void executeStateMachine(){
         }
 
         ////////////////////////////////////////////////////////
-        //                     (4) FORWARD BRAKING STATE                                //
-        //                    If you are going forward and want to go     //
-        //                    to zero or negative speed                                 //
+        //           (4) FORWARD BRAKING STATE                //
+        //          If you are going forward and want to go   //
+        //          to zero or negative speed                 //
         ////////////////////////////////////////////////////////
         case STATE_FORWARD_BRAKING:{            
             /*----------------------
@@ -601,8 +600,8 @@ void executeStateMachine(){
         }
                  
         ////////////////////////////////////////////////////////
-        //                                (5) REVERSE STATE                                     //
-        //                 When we are actively moving in reverse         //
+        //                (5) REVERSE STATE                   //
+        //         When we are actively moving in reverse     //
         ////////////////////////////////////////////////////////
         case STATE_REVERSE:{
             /*----------------------
@@ -658,10 +657,10 @@ void executeStateMachine(){
         }
 
         ////////////////////////////////////////////////////////
-        //                     (6) REVERSE COAST STATE                                    //
-        //         If speed is negative, this state allows us         //
-        //         to return to zero speed by coasting until            //
-        //         we stop.    Braking isn't possible due to ESC.     //
+        //           (6) REVERSE COAST STATE                  //
+        //     If speed is negative, this state allows us     //
+        //     to return to zero speed by coasting until      //
+        //     we stop.  Braking isn't possible due to ESC.   //
         ////////////////////////////////////////////////////////
         case STATE_REVERSE_COAST:{
             /*----------------------
@@ -715,11 +714,11 @@ void executeStateMachine(){
         }
 
         ////////////////////////////////////////////////////////
-        //                     (7) REVERSE TRANSITION STATE                         //
-        //                 State between braking and reversing where    //
-        //                 the robot must remain stationary for             //
-        //                 a short period of time to keep the ESC         //
-        //                 happy.                                                                         //
+        //           (7) REVERSE TRANSITION STATE             //
+        //         State between braking and reversing where  //
+        //         the robot must remain stationary for       //
+        //         a short period of time to keep the ESC     //
+        //         happy.                                     //
         ////////////////////////////////////////////////////////
         case STATE_REVERSE_TRANSITION:{
             /*----------------------
@@ -774,10 +773,10 @@ void executeStateMachine(){
         }                    
          
         ////////////////////////////////////////////////////////
-        //                         (8) IDLE STATE                                                 //
-        //                    When the robot is at zero speed.                    //
-        //                    External influence means we are not             //
-        //                    guaranteed to be at zero speed.                     //
+        //             (8) IDLE STATE                         //
+        //          When the robot is at zero speed.          //
+        //          External influence means we are not       //
+        //          guaranteed to be at zero speed.           //
         ////////////////////////////////////////////////////////
         case STATE_IDLE:{
             /*----------------------
@@ -785,7 +784,7 @@ void executeStateMachine(){
             ----------------------*/
             runHold();
                     
-         /*----------------------
+            /*----------------------
                         TRANSITIONS
             ----------------------*/
             // Transition to Disabled State
