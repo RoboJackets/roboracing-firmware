@@ -4,16 +4,21 @@
 #include "pitch.h"
 #endif
 
+//Must have Encoder by Paul Stoffregen installed.
+#include <Encoder.h>
 #include "SpeedLUT.h"
 #include <Servo.h>
 
 // Pins
-const byte rcEscPin = 2;
-const byte rcSteerPin = 3;
+const byte rcEscPin = 8;
+const byte rcSteerPin = 7;
 const byte escPin = 4;
 const byte steerPin = 5;
 const byte isManualPin = 6;
-const byte speedSensorPin = 7;
+//Encoder pins must be interrupt capable
+const byte encoderPinA = 2;
+const byte encoderPinB = 3;
+
 const byte speakerOutputPin = 9;
 const byte buttonEstopPin = 10;
 const byte wirelessPinC = 14;
@@ -58,17 +63,11 @@ bool prevWirelessStateB = false;
 bool prevWirelessStateC = false;
 bool prevWirelessStateD = false;
 
-// Speed Calculation
+// Encoders
+Encoder driveShaftEncoder(encoderPinA, encoderPinB);
+long prevEncoderPosition = 0;
 float measuredSpeed = 0.0;
-volatile unsigned long prevSampleTime = micros();
-volatile unsigned long currSampleTime = micros();
-volatile unsigned int interruptCount = 0;
-unsigned int prevInterruptCount = 0;
-void measureSpeed();
-
-// Use a speedScaling factor of 2426595.48 for RPM
-// Converts frequency of sensor to m/s
-const float speedScalingFactor = 9312.53;
+const float metersPerEncoderTick = 0.0001052;
 
 // PID Speed Control
 float integral = 0.0;
@@ -138,8 +137,6 @@ void setup() {
     pinMode(rcEscPin, INPUT);
     pinMode(rcSteerPin, INPUT);
     pinMode(isManualPin, INPUT);
-    pinMode(speedSensorPin, INPUT_PULLUP);
-    attachInterrupt(digitalPinToInterrupt(speedSensorPin), measureSpeed, FALLING);
     pinMode(speakerOutputPin, OUTPUT);
     pinMode(escPin, OUTPUT);
     pinMode(steerPin, OUTPUT);
@@ -149,7 +146,9 @@ void setup() {
 
     steering.write(centerSteeringPwm);
     drive(centerSpeedPwm);
-
+    
+    //Initialize encoder position to 0;
+    driveShaftEncoder.write(0);
     
     lastMessageTime = millis();
     isTimedOut = true;
@@ -236,7 +235,7 @@ float radiansFromServoPwm(unsigned int servoPwm) {
 }
 
 unsigned int steeringPwmFromRadians(float radiansToSteer) {
-    if(radians > 0) {
+    if(radiansToSteer > 0) {
         float prop = radiansToSteer / maxSteeringAngle;
         return (prop * (maxSteeringPwm - centerSteeringPwm)) + centerSteeringPwm;
     } else {
@@ -273,7 +272,6 @@ void sendFeedback(const float* feedbackValues, const int feedbackCount) {
 }
 
 // Playing songs
-
 void playSong(int number) {
     #ifdef AUDIO_ENABLE
     for (int thisNote = 0; thisNote < 2; thisNote++) {
@@ -876,33 +874,10 @@ void runStateReverse() {
     steer();
 }
 
-// Speed measurement
-void measureSpeed(){
-    currSampleTime = micros();    
-    interruptCount++;
-}
-
-void calculateSpeed(){
-    const unsigned long currentInterruptCount = interruptCount;
-    const unsigned long currTime = currSampleTime;
-    const unsigned long prevTime = prevSampleTime;
-    if(currTime != prevTime){
-        measuredSpeed = (speedScalingFactor*(currentInterruptCount-prevInterruptCount))/(currTime - prevTime);
-        if(reverseTag){
-            measuredSpeed *= -1.0;
-        }
-        prevSampleTime = currSampleTime;
-    }else{
-        measuredSpeed = 0;
-        interruptCount = 0;
-        if(currentEscPwm >= centerSpeedPwm){
-            reverseTag = false;
-        }
-        else{
-            reverseTag = true;
-        }
-    }
-    prevInterruptCount = interruptCount;
+float calculateSpeed(){
+    long currentEncoderPosition = driveShaftEncoder.read();
+    measuredSpeed = (currentEncoderPosition - prevEncoderPosition)*metersPerEncoderTick/millisPerLoop*millisPerSec;
+    prevEncoderPosition = currentEncoderPosition;
 }
 
 // Steering
