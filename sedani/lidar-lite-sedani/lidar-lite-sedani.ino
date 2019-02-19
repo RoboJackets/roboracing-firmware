@@ -31,9 +31,7 @@ struct LIDAR
 
 LIDAR lidarUnits[NUMBER_OF_LIDARS];            //Array of lidarUnits to store configuration data
 
-static const byte defAddress = 0x62;        //default address
-
-void change_address(char address, LIDARLite lidar);
+static const byte lidarDefaultAddress = 0x62;        //default address
 
 void setup() 
 {
@@ -59,20 +57,20 @@ void setup()
         digitalWrite(pinArray[i],1); //enable the enable pin
         delay(25);     //Wait 20ms to enable comms to Lidar unit
                 
-        Wire.beginTransmission(defAddress);    //Attempt to communicate to device
+        Wire.beginTransmission(lidarDefaultAddress);    //Attempt to communicate to device
         delay(10);
         int error = Wire.endTransmission();   //Comm error
         if(error == 0)     //Communications attempt successful
         {
             lidarUnits[unitCounter].pin = pinArray[i]; //Set pin number
-            lidarUnits[unitCounter].address = defAddress - unitCounter*2 - 10;  //Set device address
+            lidarUnits[unitCounter].address = lidarDefaultAddress - unitCounter*2 - 10;  //Set device address
             Serial.print("Device found on pin ");
             Serial.println(lidarUnits[unitCounter].pin);
             //Write address to LIDAR
             lidarUnits[unitCounter].myLidarLite.begin(0,true);
             lidarUnits[unitCounter].myLidarLite.configure(0);
             
-            lidarUnits[unitCounter].myLidarLite.setI2Caddr(lidarUnits[unitCounter].address, 1, defAddress);
+            lidarUnits[unitCounter].myLidarLite.setI2Caddr(lidarUnits[unitCounter].address, 1, lidarDefaultAddress);
             //checking address change
             for(char a=0;a<255;a+=2){
                 Wire.beginTransmission(a);    //Attempt to communicate to device
@@ -103,11 +101,11 @@ void setup()
 }
 
 byte recalibrationCounter = 0;
+
 //microseconds
 unsigned long startTime;
 unsigned long endReadTime;
 float timeToTransmit = 8000;  //Magic number guess from Serial
-int timeForReadCycle;
 
 void loop()
 {
@@ -147,10 +145,11 @@ void loop()
 		lidarUnits[i].currentSumReads = 0;
 		lidarUnits[i].currentNumReads = 0;
 	}
-	//if to make it rollover safe
+	//if statement to make it rollover safe
 	//Could have problem if endReadTime rolls over but micros() does not
 	if(micros() > startTime){
 		//exponential filter to estimate the time it takes to send back data
+        //0.05 magic number
 		timeToTransmit += 0.05*((micros() - endReadTime) - timeToTransmit);
 	}
 	//make timing stable
