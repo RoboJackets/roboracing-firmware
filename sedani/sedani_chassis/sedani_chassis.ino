@@ -211,6 +211,7 @@ unsigned long escPwmFromMetersPerSecond(float velocity)
     if(fabs(velocity - LUTVelocity) > fabs(velocity - prevLUTVelocity)) {
       return SpeedLUT[i-1][0];
     }
+    prevLUTVelocity = LUTVelocity;
   }
   return SpeedLUT[85][0];
 }
