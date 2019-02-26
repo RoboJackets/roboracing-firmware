@@ -7,31 +7,35 @@ get a calibration curve for the lidars
 #include <Wire.h>
 #include <LIDARLite.h>
 
-#define NUMBER_OF_LIDARS 8
+#define NUMBER_OF_LIDARS 2
 
 //Define pin array to be scanned for valid lidar scanners
-static const int pinArray[] = {2,3,4,5,6,7,8,9};
+static const int lidarEnablePinArray[] = {A5,A4};
 byte unitCounter = 0;
 
-static const byte loopSpeed = 10;
-static const unsigned long usPerSec = 1000000;
 static const unsigned int loopToleranceTime = 100; //us. Extra slop time to keep timing constant
-static const unsigned long usPerLoop = usPerSec/loopSpeed;
-
+static const unsigned long usPerLoop = 100000;
 static const byte loopsPerRecalibration = 50;
+
+static const byte lidarDefaultAddress = 0x62;        //default address
+
+byte recalibrationCounter = 0;
+
+//microseconds
+unsigned long startTime;
+unsigned long endReadTime;
+float timeToTransmit = 8000;  //Magic number guess from Serial
 
 struct LIDAR
 {
+	LIDARLite myLidarLite;
     byte address;
     byte pin;
-    LIDARLite myLidarLite;
 	unsigned int currentSumReads = 0;
 	unsigned int currentNumReads = 0;
 };
 
 LIDAR lidarUnits[NUMBER_OF_LIDARS];            //Array of lidarUnits to store configuration data
-
-static const byte lidarDefaultAddress = 0x62;        //default address
 
 void setup() 
 {
@@ -44,8 +48,8 @@ void setup()
 	
     for(int i=0; i < NUMBER_OF_LIDARS; i++) // Setup enable pins
     {
-        pinMode(pinArray[i],OUTPUT);
-        digitalWrite(pinArray[i],0);
+        pinMode(lidarEnablePinArray[i],OUTPUT);
+        digitalWrite(lidarEnablePinArray[i],0);
     }
 
     delay(10);
@@ -54,7 +58,7 @@ void setup()
     //Sequentially Enable the enable pins to detect active Lidar sensors
     for(int i=0; i < NUMBER_OF_LIDARS; i++) 
     {
-        digitalWrite(pinArray[i],1); //enable the enable pin
+        digitalWrite(lidarEnablePinArray[i],1); //enable the enable pin
         delay(25);     //Wait 20ms to enable comms to Lidar unit
                 
         Wire.beginTransmission(lidarDefaultAddress);    //Attempt to communicate to device
@@ -62,7 +66,7 @@ void setup()
         int error = Wire.endTransmission();   //Comm error
         if(error == 0)     //Communications attempt successful
         {
-            lidarUnits[unitCounter].pin = pinArray[i]; //Set pin number
+            lidarUnits[unitCounter].pin = lidarEnablePinArray[i]; //Set pin number
             lidarUnits[unitCounter].address = lidarDefaultAddress - unitCounter*2 - 10;  //Set device address
             Serial.print("Device found on pin ");
             Serial.println(lidarUnits[unitCounter].pin);
@@ -77,22 +81,19 @@ void setup()
                 delay(1);
                 int error = Wire.endTransmission();     //Comm error
                 if(error == 0){
-                    Serial.print("changed to");
+                    Serial.print("changed to ");
                     Serial.println((int)a);
                     break;
-                    }
                 }
-                
-             
+            }
             unitCounter += 1;
         }
         else
         {
             Serial.print("No device found on ");
-            Serial.println(pinArray[i]);
-			digitalWrite(pinArray[i], LOW);
+            Serial.println(lidarEnablePinArray[i]);
+			digitalWrite(lidarEnablePinArray[i], LOW);
         }
-        
     }
 
     delay(100);
@@ -100,18 +101,12 @@ void setup()
     Serial.println(" devices detected and readdressed");
 }
 
-byte recalibrationCounter = 0;
 
-//microseconds
-unsigned long startTime;
-unsigned long endReadTime;
-float timeToTransmit = 8000;  //Magic number guess from Serial
 
 void loop()
 {
 	startTime = micros();
 	endReadTime = startTime + usPerLoop - loopToleranceTime - (int)timeToTransmit;
-	
 	
     //Loop through each Lidar unit and read distance data
 	do{
