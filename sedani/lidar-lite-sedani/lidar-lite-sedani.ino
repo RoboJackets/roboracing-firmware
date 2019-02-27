@@ -37,64 +37,25 @@ struct LIDAR
 
 LIDAR lidarUnits[NUMBER_OF_LIDARS];            //Array of lidarUnits to store configuration data
 
+void initializeLidars();
+
 void setup() 
 {
     Wire.begin();
-	
-    Serial.begin(115200);     //Start serial communications
+
+	//Start serial communications
+    Serial.begin(115200);
     while(!Serial){
         delay(1);
     }
-	
-    for(int i=0; i < NUMBER_OF_LIDARS; i++) // Setup enable pins
-    {
+
+    // Setup enable pins
+   	for(int i=0; i < NUMBER_OF_LIDARS; i++){
         pinMode(lidarEnablePinArray[i],OUTPUT);
         digitalWrite(lidarEnablePinArray[i],0);
     }
 
-    delay(10);
-
-    
-    //Sequentially Enable the enable pins to detect active Lidar sensors
-    for(int i=0; i < NUMBER_OF_LIDARS; i++) 
-    {
-        digitalWrite(lidarEnablePinArray[i],1); //enable the enable pin
-        delay(25);     //Wait 20ms to enable comms to Lidar unit
-                
-        Wire.beginTransmission(lidarDefaultAddress);    //Attempt to communicate to device
-        delay(10);
-        int error = Wire.endTransmission();   //Comm error
-        if(error == 0)     //Communications attempt successful
-        {
-            lidarUnits[unitCounter].pin = lidarEnablePinArray[i]; //Set pin number
-            lidarUnits[unitCounter].address = lidarDefaultAddress - unitCounter*2 - 10;  //Set device address
-            Serial.print("Device found on pin ");
-            Serial.println(lidarUnits[unitCounter].pin);
-            //Write address to LIDAR
-            lidarUnits[unitCounter].myLidarLite.begin(0,true);
-            lidarUnits[unitCounter].myLidarLite.configure(0);
-            
-            lidarUnits[unitCounter].myLidarLite.setI2Caddr(lidarUnits[unitCounter].address, 1, lidarDefaultAddress);
-            //checking address change
-            for(char a=0;a<255;a+=2){
-                Wire.beginTransmission(a);    //Attempt to communicate to device
-                delay(1);
-                int error = Wire.endTransmission();     //Comm error
-                if(error == 0){
-                    Serial.print("changed to ");
-                    Serial.println((int)a);
-                    break;
-                }
-            }
-            unitCounter += 1;
-        }
-        else
-        {
-            Serial.print("No device found on ");
-            Serial.println(lidarEnablePinArray[i]);
-			digitalWrite(lidarEnablePinArray[i], LOW);
-        }
-    }
+    initializeLidars();
 
     delay(100);
     Serial.print(unitCounter);
@@ -149,4 +110,53 @@ void loop()
 	}
 	//make timing stable
 	while(micros() > startTime && micros() < (startTime + usPerLoop));
+}
+
+void initializeLidars(){
+    //Sequentially Enable the enable pins to detect active Lidar sensors
+    for(int i=0; i < NUMBER_OF_LIDARS; i++) 
+    {
+    	//enable the enable pin
+        digitalWrite(lidarEnablePinArray[i],1); 
+        //Wait 25ms to enable comms to Lidar unit
+        delay(25);     
+        
+        //Attempt to communicate to device
+        Wire.beginTransmission(lidarDefaultAddress);
+        delay(10);
+        //Comm error
+        int error = Wire.endTransmission();
+        //Communications attempt successful
+        if(error == 0){
+            lidarUnits[unitCounter].pin = lidarEnablePinArray[i]; //Set pin number
+            //<< 1 for 7 bit address
+            lidarUnits[unitCounter].address = lidarDefaultAddress - ((unitCounter + 1) << 1);  //Set device address
+            Serial.print("Device found on pin ");
+            Serial.println(lidarUnits[unitCounter].pin);
+            //Write address to LIDAR
+            lidarUnits[unitCounter].myLidarLite.begin(0,true);
+            lidarUnits[unitCounter].myLidarLite.configure(0);
+            
+            lidarUnits[unitCounter].myLidarLite.setI2Caddr(lidarUnits[unitCounter].address, 1, lidarDefaultAddress);
+
+            //checking address change
+            for(char a=0;a<255;a+=2){
+                Wire.beginTransmission(a);    //Attempt to communicate to device
+                delay(1);
+                int error = Wire.endTransmission();     //Comm error
+                if(error == 0){
+                    Serial.print("changed to ");
+                    Serial.println((int)a);
+                    break;
+                }
+            }
+            unitCounter += 1;
+        }
+        else{
+            Serial.print("No device found on ");
+            Serial.println(lidarEnablePinArray[i]);
+			digitalWrite(lidarEnablePinArray[i], LOW);
+        }
+    }
+
 }
