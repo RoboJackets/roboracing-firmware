@@ -1,5 +1,5 @@
 /*
-TO DO:
+TODO:
 get a calibration curve for the lidars
 
 */
@@ -9,9 +9,18 @@ get a calibration curve for the lidars
 
 #define NUMBER_OF_LIDARS 2
 
+#define DEBUG   //If you comment this line, the DPRINT & DPRINTLN lines are defined as blank.
+#ifdef DEBUG    //Macros are usually in all capital letters.
+  #define DPRINT(...)    Serial.print(__VA_ARGS__)     //DPRINT is a macro, debug print
+  #define DPRINTLN(...)  Serial.println(__VA_ARGS__)   //DPRINTLN is a macro, debug print with new line
+#else
+  #define DPRINT(...)     //now defines a blank line
+  #define DPRINTLN(...)   //now defines a blank line
+#endif
+
 //Define pin array to be scanned for valid lidar scanners
 static const int lidarEnablePinArray[] = {A5,A4};
-byte unitCounter = 0;
+byte activeLidarCounter = 0;
 
 static const unsigned int loopToleranceTime = 100; //us. Extra slop time to keep timing constant
 static const unsigned long usPerLoop = 100000;
@@ -58,8 +67,8 @@ void setup()
     initializeLidars();
 
     delay(100);
-    Serial.print(unitCounter);
-    Serial.println(" devices detected and readdressed");
+    DPRINT(activeLidarCounter);
+    DPRINTLN(" devices detected and readdressed");
 }
 
 
@@ -71,7 +80,7 @@ void loop()
 	
     //Loop through each Lidar unit and read distance data
 	do{
-		for(int i = 0; i < unitCounter; i++)
+		for(int i = 0; i < activeLidarCounter; i++)
 		{                
 			if (recalibrationCounter == i){
 				lidarUnits[i].currentSumReads += lidarUnits[i].myLidarLite.distance(true, lidarUnits[i].address);
@@ -86,17 +95,17 @@ void loop()
 	}while (micros() > startTime && micros() < endReadTime);
 	//print data
 	if (lidarUnits[0].currentNumReads == 0){
-		Serial.println("NO DATA ERROR!");
-		Serial.println(startTime);
-		Serial.println(endReadTime);
-		Serial.println(micros());
+		DPRINTLN("NO DATA ERROR!");
+		DPRINTLN(startTime);
+		DPRINTLN(endReadTime);
+		DPRINTLN(micros());
 	}
 	
-	Serial.println("Time to transmit (us): "+ String(timeToTransmit));
-	Serial.println("Number of reads: " + String(lidarUnits[0].currentNumReads));
+	DPRINTLN("Time to transmit (us): "+ String(timeToTransmit));
+	DPRINTLN("Number of reads: " + String(lidarUnits[0].currentNumReads));
 	
 	//Replace with Ethernet stuff
-	for(int i = 0; i < unitCounter; i++){
+	for(int i = 0; i < activeLidarCounter; i++){
 		Serial.println("Average LIDAR " + String(i) + " value: " + String(lidarUnits[i].currentSumReads/lidarUnits[i].currentNumReads));
 		lidarUnits[i].currentSumReads = 0;
 		lidarUnits[i].currentNumReads = 0;
@@ -128,33 +137,37 @@ void initializeLidars(){
         int error = Wire.endTransmission();
         //Communications attempt successful
         if(error == 0){
-            lidarUnits[unitCounter].pin = lidarEnablePinArray[i]; //Set pin number
-            //<< 1 for 7 bit address
-            lidarUnits[unitCounter].address = lidarDefaultAddress - ((unitCounter + 1) << 1);  //Set device address
-            Serial.print("Device found on pin ");
-            Serial.println(lidarUnits[unitCounter].pin);
+            lidarUnits[activeLidarCounter].pin = lidarEnablePinArray[i]; //Set pin number
+            // << 1 for 7 bit address
+            lidarUnits[activeLidarCounter].address = lidarDefaultAddress - ((activeLidarCounter + 1) << 1);  //Set device address
+            DPRINT("Device found on pin ");
+            DPRINTLN(lidarUnits[activeLidarCounter].pin);
             //Write address to LIDAR
-            lidarUnits[unitCounter].myLidarLite.begin(0,true);
-            lidarUnits[unitCounter].myLidarLite.configure(0);
-            
-            lidarUnits[unitCounter].myLidarLite.setI2Caddr(lidarUnits[unitCounter].address, 1, lidarDefaultAddress);
+            lidarUnits[activeLidarCounter].myLidarLite.begin(0,true);
+            //TODO Verify necessity of configure line
+            lidarUnits[activeLidarCounter].myLidarLite.configure(0);
+            // Sets new address of enabled lidar
+            lidarUnits[activeLidarCounter].myLidarLite.setI2Caddr(lidarUnits[activeLidarCounter].address, 1, lidarDefaultAddress);
 
             //checking address change
+            // TODO Verify most effective way to change address
             for(char a=0;a<255;a+=2){
                 Wire.beginTransmission(a);    //Attempt to communicate to device
                 delay(1);
                 int error = Wire.endTransmission();     //Comm error
                 if(error == 0){
-                    Serial.print("changed to ");
-                    Serial.println((int)a);
+                    DPRINT("changed to ");
+                    // TODO Verify cast to int?
+                    DPRINTLN((int)a);
                     break;
                 }
             }
-            unitCounter += 1;
+
+            activeLidarCounter += 1;
         }
         else{
-            Serial.print("No device found on ");
-            Serial.println(lidarEnablePinArray[i]);
+            DPRINT("No device found on ");
+            DPRINTLN(lidarEnablePinArray[i]);
 			digitalWrite(lidarEnablePinArray[i], LOW);
         }
     }
