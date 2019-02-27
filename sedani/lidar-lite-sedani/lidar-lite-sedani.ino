@@ -61,7 +61,7 @@ void setup()
     // Setup enable pins
    	for(int i=0; i < NUMBER_OF_LIDARS; i++){
         pinMode(lidarEnablePinArray[i],OUTPUT);
-        digitalWrite(lidarEnablePinArray[i],0);
+        digitalWrite(lidarEnablePinArray[i], LOW);
     }
 
     initializeLidars();
@@ -126,7 +126,7 @@ void initializeLidars(){
     for(int i=0; i < NUMBER_OF_LIDARS; i++) 
     {
     	//enable the enable pin
-        digitalWrite(lidarEnablePinArray[i],1); 
+        digitalWrite(lidarEnablePinArray[i], HIGH); 
         //Wait 25ms to enable comms to Lidar unit
         delay(25);     
         
