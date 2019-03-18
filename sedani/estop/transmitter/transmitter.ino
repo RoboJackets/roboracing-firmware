@@ -35,11 +35,7 @@
 //Match frequency to the hardware version of the radio:
 #define FREQUENCY     RF69_915MHZ
 
-//exactly the same 16 characters/bytes on all nodes!
-//Currently disabled, as no point to it
-#define ENCRYPTKEY    null
-
-#define IS_RFM69HW_HCW  //uncomment only for RFM69HW/HCW! Leave out if you have RFM69W/CW!
+#define IS_RFM69HW_HCW  //Only for RFM69HW/HCW! Leave out if you have RFM69W/CW!
 //*********************************************************************************************
 //Auto Transmission Control - dials down transmit power to save battery
 //Usually you do not need to always transmit at max output power
@@ -53,22 +49,23 @@
 #define SERIAL_BAUD   9600
 
 //MAKE SURE TO KEEP THIS THE SAME AS RECIEVER
-#define CODE_LENGTH 7
-const static uint8_t eStopCode[CODE_LENGTH] = {118, 187, 180, 208, 238, 135, 85};
-const static uint8_t goCode[CODE_LENGTH] = {197, 254, 146, 31, 32, 106, 81};
+const static byte codeLength = 4;
+const static uint8_t eStopCode[codeLength] = {208, 238, 135, 85};
+const static uint8_t goCode[codeLength] = {31, 32, 106, 81};
 
-//Payload is the code (go or stop) to send with the radio
-const static byte payloadLength = CODE_LENGTH;
+//Payload is the code (go or stop) to send with the radio. Last byte is for other data.
+const static byte payloadLength = codeLength + 1;
 uint8_t payload[payloadLength];
 
 #define TRANSMIT_PERIOD 200 //transmit a packet to gateway so often (in ms)
 #define RETRY_DELAY 20  //how many ms to wait before a retry
-#define RETRIES 3  //Retry how many times before failure
+#define RETRIES 2  //Retry how many times before failure
 
 //Not sure what this does
 char buff[20];
 
-#define OUPTUT_LED A0
+//Pins
+#define CONNECTED_LED A0
 
 #ifdef ENABLE_ATC
 RFM69_ATC radio;
@@ -80,9 +77,13 @@ void setup() {
     Serial.begin(SERIAL_BAUD);
     radio.initialize(FREQUENCY,NODEID,NETWORKID);
     radio.setHighPower(); //must include this only for RFM69HW/HCW!
-    radio.encrypt(ENCRYPTKEY);
     
-    pinMode(OUPTUT_LED, OUTPUT);
+    //Dial down transmit speed for increased range
+    writeReg(REG_BITRATEMSB, RF_BITRATEMSB_1200);
+    writeReg(REG_BITRATELSB, RF_BITRATELSB_1200);
+    
+    
+    pinMode(CONNECTED_LED, OUTPUT);
     //radio.setFrequency(919000000); //set frequency to some custom frequency
 
 //Auto Transmission Control - dials down transmit power to save battery (-100 is the noise floor, -90 is still pretty good)
@@ -92,72 +93,48 @@ void setup() {
 #ifdef ENABLE_ATC
     radio.enableAutoPower(ATC_RSSI);
 #endif
-
-    char buff[50];
-    sprintf(buff, "\nTransmitting at %d Mhz...", FREQUENCY==RF69_433MHZ ? 433 : FREQUENCY==RF69_868MHZ ? 868 : 915);
-    Serial.println(buff);
-
 #ifdef ENABLE_ATC
     Serial.println("RFM69_ATC Enabled (Auto Transmission Control)\n");
 #endif
 }
 
-bool linkEstablished = false;
+bool lastSendSuccessful = false;
 bool go = false;
-unsigned int lastPeriod = 0;
-unsigned int currPeriod;
 
 void loop() {
+    
+    //Create the payload
+    if (go){  //Copy goCode into payload
+        for(byte i = 0; i < codeLength; i++){
+            payload[i] = goCode[i];
+        }
+    }
+    else{  //E_STOPPED: copy the e-stop code into payload
+        for(byte i = 0; i < codeLength; i++){
+            payload[i] = goCode[i];
+        }
+    }
+    
+    payload[payloadLength - 1] = digitalRead(
+    
+    //Print what we are sending
+    Serial.print("Sending: ");
+    for(byte i = 0; i < payloadLength; i++){
+        Serial.print((char)payload[i]);
+    }
+    
+    //Send the data. If successful, delay. If fail, immediately retry.
+    if (radio.sendWithRetry(GATEWAYID, payload, payloadLength, RETRIES, RETRY_DELAY)){
+        Serial.print(" ok! RSSI: " + radio.RSSI);
+        lastSendSuccessful = true;
+        delay(TRANSMIT_PERIOD);
+    }
+    else {
+        Serial.print(" SENDING FAILED");
+        lastSendSuccessful = false;
+    }
 
-    //check for any received packets
-    if (radio.receiveDone())
-    {
-        Serial.print('[');Serial.print(radio.SENDERID, DEC);Serial.print("] ");
-        for (byte i = 0; i < radio.DATALEN; i++) {
-            Serial.print((char)radio.DATA[i]);
-        }
-        Serial.print("   [RX_RSSI:");Serial.print(radio.RSSI);Serial.print("]");
-  
-        if (radio.ACKRequested()) {
-            radio.sendACK();
-            Serial.print(" - ACK sent");
-        }
-        Serial.println();
-    }
+    Serial.println();
     
-     //Only send data every TRANSMIT_PERIOD ms
-    currPeriod = millis()/TRANSMIT_PERIOD;
-    if (currPeriod != lastPeriod) {
-        lastPeriod=currPeriod;
-        
-        //Create the payload
-        if (go){  //Copy goCode into payload
-            for(byte i = 0; i < CODE_LENGTH; i++){
-                payload[i] = goCode[i];
-            }
-        }
-        else{  //E_STOPPED: copy the e-stop code into payload
-            for(byte i = 0; i < CODE_LENGTH; i++){
-                payload[i] = goCode[i];
-            }
-        }
-        
-        Serial.print("Sending: ");
-        for(byte i = 0; i < payloadLength; i++){
-            Serial.print((char)payload[i]);
-        }
-  
-        if (radio.sendWithRetry(GATEWAYID, payload, payloadLength, RETRIES, RETRY_DELAY)){
-            Serial.print(" ok!");
-            linkEstablished = true;
-        }
-        else {
-            Serial.print(" SENDING FAILED");
-            linkEstablished = false;
-        }
-    
-        Serial.println();
-    }
-    
-    digitalWrite(OUPTUT_LED, linkEstablished);
+    digitalWrite(CONNECTED_LED, lastSendSuccessful);
 }

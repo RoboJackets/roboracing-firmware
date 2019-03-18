@@ -52,13 +52,14 @@
 
 /*
 MAKE SURE TO KEEP THESE CODES THE SAME AS RECIEVER
-We are using 7-byte codes for stop and go to hopefully prevent the radio from 
-receiving a stop or go signal by random chance
+We are using 4-byte codes for stop and go to hopefully prevent the radio from 
+receiving a stop or go signal by random chance.
+The last byte in the message is for 
 */
-#define CODE_LENGTH 7
-const static byte expectedMessageLength = CODE_LENGTH;
-const static uint8_t eStopCode[CODE_LENGTH] = {118, 187, 180, 208, 238, 135, 85};
-const static uint8_t goCode[CODE_LENGTH] = {197, 254, 146, 31, 32, 106, 81};
+const static byte codeLength = 4;
+const static uint8_t eStopCode[codeLength] = {208, 238, 135, 85};
+const static uint8_t goCode[codeLength] = {31, 32, 106, 81};
+const static byte expectedMessageLength = codeLength + 1;
 
 const static bool promiscuousMode = false; //set to 'true' to sniff all packets on the same network
 #define SERIAL_BAUD   9600
@@ -81,12 +82,10 @@ void setup() {
     
     radio.initialize(FREQUENCY,NODEID,NETWORKID);
     radio.setHighPower(); //must include this only for RFM69HW/HCW!
-    radio.encrypt(ENCRYPTKEY);
-    radio.promiscuous(promiscuousMode);
-    //radio.setFrequency(919000000); //set frequency to some custom frequency
-    char buff[50];
-    sprintf(buff, "\nListening at %d Mhz...", FREQUENCY==RF69_433MHZ ? 433 : FREQUENCY==RF69_868MHZ ? 868 : 915);
-    Serial.println(buff);
+    
+    //Dial down transmit speed for increased range
+    writeReg(REG_BITRATEMSB, RF_BITRATEMSB_1200);
+    writeReg(REG_BITRATELSB, RF_BITRATELSB_1200);
         
 #ifdef ENABLE_ATC
     Serial.println("RFM69_ATC Enabled (Auto Transmission Control)");
@@ -102,13 +101,15 @@ unsigned long lastCommandTime = 0;
 //Record if the message is valid
 bool messageValid = false;
 
+//Record if we currently have a connection
+bool connectionEstablished = false;
+
 //Should the car go or not?
 bool go = false;
 
 void loop() {
 
     if (radio.receiveDone()){
-        
         
         //Print out sender, message, and RSSI signal strength
         Serial.print("#[");
@@ -126,42 +127,22 @@ void loop() {
             byte theNodeID = radio.SENDERID;
             radio.sendACK();
             Serial.print(" - ACK sent.");
-
-            // When a node requests an ACK, respond to the ACK
-            // and also send a packet requesting an ACK (every 3rd one only)
-            // This way both TX/RX NODE functions are tested on 1 end at the GATEWAY
-            //May eliminate in final e-stop code
-            /*
-            if (ackCount++%3==0)
-            {
-                Serial.print(" Pinging node ");
-                Serial.print(theNodeID);
-                Serial.print(" - ACK...");
-                delay(3); //need this when sending right after reception .. ?
-                if (radio.sendWithRetry(theNodeID, "ACK TEST", 8, 0)){    // 0 = only 1 attempt, no retries
-                    Serial.println("ok!");
-                }
-                else{
-                    Serial.println("nothing");
-                }
-            }
-            */
         }
         
         //Decode message and verify it
         messageValid = false;
         //If message wrong length, fail immediately
         if (expectedMessageLength >= radio.DATALEN){
-            if(arrayCompare(radio.DATA, goCode, CODE_LENGTH)){
+            if(arrayCompare(radio.DATA, goCode, codeLength)){
                 go = true;
                 messageValid = true;
             }
-            else if (arrayCompare(radio.DATA, eStopCode, CODE_LENGTH)){
+            else if (arrayCompare(radio.DATA, eStopCode, codeLength)){
                 go = false;
                 messageValid = true;
             }
             else{
-                Serial.println("Invalid message (of correct length) received");
+                Serial.println("Invalid message received");
             }
         }
         else {
@@ -172,15 +153,24 @@ void loop() {
         //Update lastCommandTime if message was valid
         if (messageValid){
             lastCommandTime = millis();
+            connectionEstablished = true;
         }
                 
         Serial.println();
     }
     
+    //Check for millis() rollovers. If it did, reset lastCommandTime to 0.
+    if (millis() < lastCommandTime){
+        lastCommandTime = 0;
+    }
+    
     //Check if E_STOP is timed out
     if (millis() > lastCommandTime + E_STOP_TIMEOUT){
+        if (connectionEstablished){
+            Serial.println("LOST SIGNAL");
+        }
+        connectionEstablished = false;
         go = false;
-        Serial.println("LOST SIGNAL");
     }
     
     //Write the signal out to the pins
@@ -191,6 +181,7 @@ void loop() {
         digitalWrite(OUPTUT_LED, LOW);
     }
 }
+
 //Compares if two arrays are element-for-element the same
 //From https://forum.arduino.cc/index.php?topic=5157.0
 //numberOfElements MUST be less than the length of the two arrays
