@@ -19,21 +19,18 @@ get a calibration curve for the lidars
 #endif
 
 //Define pin array to be scanned for valid lidar scanners
-static const int lidarEnablePinArray[] = {A5,A4};
+const int lidarEnablePinArray[] = {A5,A4};
 byte activeLidarCounter = 0;
 
-static const unsigned int loopToleranceTime = 100; //us. Extra slop time to keep timing constant
-static const unsigned long usPerLoop = 100000;
-static const byte loopsPerRecalibration = 50;
+const byte loopsPerRecalibration = 50;
 
-static const byte lidarDefaultAddress = 0x62;        //default address
-
+const byte lidarDefaultAddress = 0x62;        //default address
 byte recalibrationCounter = 0;
 
-//microseconds
-unsigned long startTime;
-unsigned long endReadTime;
-float timeToTransmit = 8000;  //Magic number guess from Serial
+// Timeout Variables
+unsigned long lastMessageTime;
+const unsigned long timeoutDuration = 1000;
+bool isTimedOut = true; 
 
 struct LIDAR
 {
@@ -75,12 +72,15 @@ void setup()
 
 void loop()
 {
-	startTime = micros();
-	endReadTime = startTime + usPerLoop - loopToleranceTime - (int)timeToTransmit;
 	
     //Loop through each Lidar unit and read distance data
-	do{
-		for(int i = 0; i < activeLidarCounter; i++)
+    while(!getMessage()){
+        if(isTimedOut){
+            DPRINTLN("TIMED OUT!");
+            break;
+        }
+        
+    	for(int i = 0; i < activeLidarCounter; i++)
 		{                
 			if (recalibrationCounter == i){
 				lidarUnits[i].currentSumReads += lidarUnits[i].myLidarLite.distance(true, lidarUnits[i].address);
@@ -92,16 +92,14 @@ void loop()
 		}
 		recalibrationCounter++;
 		recalibrationCounter = recalibrationCounter % loopsPerRecalibration;
-	}while (micros() > startTime && micros() < endReadTime);
+    }
+
 	//print data
 	if (lidarUnits[0].currentNumReads == 0){
 		DPRINTLN("NO DATA ERROR!");
-		DPRINTLN(startTime);
-		DPRINTLN(endReadTime);
 		DPRINTLN(micros());
 	}
 	
-	DPRINTLN("Time to transmit (us): "+ String(timeToTransmit));
 	DPRINTLN("Number of reads: " + String(lidarUnits[0].currentNumReads));
 	
 	//Replace with Ethernet stuff
@@ -110,15 +108,6 @@ void loop()
 		lidarUnits[i].currentSumReads = 0;
 		lidarUnits[i].currentNumReads = 0;
 	}
-	//if statement to make it rollover safe
-	//Could have problem if endReadTime rolls over but micros() does not
-	if(micros() > startTime){
-		//exponential filter to estimate the time it takes to send back data
-        //0.05 magic number
-		timeToTransmit += 0.05*((micros() - endReadTime) - timeToTransmit);
-	}
-	//make timing stable
-	while(micros() > startTime && micros() < (startTime + usPerLoop));
 }
 
 void initializeLidars(){
@@ -172,4 +161,21 @@ void initializeLidars(){
         }
     }
 
+}
+
+bool getMessage()
+{
+    bool gotMessage = false;
+    if((lastMessageTime + timeoutDuration) < millis()){
+        isTimedOut = true;
+    }
+    while(Serial.available()) {
+        if(Serial.read() == '$') {
+            gotMessage = true;
+            isTimedOut = false;
+            lastMessageTime = millis();
+            //TODO Handle requests from specific lidars or all
+        }
+    }
+    return gotMessage;
 }
