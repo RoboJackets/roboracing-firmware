@@ -63,6 +63,7 @@ int songInformation3[2] = {NOTE_C5, NOTE_C5};
 
 // Manual Variables (true means human drives)
 bool isManual = true;
+double recordBag = 0.0; //0 is not recording
 
 // Servo objects
 Servo esc;
@@ -119,6 +120,7 @@ void loop()
   bool wirelessStateC = digitalRead(wirelessPinC);
   bool wirelessStateD = digitalRead(wirelessPinD);
   isManual = digitalRead(isManualPin);
+  recordBag = wirelessStateD ? 1 : 0;
   buttonEstopActive = !digitalRead(buttonEstopPin);
 
   wirelessEstopActive = !(wirelessStateB || wirelessStateC || wirelessStateD);
@@ -189,7 +191,7 @@ void loop()
   }
 
   if(gotMessage) {
-    double values[] = {currentState, currentSpeed, currentSteeringAngle};
+    double values[] = {currentState, currentSpeed, currentSteeringAngle, recordBag};
     sendFeedback(values, sizeof(values)/sizeof(double));
   }
 
