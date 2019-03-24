@@ -6,6 +6,8 @@ get a calibration curve for the lidars
 
 #include <Wire.h>
 #include <LIDARLite.h>
+#include <Ethernet.h>
+#include <EthernetUdp.h>
 
 #define NUMBER_OF_LIDARS 2
 
@@ -30,7 +32,11 @@ byte recalibrationCounter = 0;
 // Timeout Variables
 unsigned long lastMessageTime;
 const unsigned long timeoutDuration = 1000;
+unsigned long currTimeoutTime;
 bool isTimedOut = true; 
+
+const int distanceBufferSize = 3;
+
 
 struct LIDAR
 {
@@ -39,11 +45,34 @@ struct LIDAR
     byte pin;
 	unsigned int currentSumReads = 0;
 	unsigned int currentNumReads = 0;
+  unsigned long distanceData[distanceBufferSize];
 };
+
+char replyBuffer[255];
 
 LIDAR lidarUnits[NUMBER_OF_LIDARS];            //Array of lidarUnits to store configuration data
 
 void initializeLidars();
+
+unsigned long averageDistance(LIDAR &lidarUnit);
+
+// Ethernet Related Variables
+// Enter a MAC address and IP address for your controller below.
+// The IP address will be dependent on your local network:
+byte mac[] = {
+  0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED
+};
+IPAddress ip(192, 168, 1, 177);
+
+// buffers for receiving and sending data
+char packetBuffer[UDP_TX_PACKET_MAX_SIZE];  // buffer to hold incoming packet,
+char ReplyBuffer[] = "acknowledged";       // buffer holding data string to reply with
+
+// Instantiate an Ethernet UDP instance
+EthernetUDP Udp;
+
+unsigned int localPort = 8888;      // local port to listen on
+
 
 void setup() 
 {
@@ -66,48 +95,113 @@ void setup()
     delay(100);
     DPRINT(activeLidarCounter);
     DPRINTLN(" devices detected and readdressed");
-}
 
+    // You can use Ethernet.init(pin) to configure the CS pin
+    Ethernet.init(17);
+  
+    // Start the Ethernet
+    Ethernet.begin(mac, ip);
 
+    // Open serial communications and wait for port to open:
+    Serial.begin(9600);
+    while (!Serial) {
+    ; // wait for serial port to connect. Needed for native USB port only
+    }
+
+    // Check for Ethernet hardware present
+    if (Ethernet.hardwareStatus() == EthernetNoHardware) {
+      Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
+      while (true) {
+        // BLINK LED WITH ERROR CODE
+      }
+    }
+    if (Ethernet.linkStatus() == LinkOFF) {
+      Serial.println("Ethernet cable is not connected.");
+      // LED ETHERNET LINK DOWN
+    }
+  
+    // start UDP
+    Udp.begin(localPort);
+ }
 
 void loop()
 {
 	
-    //Loop through each Lidar unit and read distance data
+    /*Loop through each Lidar unit and read distance data
     while(!getMessage()){
         if(isTimedOut){
             DPRINTLN("TIMED OUT!");
             break;
-        }
-        
-    	for(int i = 0; i < activeLidarCounter; i++)
-		{                
-			if (recalibrationCounter == i){
-				lidarUnits[i].currentSumReads += lidarUnits[i].myLidarLite.distance(true, lidarUnits[i].address);
-			}
-			else{
-				lidarUnits[i].currentSumReads += lidarUnits[i].myLidarLite.distance(false, lidarUnits[i].address);
-			}
-			lidarUnits[i].currentNumReads++;
-		}
-		recalibrationCounter++;
-		recalibrationCounter = recalibrationCounter % loopsPerRecalibration;
-    }
+        }*/
 
-	//print data
+  // if there's data available, read a packet
+  int packetSize = Udp.parsePacket();
+  if (packetSize) {
+    currTimeoutTime = 0;
+    lastMessageTime = millis();
+    Serial.print("Received packet of size ");
+    Serial.println(packetSize);
+    Serial.print("From ");
+    IPAddress remote = Udp.remoteIP();
+    for (int i=0; i < 4; i++) {
+      Serial.print(remote[i], DEC);
+      if (i < 3) {
+        Serial.print(".");
+      }
+    }
+  }
+  else{
+    currTimeoutTime += millis() - lastMessageTime;
+    if (currTimeoutTime >= timeoutDuration){
+
+      DPRINTLN("Timeout");
+    }
+  }
+  
+  Serial.print(", port ");
+  Serial.println(Udp.remotePort());
+
+  // Read the packet into packetBufffer
+  Udp.read(packetBuffer, UDP_TX_PACKET_MAX_SIZE);
+  Serial.println("Contents:");
+  Serial.println(packetBuffer);
+
+  // Read data from all active lidar units and store in FIFO array
+  for(int i = 0; i < activeLidarCounter; i++){                
+		if (recalibrationCounter == i){    // Run calibration - needed to proberly bias the distance readings for accuracy
+      for(int j = distanceBufferSize - 1; j > 0; j--){
+        lidarUnits[i].distanceData[j] = lidarUnits[i].distanceData[j-1];
+      }
+			lidarUnits[i].distanceData[0] = lidarUnits[i].myLidarLite.distance(true, lidarUnits[i].address);
+		}
+		else{
+      for(int j = distanceBufferSize - 1; j > 0; j--){
+        lidarUnits[i].distanceData[j] = lidarUnits[i].distanceData[j-1];
+      }
+			lidarUnits[i].distanceData[0] = lidarUnits[i].myLidarLite.distance(false, lidarUnits[i].address);
+		}
+	}
+	recalibrationCounter++;
+	recalibrationCounter = recalibrationCounter % loopsPerRecalibration;
+  
+	/*print data
 	if (lidarUnits[0].currentNumReads == 0){
 		DPRINTLN("NO DATA ERROR!");
 		DPRINTLN(micros());
 	}
 	
-	DPRINTLN("Number of reads: " + String(lidarUnits[0].currentNumReads));
-	
-	//Replace with Ethernet stuff
+	DPRINTLN("Number of reads: " + String(lidarUnits[0].currentNumReads));*/
+	Udp.beginPacket(Udp.remoteIP(), Udp.remotePort());
 	for(int i = 0; i < activeLidarCounter; i++){
-		Serial.println("Average LIDAR " + String(i) + " value: " + String(lidarUnits[i].currentSumReads/lidarUnits[i].currentNumReads));
-		lidarUnits[i].currentSumReads = 0;
-		lidarUnits[i].currentNumReads = 0;
+    // send a reply to the IP address and port that sent us the packet we received
+    unsigned long dist = averageDistance(&lidarUnits[i]);
+    sprintf(replyBuffer,"LIDAR %d value: %d;", i, dist);
 	}
+  Udp.write(replyBuffer);
+  Udp.endPacket();
+  for (int i = 0; i < sizeof(replyBuffer); i++){
+    replyBuffer[i] = "";
+  }
 }
 
 void initializeLidars(){
@@ -163,7 +257,20 @@ void initializeLidars(){
 
 }
 
-bool getMessage()
+
+// Averages the distance values stored in the distance data 
+unsigned long averageDistance(struct LIDAR* lidarUnit){
+  unsigned long avgDist = 0;
+  for(int i = 0; i < distanceBufferSize; i++){
+    avgDist += lidarUnit->distanceData[i];
+  }
+  avgDist = avgDist / distanceBufferSize;
+  return avgDist;  
+}
+
+
+
+/*bool getMessage()
 {
     bool gotMessage = false;
     if((lastMessageTime + timeoutDuration) < millis()){
@@ -178,4 +285,4 @@ bool getMessage()
         }
     }
     return gotMessage;
-}
+}*/
