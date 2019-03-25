@@ -233,7 +233,7 @@ void initializeLidars(){
 unsigned long averageDistance(struct LIDAR &lidarUnit){
     unsigned long avgDist = 0;
     for(int i = 0; i < distanceBufferSize; i++){
-        avgDist += lidarUnit->distanceData[i];
+        avgDist += lidarUnit.distanceData[i];
     }
     avgDist = avgDist / distanceBufferSize;
     return avgDist;  
