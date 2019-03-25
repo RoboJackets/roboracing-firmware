@@ -6,7 +6,6 @@ get a calibration curve for the lidars
 
 #include <Wire.h>
 #include <LIDARLite.h>
-#include <Ethernet.h>
 #include <EthernetUdp.h>
 
 #define NUMBER_OF_LIDARS 2
