@@ -7,7 +7,7 @@ get a calibration curve for the lidars
 #include <Wire.h>
 #include <LIDARLite.h>
 #include <EthernetUdp.h>
-#include <RJNet.h>
+//#include <RJNet.h>
 
 #define NUMBER_OF_LIDARS 2
 
@@ -126,21 +126,43 @@ void loop() {
                 DPRINT(".");
             }
         }
+        DPRINT(", port ");
+        DPRINTLN(Udp.remotePort());
+
+        // Read the packet into packetBufffer
+        Udp.read(packetBuffer, UDP_TX_PACKET_MAX_SIZE);
+    
+      DPRINTLN("Contents:");
+      DPRINTLN(packetBuffer);
+
+      Udp.beginPacket(Udp.remoteIP(), Udp.remotePort());
+
+      // Construct response message
+     // if (packetBuffer == "Request Distance")
+          //{
+        for(int i = 0; i < activeLidarCounter; i++){
+          // send a reply to the IP address and port that sent us the packet we received
+          unsigned long dist = averageDistance(lidarUnits[i]);
+          sprintf(replyBuffer,"LIDAR %d value: %d;", i, dist);
+          Udp.write(replyBuffer);
+        }
+      //}
+    /*else if (packetBuffer = "Request State"){
+    
+    }*/
+      Udp.endPacket();
+      for (int i = 0; i < sizeof(replyBuffer); i++){
+        replyBuffer[i] = "";
+      }
     }
+    
     else{
         currTimeoutTime += millis() - lastMessageTime;
         if (currTimeoutTime >= timeoutDuration){
-            DPRINTLN("Timeout");
+            //DPRINTLN("Timeout");
         }
     }
   
-    DPRINT(", port ");
-    DPRINTLN(Udp.remotePort());
-
-    // Read the packet into packetBufffer
-    Udp.read(packetBuffer, UDP_TX_PACKET_MAX_SIZE);
-    DPRINTLN("Contents:");
-    DPRINTLN(packetBuffer);
     
     // Read data from all active lidar units and store in FIFO array
     for(int i = 0; i < activeLidarCounter; i++){ 
@@ -154,27 +176,10 @@ void loop() {
     }
     recalibrationCounter++;
     recalibrationCounter = recalibrationCounter % loopsPerRecalibration;
-  
-    Udp.beginPacket(Udp.remoteIP(), Udp.remotePort());
 
-    // Construct response message
-    if (packetBuffer = "Request Distance")
-    {
-      for(int i = 0; i < activeLidarCounter; i++){
-          // send a reply to the IP address and port that sent us the packet we received
-          unsigned long dist = averageDistance(lidarUnits[i]);
-          sprintf(replyBuffer,"LIDAR %d value: %d;", i, dist);
-          Udp.write(replyBuffer);
-      }
-    }
-    /*else if (packetBuffer = "Request State"){
-    
-    }*/
-    Udp.endPacket();
-    for (int i = 0; i < sizeof(replyBuffer); i++){
-        replyBuffer[i] = "";
-    }
 }
+  
+   
 
 void initializeLidars(){
     // Setup enable pins
