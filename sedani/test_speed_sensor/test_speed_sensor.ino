@@ -1,25 +1,38 @@
 #include <Servo.h>
+#include <Encoder.h>
 
-const int speedSensor = 7;
 const int escPin = 4;
 
-const int escPwm = 1600;
-const float speedConstant = 1000000.0;
-float currentSpeed = 0.0;
-volatile unsigned long pTime = micros();
-volatile unsigned long cTime = micros();
-volatile unsigned int interruptCount = 0;
-unsigned int pInterruptCount = 0;
+//Encoder pins must be interrupt capable
+const byte encoderPinA = 7;
+const byte encoderPinB = 8;
+
+// Encoders
+Encoder driveShaftEncoder(encoderPinA, encoderPinB);
+float speedBuffer[20];
+long prevEncoderPosition = 0;
+unsigned long prevTime = 0;
+unsigned long currTime = 0;
+float measuredSpeed = 0.0;
+const float metersPerEncoderTick = 1.0/9641.5;
+const int millisPerSec = 1000;
+
+//
+const int escPwm = 1570;
+
 
 
 Servo esc;
 
 void setup() {
   // put your setup code here, to run once:
-  pinMode(speedSensor, INPUT_PULLUP);
-  
+  pinMode(encoderPinA, INPUT);
+  pinMode(encoderPinB, INPUT);
   pinMode(escPin, OUTPUT);
-  attachInterrupt(digitalPinToInterrupt(speedSensor), calcSpeed, FALLING);
+
+  //Initialize encoder position to 0;
+  driveShaftEncoder.write(0);
+
   Serial.begin(9600);
   esc.attach(escPin);  
 }
@@ -27,38 +40,17 @@ void setup() {
 void loop() {
   // put your main code here, to run repeatedly:
   esc.write(escPwm);
-//  if(interruptCount-pInterruptCount == 0){
-//    //currentSpeed = 0;
-//    //interruptCount = 0;
-//  }
-//  else{
-      const unsigned long currTime = cTime;
-      const unsigned long prevTime = pTime;
-      if(cTime != pTime){
-        currentSpeed = (speedConstant*(interruptCount-pInterruptCount))/(currTime - prevTime);
-        pTime = cTime;
-      }else{
-        currentSpeed = 0;
-        interruptCount = 0;
-      }
 
-      
-//  }
-  pInterruptCount = interruptCount;
-  Serial.println(currentSpeed);
-  delay(3);
+  calculateSpeed();
+
+  Serial.println(prevEncoderPosition*metersPerEncoderTick);
+  delay(20);
 }
 
-void calcSpeed(){
-  cTime = micros();
-//  if(pTime != cTime){
-//    speed = speedConstant/(cTime - pTime);
-//  }
-//  else{
-//    speed = 0;
-//  }
-  
-  
-  interruptCount++;
+void calculateSpeed(){
+    long currentEncoderPosition = driveShaftEncoder.read();
+    currTime = millis();    
+    measuredSpeed = -(currentEncoderPosition - prevEncoderPosition)*metersPerEncoderTick/(currTime-prevTime)*millisPerSec;
+    prevTime = currTime;
+    prevEncoderPosition = currentEncoderPosition;
 }
-

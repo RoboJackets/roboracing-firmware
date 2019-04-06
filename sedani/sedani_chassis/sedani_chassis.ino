@@ -10,14 +10,14 @@
 #include <Servo.h>
 
 // Pins
-const byte rcEscPin = 8;
-const byte rcSteerPin = 7;
+const byte rcEscPin = 2;
+const byte rcSteerPin = 3;
 const byte escPin = 4;
 const byte steerPin = 5;
 const byte isManualPin = 6;
 //Encoder pins must be interrupt capable
-const byte encoderPinA = 2;
-const byte encoderPinB = 3;
+const byte encoderPinA = 7;
+const byte encoderPinB = 8;
 
 const byte speakerOutputPin = 9;
 const byte buttonEstopPin = 10;
@@ -67,13 +67,15 @@ bool prevWirelessStateD = false;
 Encoder driveShaftEncoder(encoderPinA, encoderPinB);
 long prevEncoderPosition = 0;
 float measuredSpeed = 0.0;
-const float metersPerEncoderTick = 0.0001052;
+unsigned long prevEncoderTime = 0;
+unsigned long currEncoderTime = 0;
+const float metersPerEncoderTick = 1.0/9641.5;
 
 // PID Speed Control
 float integral = 0.0;
 float derivative = 0.0;
 float prevError = 0.0;
-const float kP = 0.0;
+const float kP = 100.0;
 const float kI = 0.0;
 const float kD = 0.0;
 
@@ -140,6 +142,8 @@ void setup() {
     pinMode(speakerOutputPin, OUTPUT);
     pinMode(escPin, OUTPUT);
     pinMode(steerPin, OUTPUT);
+    pinMode(encoderPinA, INPUT);
+    pinMode(encoderPinB, INPUT);
     
     esc.attach(escPin);
     steering.attach(steerPin);
@@ -157,9 +161,8 @@ void setup() {
     playSong(3);
 }
 
-void loop() {  
-    loopStartTime = millis();
-    
+void loop() {
+    loopStartTime = millis();      
     bool gotMessage = getMessage();
 
     // If we haven't received a message from the NUC in a while, stop driving
@@ -178,8 +181,6 @@ void loop() {
         float values[] = {currentState, measuredSpeed, currentSteeringAngle};
         sendFeedback(values, sizeof(values)/sizeof(float));
     }
-    
-    //Stall until we reach the specified loop time
     while (loopStartTime + millisPerLoop > millis());
 }
 
@@ -201,19 +202,27 @@ unsigned long escPwmFromMetersPerSecond(float velocity) {
 
 unsigned int escPwmPID(float velocity) { 
     if(velocity <= 0) {
+        integral = 0;
         return SpeedLUT[0][0];
     }
     else{
+        const float dt = (float)millisPerLoop / millisPerSec;
+
         float error = velocity - measuredSpeed;
-        unsigned int writePwm = kP * error + kI * integral + kD * derivative 
-                            + escPwmFromMetersPerSecond(velocity);
-        writePwm = constrain(writePwm, 0, maxPwm); //control limits
-        if(writePwm != maxPwm){ //integral windup protection
-                integral += (float)millisPerLoop/millisPerSec * (prevError + error) * 0.25; //Trapezoid Rule integration
+
+        // protect against runaway integral accumulation
+        float trapezoidIntegral = (prevError + error) * 0.5 * dt;
+        if (abs(kI * integral) < maxPwm - centerSpeedPwm || trapezoidIntegral < 0) {
+            integral += trapezoidIntegral;
         }
-        derivative += (error - prevError)/ millisPerLoop * millisPerSec; //difference derivative.
+
+        derivative = (error - prevError) / dt; //difference derivative
+
+        int writePwmSigned = kP * error + kI * integral + kD * derivative + escPwmFromMetersPerSecond(velocity);
+        unsigned int writePwm = constrain(writePwmSigned, 0, maxPwm); //control limits
+
         prevError = error;
-        return writePwm + centerSpeedPwm;
+        return writePwm;
     }
 }
 
@@ -874,9 +883,11 @@ void runStateReverse() {
     steer();
 }
 
-float calculateSpeed(){
+void calculateSpeed(){
     long currentEncoderPosition = driveShaftEncoder.read();
-    measuredSpeed = (currentEncoderPosition - prevEncoderPosition)*metersPerEncoderTick/millisPerLoop*millisPerSec;
+    currEncoderTime = millis();    
+    measuredSpeed = -(currentEncoderPosition - prevEncoderPosition)*metersPerEncoderTick/(currEncoderTime-prevEncoderTime)*millisPerSec;
+    prevEncoderTime = currEncoderTime;
     prevEncoderPosition = currentEncoderPosition;
 }
 
