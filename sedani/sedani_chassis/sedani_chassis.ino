@@ -4,8 +4,8 @@
 #include "pitch.h"
 #endif
 
-//Must have Encoder by Paul Stoffregen installed.
-#include <Encoder.h>
+//Must have Encoder by Paul Stoffregen installed. NEW CONTROL
+//#include <Encoder.h>
 #include "SpeedLUT.h"
 #include <Servo.h>
 
@@ -16,8 +16,8 @@ const byte escPin = 4;
 const byte steerPin = 5;
 const byte isManualPin = 6;
 //Encoder pins must be interrupt capable
-const byte encoderPinA = 7;
-const byte encoderPinB = 8;
+const byte encoderPinA = 7; //Interruptible
+const byte encoderPinB = 8; //Not Interruptible
 
 const byte speakerOutputPin = 9;
 const byte buttonEstopPin = 10;
@@ -63,19 +63,20 @@ bool prevWirelessStateB = false;
 bool prevWirelessStateC = false;
 bool prevWirelessStateD = false;
 
-// Encoders
-Encoder driveShaftEncoder(encoderPinA, encoderPinB);
+// Encoders NEW CONTROL
+//Encoder driveShaftEncoder(encoderPinA, encoderPinB);
+long currentEncoderPosition = 0;   //OLD CONTROL
 long prevEncoderPosition = 0;
 float measuredSpeed = 0.0;
 unsigned long prevEncoderTime = 0;
 unsigned long currEncoderTime = 0;
-const float metersPerEncoderTick = 1.0/9641.5;
+const float metersPerEncoderTick = 1.0/2408.7;
 
 // PID Speed Control
 float integral = 0.0;
 float derivative = 0.0;
 float prevError = 0.0;
-const float kP = 100.0;
+const float kP = 50.0;
 const float kI = 0.0;
 const float kD = 0.0;
 
@@ -151,9 +152,9 @@ void setup() {
     steering.write(centerSteeringPwm);
     drive(centerSpeedPwm);
     
-    //Initialize encoder position to 0;
-    driveShaftEncoder.write(0);
-    
+    //Initialize encoder position to 0; NEW CONTROL
+    //driveShaftEncoder.write(0);
+    attachInterrupt(digitalPinToInterrupt(encoderPinA),interrupt, RISING);
     lastMessageTime = millis();
     isTimedOut = true;
     
@@ -857,7 +858,7 @@ void runStateManual() {
 }
 
 void runStateForward() {
-    drive(escPwmFromMetersPerSecond(desiredSpeed));
+    drive(escPwmPID(desiredSpeed));
     steer();
 }
 
@@ -884,11 +885,14 @@ void runStateReverse() {
 }
 
 void calculateSpeed(){
-    long currentEncoderPosition = driveShaftEncoder.read();
+    //NEW CONTROL
+    //long currentEncoderPosition = driveShaftEncoder.read();
     currEncoderTime = millis();    
-    measuredSpeed = -(currentEncoderPosition - prevEncoderPosition)*metersPerEncoderTick/(currEncoderTime-prevEncoderTime)*millisPerSec;
-    prevEncoderTime = currEncoderTime;
-    prevEncoderPosition = currentEncoderPosition;
+    if(currEncoderTime-prevEncoderTime != 0){
+      measuredSpeed = -(currentEncoderPosition - prevEncoderPosition)*metersPerEncoderTick/(currEncoderTime-prevEncoderTime)*millisPerSec;
+      prevEncoderTime = currEncoderTime;
+      prevEncoderPosition = currentEncoderPosition;
+    }
 }
 
 // Steering
@@ -905,4 +909,14 @@ void drive(unsigned long desiredSentPwm){
             reverseRequired = true;
     }
     esc.write(currentEscPwm);
+}
+
+//Interrupt
+void interrupt(){
+  if(digitalRead(encoderPinB)){
+    currentEncoderPosition++;
+  }
+  else{
+    currentEncoderPosition--;
+  }
 }
