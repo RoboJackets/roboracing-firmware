@@ -101,6 +101,9 @@ const unsigned int reverseHoldPwm = 1470;
 bool reverseTag = false;
 bool reverseRequired = true;
 
+
+double recordBag = 0.0; //0 is not recording
+
 // Songs!
 #ifdef AUDIO_ENABLE
 const int songInformation0[2] = {NOTE_C4, NOTE_C4};
@@ -179,7 +182,7 @@ void loop() {
     executeStateMachine();
 
     if(gotMessage) {
-        float values[] = {currentState, measuredSpeed, currentSteeringAngle};
+        float values[] = {currentState, measuredSpeed, currentSteeringAngle, recordBag};
         sendFeedback(values, sizeof(values)/sizeof(float));
     }
     while (loopStartTime + millisPerLoop > millis());
@@ -356,6 +359,9 @@ void executeStateMachine(){
     bool buttonEstopActive = !digitalRead(buttonEstopPin);
     bool wirelessEstopActive = !(wirelessStateB || wirelessStateC || wirelessStateD);
     bool isEstopped = wirelessEstopActive || buttonEstopActive;
+
+    // Record a Bag File with E-Stop Remote button D
+    recordBag = wirelessStateD ? 1.0 : 0.0;
     
     switch(currentState){
 
