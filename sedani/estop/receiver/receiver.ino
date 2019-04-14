@@ -22,6 +22,7 @@
 // **********************************************************************************
 #include <RFM69.h>         //get it here: https://www.github.com/lowpowerlab/rfm69
 #include <RFM69_ATC.h>     //get it here: https://www.github.com/lowpowerlab/rfm69
+#include <RFM69registers.h>
 #include <SPI.h>           //included with Arduino IDE install (www.arduino.cc)
 
 //*********************************************************************************************
@@ -44,6 +45,7 @@
 //This setting enables this gateway to work with remote nodes that have ATC enabled to
 //dial their power down to only the required level
 #define ENABLE_ATC    //comment out this line to disable AUTO TRANSMISSION CONTROL
+#define ATC_RSSI      -60
 //*********************************************************************************************
 
 //How many ms before we decide the connection is lost
@@ -56,9 +58,9 @@ We are using 4-byte codes for stop and go to hopefully prevent the radio from
 receiving a stop or go signal by random chance.
 The last byte in the message is for 
 */
-const static byte codeLength = 4;
-const static uint8_t eStopCode[codeLength] = {208, 238, 135, 85};
-const static uint8_t goCode[codeLength] = {31, 32, 106, 81};
+const static byte codeLength = 3;
+const static uint8_t eStopCode[codeLength] = {208, 238, 135};
+const static uint8_t goCode[codeLength] = {31, 32, 106};
 const static byte expectedMessageLength = codeLength + 1;
 
 const static bool promiscuousMode = false; //set to 'true' to sniff all packets on the same network
@@ -83,11 +85,13 @@ void setup() {
     radio.initialize(FREQUENCY,NODEID,NETWORKID);
     radio.setHighPower(); //must include this only for RFM69HW/HCW!
     
-    //Dial down transmit speed for increased range
-    writeReg(REG_BITRATEMSB, RF_BITRATEMSB_1200);
-    writeReg(REG_BITRATELSB, RF_BITRATELSB_1200);
+    //Dial down transmit speed for increased range.
+    //Causes sporadic connection losses
+    //radio.writeReg(REG_BITRATEMSB, RF_BITRATEMSB_2400);
+    //radio.writeReg(REG_BITRATELSB, RF_BITRATELSB_2400);
         
 #ifdef ENABLE_ATC
+    radio.enableAutoPower(ATC_RSSI);
     Serial.println("RFM69_ATC Enabled (Auto Transmission Control)");
 #endif
 }

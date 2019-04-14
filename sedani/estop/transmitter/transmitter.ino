@@ -24,6 +24,7 @@
 // **********************************************************************************
 #include <RFM69.h>         //get it here: https://www.github.com/lowpowerlab/rfm69
 #include <RFM69_ATC.h>     //get it here: https://www.github.com/lowpowerlab/rfm69
+#include <RFM69registers.h>
 #include <SPI.h>           //included with Arduino IDE install (www.arduino.cc)
 
 //*********************************************************************************************
@@ -42,24 +43,26 @@
 //By reducing TX power even a little you save a significant amount of battery power
 //This setting enables this gateway to work with remote nodes that have ATC enabled to
 //dial their power down to only the required level (ATC_RSSI)
-//#define ENABLE_ATC    //comment out this line to disable AUTO TRANSMISSION CONTROL
+#define ENABLE_ATC    //comment out this line to disable AUTO TRANSMISSION CONTROL
 #define ATC_RSSI      -60
 //Possible antenna https://arduinodiy.wordpress.com/2015/07/25/coil-loaded-433-mhz-antenna/
 //*********************************************************************************************
 #define SERIAL_BAUD   9600
 
 //MAKE SURE TO KEEP THIS THE SAME AS RECIEVER
-const static byte codeLength = 4;
-const static uint8_t eStopCode[codeLength] = {208, 238, 135, 85};
-const static uint8_t goCode[codeLength] = {31, 32, 106, 81};
+const static byte codeLength = 3;
+const static uint8_t eStopCode[codeLength] = {208, 238, 135};
+const static uint8_t goCode[codeLength] = {31, 32, 106};
 
 //Payload is the code (go or stop) to send with the radio. Last byte is for other data.
 const static byte payloadLength = codeLength + 1;
 uint8_t payload[payloadLength];
 
-#define TRANSMIT_PERIOD 200 //transmit a packet to gateway so often (in ms)
+#define TRANSMIT_PERIOD 200 //wait this long after a successful send (in ms)
+#define TRNSMIT_FAILED_PERIOD 50 //wait this long if failed to send a burst (ms)
+//Each time we try to send a packet, try this many times
 #define RETRY_DELAY 20  //how many ms to wait before a retry
-#define RETRIES 2  //Retry how many times before failure
+#define RETRIES 1  //Retry how many times before failure
 
 //Not sure what this does
 char buff[20];
@@ -78,9 +81,10 @@ void setup() {
     radio.initialize(FREQUENCY,NODEID,NETWORKID);
     radio.setHighPower(); //must include this only for RFM69HW/HCW!
     
-    //Dial down transmit speed for increased range
-    writeReg(REG_BITRATEMSB, RF_BITRATEMSB_1200);
-    writeReg(REG_BITRATELSB, RF_BITRATELSB_1200);
+    //Dial down transmit speed for increased range.
+    //Causes sporadic connection losses
+    //radio.writeReg(REG_BITRATEMSB, RF_BITRATEMSB_2400);
+    //radio.writeReg(REG_BITRATELSB, RF_BITRATELSB_2400);
     
     
     pinMode(CONNECTED_LED, OUTPUT);
@@ -92,8 +96,6 @@ void setup() {
 //Always test your ATC mote in the edge cases in your own environment to ensure ATC will perform as you expect
 #ifdef ENABLE_ATC
     radio.enableAutoPower(ATC_RSSI);
-#endif
-#ifdef ENABLE_ATC
     Serial.println("RFM69_ATC Enabled (Auto Transmission Control)\n");
 #endif
 }
@@ -115,7 +117,7 @@ void loop() {
         }
     }
     
-    payload[payloadLength - 1] = digitalRead(
+    payload[payloadLength - 1] = (byte) ('a' + (millis()/1000)%25);
     
     //Print what we are sending
     Serial.print("Sending: ");
@@ -123,7 +125,7 @@ void loop() {
         Serial.print((char)payload[i]);
     }
     
-    //Send the data. If successful, delay. If fail, immediately retry.
+    //Send the data. If successful, delay.
     if (radio.sendWithRetry(GATEWAYID, payload, payloadLength, RETRIES, RETRY_DELAY)){
         Serial.print(" ok! RSSI: " + radio.RSSI);
         lastSendSuccessful = true;
