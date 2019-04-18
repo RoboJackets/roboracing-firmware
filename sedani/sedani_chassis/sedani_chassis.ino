@@ -76,9 +76,10 @@ const float metersPerEncoderTick = 1.0/2408.7;
 float integral = 0.0;
 float derivative = 0.0;
 float prevError = 0.0;
-const float kP = 50.0;
-const float kI = 0.0;
-const float kD = 0.0;
+bool pidTuning = true;
+float kP = 50.0;
+float kI = 0.0;
+float kD = 0.0;
 
 //For timing the main loop
 const int millisPerSec = 1000;
@@ -168,6 +169,10 @@ void setup() {
 void loop() {
     loopStartTime = millis();      
     bool gotMessage = getMessage();
+    
+    if (pidTuning == true){
+        setPid();
+    }
 
     // If we haven't received a message from the NUC in a while, stop driving
     if(gotMessage) {
@@ -271,6 +276,16 @@ bool getMessage() {
         }
     }
     return gotMessage;
+}
+
+void setPID() {
+    while(Serial.available()){
+      if (serial.read() == '#'){
+        Kp = Serial.parseFloat();
+        Ki = Serial.parseFloat();
+        Kd = Serial.parseFloat();
+      }
+    }
 }
 
 void sendFeedback(const float* feedbackValues, const int feedbackCount) {
