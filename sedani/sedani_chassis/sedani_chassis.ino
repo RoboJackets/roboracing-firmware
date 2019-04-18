@@ -280,7 +280,7 @@ bool getMessage() {
 
 void setPID() {
     while(Serial.available()){
-      if (serial.read() == '#'){
+      if (Serial.read() == '#'){
         Kp = Serial.parseFloat();
         Ki = Serial.parseFloat();
         Kd = Serial.parseFloat();
