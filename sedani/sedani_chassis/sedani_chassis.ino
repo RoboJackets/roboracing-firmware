@@ -4,21 +4,21 @@
 #include "pitch.h"
 #endif
 
-//Must have Encoder by Paul Stoffregen installed. NEW CONTROL
+//Must have Encoder by Paul Stoffregen installed.
 //#include <Encoder.h>
 #include "SpeedLUT.h"
 #include <Servo.h>
 
 // Pins
-const byte rcEscPin = 2;
-const byte rcSteerPin = 3;
+//Encoder pins must be interrupt capable
+const byte encoderPinA = 2;
+const byte encoderPinB = 3; 
 const byte escPin = 4;
 const byte steerPin = 5;
 const byte isManualPin = 6;
-//Encoder pins must be interrupt capable
-const byte encoderPinA = 7; //Interruptible
-const byte encoderPinB = 8; //Not Interruptible
 
+const byte rcSteerPin = 7;
+const byte rcEscPin = 8;
 const byte speakerOutputPin = 9;
 const byte buttonEstopPin = 10;
 const byte wirelessPinC = 14;
@@ -76,7 +76,6 @@ const float metersPerEncoderTick = 1.0/2408.7;
 float integral = 0.0;
 float derivative = 0.0;
 float prevError = 0.0;
-bool pidTuning = true;
 float kP = 50.0;
 float kI = 0.0;
 float kD = 0.0;
@@ -171,7 +170,7 @@ void loop() {
     bool gotMessage = getMessage();
     
     if (pidTuning == true){
-        setPid();
+        setPID();
     }
 
     // If we haven't received a message from the NUC in a while, stop driving
@@ -281,9 +280,9 @@ bool getMessage() {
 void setPID() {
     while(Serial.available()){
       if (Serial.read() == '#'){
-        Kp = Serial.parseFloat();
-        Ki = Serial.parseFloat();
-        Kd = Serial.parseFloat();
+        kP = Serial.parseFloat();
+        kI = Serial.parseFloat();
+        kD = Serial.parseFloat();
       }
     }
 }
@@ -368,7 +367,9 @@ void executeStateMachine(){
     prevWirelessStateD = wirelessStateD;
     
     // Manual Variable (true means human drives)
-    bool isManual = digitalRead(isManualPin);
+    // TODO Switch back after new board
+    // bool isManual = digitalRead(isManualPin);
+    bool isManual = !digitalRead(isManualPin);
 
     // E-Stop Variables (true means the car can't move)
     bool buttonEstopActive = !digitalRead(buttonEstopPin);
@@ -927,17 +928,17 @@ void steer(){
 void drive(unsigned long desiredSentPwm){
     currentEscPwm = desiredSentPwm;
     if(desiredSentPwm > centerSpeedPwm){
-            reverseRequired = true;
+        reverseRequired = true;
     }
     esc.write(currentEscPwm);
 }
 
-//Interrupt
+// Interrupt
 void interrupt(){
-  if(digitalRead(encoderPinB)){
-    currentEncoderPosition++;
-  }
-  else{
-    currentEncoderPosition--;
-  }
+    if(digitalRead(encoderPinB)){
+        currentEncoderPosition++;
+    }
+    else{
+        currentEncoderPosition--;
+    }
 }
