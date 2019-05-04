@@ -4,8 +4,6 @@
 #include "pitch.h"
 #endif
 
-//Must have Encoder by Paul Stoffregen installed.
-//#include <Encoder.h>
 #include "SpeedLUT.h"
 #include <Servo.h>
 
@@ -63,8 +61,7 @@ bool prevWirelessStateB = false;
 bool prevWirelessStateC = false;
 bool prevWirelessStateD = false;
 
-// Encoders NEW CONTROL
-//Encoder driveShaftEncoder(encoderPinA, encoderPinB);
+// Encoders
 long currentEncoderPosition = 0;   //OLD CONTROL
 long prevEncoderPosition = 0;
 float measuredSpeed = 0.0;
@@ -76,6 +73,7 @@ const float metersPerEncoderTick = 1.0/2408.7;
 float integral = 0.0;
 float derivative = 0.0;
 float prevError = 0.0;
+bool pidTuning = false;
 float kP = 50.0;
 float kI = 0.0;
 float kD = 0.0;
@@ -907,13 +905,11 @@ void runStateReverse() {
 }
 
 void calculateSpeed(){
-    //NEW CONTROL
-    //long currentEncoderPosition = driveShaftEncoder.read();
     currEncoderTime = millis();    
     if(currEncoderTime-prevEncoderTime != 0){
-      measuredSpeed = -(currentEncoderPosition - prevEncoderPosition)*metersPerEncoderTick/(currEncoderTime-prevEncoderTime)*millisPerSec;
-      prevEncoderTime = currEncoderTime;
-      prevEncoderPosition = currentEncoderPosition;
+        measuredSpeed = -(currentEncoderPosition - prevEncoderPosition)*metersPerEncoderTick/(currEncoderTime-prevEncoderTime)*millisPerSec;
+        prevEncoderTime = currEncoderTime;
+        prevEncoderPosition = currentEncoderPosition;
     }
 }
 
