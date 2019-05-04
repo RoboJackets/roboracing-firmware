@@ -237,7 +237,7 @@ float metersPerSecondFromEscPwm(unsigned int escPwm) {
 }
 
 float radiansFromServoPwm(unsigned int servoPwm) {
-    int distanceFromCenter = servoPwm - centerSteeringPwm;
+    float distanceFromCenter = (float)(servoPwm) - (float)(centerSteeringPwm);
     if(distanceFromCenter > 0) {
         float prop = distanceFromCenter / (maxSteeringPwm - centerSteeringPwm);
         return prop * maxSteeringAngle;
@@ -803,6 +803,7 @@ void executeStateMachine(){
         //          When the robot is at zero speed.          //
         //          External influence means we are not       //
         //          guaranteed to be at zero speed.           //
+        //          Will hold the last commanded steering.    //
         ////////////////////////////////////////////////////////
         case STATE_IDLE:{
             /*----------------------
@@ -854,7 +855,7 @@ void executeStateMachine(){
 // State Functions
 
 void runHold(){
-    steering.write(centerSteeringPwm);
+    steer();
     drive(centerSpeedPwm);
 }
 
@@ -930,9 +931,9 @@ void drive(unsigned long desiredSentPwm){
 // Interrupt
 void interrupt(){
     if(digitalRead(encoderPinB)){
-        currentEncoderPosition++;
+        currentEncoderPosition--;
     }
     else{
-        currentEncoderPosition--;
+        currentEncoderPosition++;
     }
 }
