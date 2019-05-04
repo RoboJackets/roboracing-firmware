@@ -153,8 +153,6 @@ void setup() {
     steering.write(centerSteeringPwm);
     drive(centerSpeedPwm);
     
-    //Initialize encoder position to 0; NEW CONTROL
-    //driveShaftEncoder.write(0);
     attachInterrupt(digitalPinToInterrupt(encoderPinA),interrupt, RISING);
     lastMessageTime = millis();
     isTimedOut = true;
