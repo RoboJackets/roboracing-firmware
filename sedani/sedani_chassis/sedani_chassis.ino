@@ -4,6 +4,28 @@
 #include "pitch.h"
 #endif
 
+#define NEO_ENABLE
+#ifdef NEO_ENABLE
+#include <NeoPixelBrightnessBus.h> // instead of NeoPixelBus.h
+
+
+const uint16_t PixelCount = 8; // this example assumes 4 pixels, making it smaller will cause a failure
+const uint8_t PixelPin = A1;  // make sure to set this to the correct pin, ignored for Esp8266
+
+#define colorSaturation 128
+#define brightness 50
+// three element pixels, in different order and speeds
+NeoPixelBrightnessBus<NeoRgbFeature, Neo800KbpsMethod> strip(PixelCount, PixelPin);
+RgbColor red(colorSaturation, 0, 0);
+RgbColor green(0, colorSaturation, 0);
+RgbColor blue(0, 0, colorSaturation);
+RgbColor white(colorSaturation);
+RgbColor black(0);
+
+#endif
+
+
+
 #include "SpeedLUT.h"
 #include <Servo.h>
 
@@ -158,10 +180,29 @@ void setup() {
     isTimedOut = true;
     
     Serial.begin(115200);
+    #ifdef NEO_ENABLE
+    strip.Begin();
+    strip.Show();
+    strip.SetBrightness(brightness);
+    #endif
+
     playSong(3);
 }
 
 void loop() {
+    #ifdef NEO_ENABLE
+    strip.SetPixelColor(0, red);
+    strip.SetPixelColor(1, green);
+    strip.SetPixelColor(2, blue);
+    strip.SetPixelColor(3, white);
+    strip.SetPixelColor(4, red);
+    strip.SetPixelColor(5, green);
+    strip.SetPixelColor(6, blue);
+    strip.SetPixelColor(7, white);
+    strip.Show();
+    #endif
+
+
     loopStartTime = millis();      
     bool gotMessage = getMessage();
     
