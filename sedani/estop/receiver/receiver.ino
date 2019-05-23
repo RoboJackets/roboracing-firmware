@@ -111,6 +111,11 @@ bool connectionEstablished = false;
 //Should the car go or not?
 bool go = false;
 
+// Number of loops per status LED state change
+const static uint16_t blinkLoopsReceiver = 100;
+uint16_t blinkCount = 0;
+bool blinkState = false;
+
 void loop() {
 
     if (radio.receiveDone()){
@@ -182,7 +187,15 @@ void loop() {
         digitalWrite(OUPTUT_LED, HIGH);
     }
     else {
-        digitalWrite(OUPTUT_LED, LOW);
+        // Status LED blinks if e-stopped
+        if (blinkCount < blinkLoopsReceiver){
+            blinkCount++;
+        }
+        else {
+            blinkState = !blinkState;
+            blinkCount = 0;
+        }
+        digitalWrite(OUPTUT_LED, blinkState);
     }
 }
 
