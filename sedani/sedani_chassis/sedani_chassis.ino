@@ -50,7 +50,7 @@ const float maxSpeed = 3; // maximum velocity in m/s
 const float minSpeed = -1; // minimum velocity in m/s 
 
 const int centerSpeedPwm = 1472;
-const int maxPwm = SpeedLUT[SpeedLUTMaxIndex][0];
+const int maxSpeedPwm = SpeedLUT[SpeedLUTMaxIndex][0];
 
 const float maxSteeringAngle = 0.463; // Radians
 const float minSteeringAngle = -0.463; // Radians
@@ -226,6 +226,7 @@ void loop() {
         float values[] = {currentState, measuredSpeed, currentSteeringAngle, recordBag};
         sendFeedback(values, sizeof(values)/sizeof(float));
     }
+
     while (loopStartTime + millisPerLoop > millis());
 }
 
@@ -257,14 +258,14 @@ int escPwmPID(float velocity) {
 
         // protect against runaway integral accumulation
         float trapezoidIntegral = (prevError + error) * 0.5 * dt;
-        if (abs(kI * integral) < maxPwm - centerSpeedPwm || trapezoidIntegral < 0) {
+        if (abs(kI * integral) < maxSpeedPwm - centerSpeedPwm || trapezoidIntegral < 0) {
             integral += trapezoidIntegral;
         }
 
         derivative = (error - prevError) / dt; //difference derivative
 
         int writePwmSigned = kP * error + kI * integral + kD * derivative + escPwmFromMetersPerSecond(velocity);
-        unsigned int writePwm = constrain(writePwmSigned, 0, maxPwm); //control limits
+        int writePwm = constrain(writePwmSigned, 0, maxSpeedPwm); //control limits
 
         prevError = error;
         return writePwm;
@@ -307,8 +308,8 @@ bool getMessage() {
             gotMessage = true;
             desiredSpeed = Serial.parseFloat();
             desiredSteeringAngle = Serial.parseFloat();
-            desiredSpeed = min(maxSpeed, max(desiredSpeed, minSpeed));
-            desiredSteeringAngle = min(maxSteeringAngle, max(desiredSteeringAngle, minSteeringAngle));
+            desiredSpeed = constrain(desiredSpeed, minSpeed, maxSpeed);
+            desiredSteeringAngle = constrain(desiredSteeringAngle, minSteeringAngle, maxSteeringAngle);
         }
     }
     return gotMessage;
@@ -906,8 +907,8 @@ void runHoldDoNotTrack(){
 }
 
 void runStateManual() {
-    unsigned long currentReadSteerPwm = pulseIn(rcSteerPin,HIGH);
-    unsigned long currentReadEscPwm = pulseIn(rcEscPin,HIGH);
+    int currentReadSteerPwm = pulseIn(rcSteerPin,HIGH);
+    int currentReadEscPwm = pulseIn(rcEscPin,HIGH);
     currentEscPwm = currentReadEscPwm;
     if(currentEscPwm > centerSpeedPwm){
         reverseRequired = true;
@@ -956,7 +957,7 @@ void calculateSpeed(){
 // Steering
 void steer(){
     currentSteeringAngle = desiredSteeringAngle;
-    unsigned long newSteerPwm = steeringPwmFromRadians(currentSteeringAngle);
+    int newSteerPwm = steeringPwmFromRadians(currentSteeringAngle);
     steering.write(newSteerPwm);
 }
 
