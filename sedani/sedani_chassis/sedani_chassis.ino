@@ -36,7 +36,6 @@ const byte encoderPinB = 3;
 const byte escPin = 4;
 const byte steerPin = 5;
 const byte isManualPin = 6;
-
 const byte rcSteerPin = 7;
 const byte rcEscPin = 8;
 const byte speakerOutputPin = 9;
@@ -84,7 +83,7 @@ bool prevWirelessStateC = false;
 bool prevWirelessStateD = false;
 
 // Encoders
-long currentEncoderPosition = 0;   //OLD CONTROL
+volatile long currentEncoderPosition = 0;   //OLD CONTROL
 long prevEncoderPosition = 0;
 float measuredSpeed = 0.0;
 unsigned long prevEncoderTime = 0;
@@ -175,7 +174,7 @@ void setup() {
     steering.write(centerSteeringPwm);
     drive(centerSpeedPwm);
     
-    attachInterrupt(digitalPinToInterrupt(encoderPinA),interrupt, RISING);
+    attachInterrupt(digitalPinToInterrupt(encoderPinA),encoderInterrupt, RISING);
     lastMessageTime = millis();
     isTimedOut = true;
     
@@ -945,6 +944,23 @@ void runStateReverse() {
     steer();
 }
 
+// Steering
+void steer(){
+    currentSteeringAngle = desiredSteeringAngle;
+    int newSteerPwm = steeringPwmFromRadians(currentSteeringAngle);
+    steering.writeMicroseconds(newSteerPwm);
+}
+
+// Driving
+void drive(int pwm){
+    currentEscPwm = pwm;
+    if(pwm > centerSpeedPwm){
+        reverseRequired = true;
+    }
+    esc.writeMicroseconds(pwm);
+}
+
+// Speed calculation
 void calculateSpeed(){
     currEncoderTime = millis();    
     if(currEncoderTime-prevEncoderTime != 0){
@@ -954,24 +970,7 @@ void calculateSpeed(){
     }
 }
 
-// Steering
-void steer(){
-    currentSteeringAngle = desiredSteeringAngle;
-    int newSteerPwm = steeringPwmFromRadians(currentSteeringAngle);
-    steering.write(newSteerPwm);
-}
-
-// Driving
-void drive(int desiredSentPwm){
-    currentEscPwm = desiredSentPwm;
-    if(desiredSentPwm > centerSpeedPwm){
-        reverseRequired = true;
-    }
-    esc.write(currentEscPwm);
-}
-
-// Interrupt
-void interrupt(){
+void encoderInterrupt(){
     if(digitalRead(encoderPinB)){
         currentEncoderPosition--;
     }
