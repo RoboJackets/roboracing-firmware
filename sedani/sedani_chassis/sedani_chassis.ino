@@ -52,7 +52,6 @@ const byte wirelessPinD = 16;
 // Control Limits
 const float maxSpeed = 3; // maximum velocity in m/s 
 const float minSpeed = -1; // minimum velocity in m/s 
-
 const int centerSpeedPwm = 1472;
 const int maxSpeedPwm = SpeedLUT[SpeedLUTMaxIndex][0];
 
@@ -73,6 +72,7 @@ int currentEscPwm = 0;
 unsigned long lastMessageTime;
 unsigned long timeoutDuration = 1000;
 bool isTimedOut = true; 
+
 
 // Wireless States
 bool prevWirelessStateB = false;
@@ -198,7 +198,7 @@ void setup() {
     strip.Show();
     strip.SetBrightness(brightness);
     #endif
-
+  
     playSong(3);
 }
 
@@ -228,6 +228,7 @@ void loop() {
     }
 
     while (loopStartTime + millisPerLoop > millis());
+
 }
 
 int escPwmFromMetersPerSecond(float velocity) {
