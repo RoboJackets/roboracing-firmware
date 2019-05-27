@@ -1,33 +1,15 @@
 //#define AUDIO_ENABLE
+//#define NEO_ENABLE
 
 #ifdef AUDIO_ENABLE
 #include "pitch.h"
 #endif
 
-#define NEO_ENABLE
-#ifdef NEO_ENABLE
-#include <NeoPixelBrightnessBus.h> // instead of NeoPixelBus.h
-
-
-const uint16_t PixelCount = 8; // this example assumes 4 pixels, making it smaller will cause a failure
-const uint8_t PixelPin = A1;  // make sure to set this to the correct pin, ignored for Esp8266
-
-#define colorSaturation 128
-#define brightness 50
-// three element pixels, in different order and speeds
-NeoPixelBrightnessBus<NeoRgbFeature, Neo800KbpsMethod> strip(PixelCount, PixelPin);
-RgbColor red(colorSaturation, 0, 0);
-RgbColor green(0, colorSaturation, 0);
-RgbColor blue(0, 0, colorSaturation);
-RgbColor white(colorSaturation);
-RgbColor black(0);
-
-#endif
-
-
-
 #include "SpeedLUT.h"
 #include <Servo.h>
+
+
+
 
 // Pins
 //Encoder pins must be interrupt capable
@@ -83,7 +65,7 @@ bool prevWirelessStateC = false;
 bool prevWirelessStateD = false;
 
 // Encoders
-volatile long currentEncoderPosition = 0;   //OLD CONTROL
+volatile long currentEncoderPosition = 0;
 long prevEncoderPosition = 0;
 float measuredSpeed = 0.0;
 unsigned long prevEncoderTime = 0;
@@ -136,6 +118,23 @@ const int songInformation7[2] = {NOTE_C5, NOTE_C6};
 const int songInformation8[2] = {NOTE_C4, NOTE_C6};
 #endif
 
+// NeoPixel
+#ifdef NEO_ENABLE
+#include <NeoPixelBrightnessBus.h> // instead of NeoPixelBus.h
+const uint16_t PixelCount = 8; // this example assumes 4 pixels, making it smaller will cause a failure
+const uint8_t PixelPin = A1;  // make sure to set this to the correct pin, ignored for Esp8266
+
+#define colorSaturation 128
+#define brightness 50
+// three element pixels, in different order and speeds
+NeoPixelBrightnessBus<NeoRgbFeature, Neo800KbpsMethod> strip(PixelCount, PixelPin);
+RgbColor red(colorSaturation, 0, 0);
+RgbColor green(0, colorSaturation, 0);
+RgbColor blue(0, 0, colorSaturation);
+RgbColor white(colorSaturation);
+RgbColor black(0);
+#endif
+
 // Servo objects
 Servo esc;
 Servo steering;
@@ -179,6 +178,7 @@ void setup() {
     isTimedOut = true;
     
     Serial.begin(115200);
+
     #ifdef NEO_ENABLE
     strip.Begin();
     strip.Show();
@@ -189,19 +189,6 @@ void setup() {
 }
 
 void loop() {
-    #ifdef NEO_ENABLE
-    strip.SetPixelColor(0, red);
-    strip.SetPixelColor(1, green);
-    strip.SetPixelColor(2, blue);
-    strip.SetPixelColor(3, white);
-    strip.SetPixelColor(4, red);
-    strip.SetPixelColor(5, green);
-    strip.SetPixelColor(6, blue);
-    strip.SetPixelColor(7, white);
-    strip.Show();
-    #endif
-
-
     loopStartTime = millis();      
     bool gotMessage = getMessage();
     
