@@ -9,7 +9,30 @@
 #include <Servo.h>
 
 
-
+// Function declaration
+void setup();
+void loop();
+int escPwmFromMetersPerSecond(float);
+int escPwmPID(float);
+float metersPerSecondFromEscPwm(int);
+float radiansFromServoPwm(int);
+int steeringPwmFromRadians(float);
+bool getMessage();
+void setPID();
+void sendFeedback(const float*, const int);
+void playSong(int);
+void executeStateMachine();
+void runHold();
+void runHoldDoNotTrack();
+void runStateManual();
+void runStateForward();
+void runStateBraking();
+void runStateStopped();
+void runStateReverse();
+void steer();
+void drive(int);
+void calculateSpeed();
+void encoderInterrupt();
 
 // Pins
 //Encoder pins must be interrupt capable
@@ -45,14 +68,6 @@ float currentSteeringAngle = 0;
 float desiredSteeringAngle = 0;
 float desiredSpeed = 0;
 int currentEscPwm = 0;
-
-/* Unused
-// RC Smoothing Buffers
-const byte bufferSize = 10;
-float steerBuffer[bufferSize] = {0, 0, 0, 0, 0};
-int steerIndex = 0;
-float steerSum = 0;
-*/
 
 // Timeout Variables
 unsigned long lastMessageTime;
@@ -102,8 +117,25 @@ const int reverseHoldPwm = 1470;
 bool reverseTag = false;
 bool reverseRequired = true;
 
+float recordBag = 0.0; // 0 is not recording, 1 is recording 
 
-double recordBag = 0.0; //0 is not recording
+// Servo objects
+Servo esc;
+Servo steering;
+
+// State machine possible states
+enum ChassisState {
+    STATE_DISABLED = 0,
+    STATE_TIMEOUT = 1,
+    STATE_MANUAL = 2,
+    STATE_FORWARD = 3,
+    STATE_FORWARD_BRAKING = 4,
+    STATE_REVERSE = 5,
+    STATE_REVERSE_COAST = 6,
+    STATE_REVERSE_TRANSITION = 7,
+    STATE_IDLE = 8
+} 
+currentState = STATE_DISABLED;
 
 // Songs!
 #ifdef AUDIO_ENABLE
@@ -134,24 +166,6 @@ RgbColor blue(0, 0, colorSaturation);
 RgbColor white(colorSaturation);
 RgbColor black(0);
 #endif
-
-// Servo objects
-Servo esc;
-Servo steering;
-
-// State machine possible states
-enum ChassisState {
-    STATE_DISABLED = 0,
-    STATE_TIMEOUT = 1,
-    STATE_MANUAL = 2,
-    STATE_FORWARD = 3,
-    STATE_FORWARD_BRAKING = 4,
-    STATE_REVERSE = 5,
-    STATE_REVERSE_COAST = 6,
-    STATE_REVERSE_TRANSITION = 7,
-    STATE_IDLE = 8
-} 
-currentState = STATE_DISABLED;
 
 void setup() {
     pinMode(wirelessPinB,INPUT);
