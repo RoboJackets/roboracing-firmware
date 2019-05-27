@@ -46,24 +46,24 @@ const byte wirelessPinB = 15;
 const byte wirelessPinD = 16;
 
 // Control Limits
-const float maxSpeed = 3; // maximum velocity 
-const float minSpeed = -1;
+const float maxSpeed = 3; // maximum velocity in m/s 
+const float minSpeed = -1; // minimum velocity in m/s 
 
-const unsigned int centerSpeedPwm = 1472;
-const unsigned int maxPwm = SpeedLUT[SpeedLUTMaxIndex][0];
+const int centerSpeedPwm = 1472;
+const int maxPwm = SpeedLUT[SpeedLUTMaxIndex][0];
 
 const float maxSteeringAngle = 0.463; // Radians
 const float minSteeringAngle = -0.463; // Radians
 
-const unsigned int maxSteeringPwm = 1773;
-const unsigned int minSteeringPwm = 1347;
-const unsigned int centerSteeringPwm = 1560;
+const int maxSteeringPwm = 1773;
+const int minSteeringPwm = 1347;
+const int centerSteeringPwm = 1560;
 
 // Control Variables
 float currentSteeringAngle = 0;
 float desiredSteeringAngle = 0;
 float desiredSpeed = 0;
-unsigned long currentEscPwm = 0;
+int currentEscPwm = 0;
 
 /* Unused
 // RC Smoothing Buffers
@@ -106,7 +106,7 @@ const byte millisPerLoop = 25;
 unsigned long loopStartTime = 0;
 
 // Reverse
-const unsigned int brakePwm = 1300;
+const int brakePwm = 1300;
 const float minBrakingSpeed = 0.05;
 
 unsigned int consecutiveZeroSpeed = 0;
@@ -115,8 +115,8 @@ const byte minConsecutiveZeroSpeed = 3;
 unsigned int consecutiveStop = 0;
 const byte minConsecutiveStop = 18;
 
-const unsigned int reversePwm = 1350;
-const unsigned int reverseHoldPwm = 1470;
+const int reversePwm = 1350;
+const int reverseHoldPwm = 1470;
 
 bool reverseTag = false;
 bool reverseRequired = true;
@@ -229,7 +229,7 @@ void loop() {
     while (loopStartTime + millisPerLoop > millis());
 }
 
-unsigned long escPwmFromMetersPerSecond(float velocity) {
+int escPwmFromMetersPerSecond(float velocity) {
     if(velocity <= 0) {
         return SpeedLUT[0][0];
     }
@@ -245,7 +245,7 @@ unsigned long escPwmFromMetersPerSecond(float velocity) {
 }
 
 
-unsigned int escPwmPID(float velocity) { 
+int escPwmPID(float velocity) { 
     if(velocity <= 0) {
         integral = 0;
         return SpeedLUT[0][0];
@@ -271,13 +271,13 @@ unsigned int escPwmPID(float velocity) {
     }
 }
 
-float metersPerSecondFromEscPwm(unsigned int escPwm) {
+float metersPerSecondFromEscPwm(int escPwm) {
     int index = escPwm - centerSpeedPwm; 
     index = constrain(index, 0, SpeedLUTMaxIndex);
     return SpeedLUT[index][1];
 }
 
-float radiansFromServoPwm(unsigned int servoPwm) {
+float radiansFromServoPwm(int servoPwm) {
     float distanceFromCenter = (float)(servoPwm) - (float)(centerSteeringPwm);
     if(distanceFromCenter > 0) {
         float prop = distanceFromCenter / (maxSteeringPwm - centerSteeringPwm);
@@ -288,7 +288,7 @@ float radiansFromServoPwm(unsigned int servoPwm) {
     }
 }
 
-unsigned int steeringPwmFromRadians(float radiansToSteer) {
+int steeringPwmFromRadians(float radiansToSteer) {
     if(radiansToSteer > 0) {
         float prop = radiansToSteer / maxSteeringAngle;
         return (prop * (maxSteeringPwm - centerSteeringPwm)) + centerSteeringPwm;
@@ -956,12 +956,12 @@ void calculateSpeed(){
 // Steering
 void steer(){
     currentSteeringAngle = desiredSteeringAngle;
-    unsigned long newSteerPwm = steeringPwmFromRadians(desiredSteeringAngle);
+    unsigned long newSteerPwm = steeringPwmFromRadians(currentSteeringAngle);
     steering.write(newSteerPwm);
 }
 
 // Driving
-void drive(unsigned long desiredSentPwm){
+void drive(int desiredSentPwm){
     currentEscPwm = desiredSentPwm;
     if(desiredSentPwm > centerSpeedPwm){
         reverseRequired = true;
