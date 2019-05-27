@@ -72,12 +72,15 @@ RFM69_ATC radio;
 RFM69 radio;
 #endif
 
-#define OUPTUT_LED A0
+// Fixes to make output LED work
+#define _HWB_H()  (PORTE |=  (1<<2))
+#define _HWB_L()  (PORTE &= ~(1<<2))
 
 bool arrayCompare(uint8_t, uint8_t, unsigned int);
 
 void setup() {
-    pinMode(OUPTUT_LED, OUTPUT);
+    // Setting LED ouput pin
+    DDRE |= (1<<2);
     
     Serial.begin(SERIAL_BAUD);
     delay(10);
@@ -112,8 +115,8 @@ bool connectionEstablished = false;
 bool go = false;
 
 // Number of loops per status LED state change
-const static uint16_t blinkLoopsReceiver = 100;
-uint16_t blinkCount = 0;
+const static uint32_t blinkLoopsReceiver = 100000;
+uint32_t blinkCount = 0;
 bool blinkState = false;
 
 void loop() {
@@ -184,7 +187,7 @@ void loop() {
     
     //Write the signal out to the pins
     if (go){
-        digitalWrite(OUPTUT_LED, HIGH);
+        _HWB_H();
     }
     else {
         // Status LED blinks if e-stopped
@@ -193,9 +196,13 @@ void loop() {
         }
         else {
             blinkState = !blinkState;
+            if(blinkState){
+                _HWB_H();
+            } else {
+                _HWB_L();
+            }
             blinkCount = 0;
         }
-        digitalWrite(OUPTUT_LED, blinkState);
     }
 }
 
