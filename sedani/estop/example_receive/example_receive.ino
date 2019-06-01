@@ -23,7 +23,7 @@
 
 // Addresses for this node. CHANGE THESE FOR EACH NODE!
 
-#define NETWORKID     0   // Must be the same for all nodes
+#define NETWORKID     10   // Must be the same for all nodes
 #define MYNODEID      2   // My node ID
 #define TONODEID      1   // Destination node ID
 
