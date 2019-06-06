@@ -12,13 +12,14 @@
 // Function declaration
 void setup();
 void loop();
+float fmap(float,float,float,float);
 int escPwmFromMetersPerSecond(float);
 int escPwmPID(float);
 float metersPerSecondFromEscPwm(int);
 float radiansFromServoPwm(int);
 int steeringPwmFromRadians(float);
 bool getMessage();
-void setPID();
+void getPidMessage();
 void sendFeedback(const float*, const int);
 void playSong(int);
 void executeStateMachine();
@@ -84,7 +85,7 @@ volatile long currentEncoderPosition = 0;
 long prevEncoderPosition = 0;
 float measuredSpeed = 0.0;
 unsigned long prevEncoderTime = 0;
-unsigned long currEncoderTime = 0;
+unsigned long currentEncoderTime = 0;
 const float metersPerEncoderTick = 1.0/2408.7;
 
 // PID Speed Control
@@ -207,7 +208,7 @@ void loop() {
     bool gotMessage = getMessage();
     
     if (pidTuning == true){
-        setPID();
+        getPidMessage();
     }
 
     // If we haven't received a message from the NUC in a while, stop driving
@@ -229,6 +230,12 @@ void loop() {
 
     while (loopStartTime + millisPerLoop > millis());
 
+}
+
+
+float fmap(float x, float in_min, float in_max, float out_min, float out_max) {
+  //@note this is the same as the arduino map() function but with floating point math
+  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
 
 int escPwmFromMetersPerSecond(float velocity) {
@@ -316,7 +323,7 @@ bool getMessage() {
     return gotMessage;
 }
 
-void setPID() {
+void getPidMessage() {
     while(Serial.available()){
       if (Serial.read() == '#'){
         kP = Serial.parseFloat();
@@ -964,10 +971,10 @@ void drive(int pwm){
 
 // Speed calculation
 void calculateSpeed(){
-    currEncoderTime = millis();    
-    if(currEncoderTime-prevEncoderTime != 0){
-        measuredSpeed = -(currentEncoderPosition - prevEncoderPosition)*metersPerEncoderTick/(currEncoderTime-prevEncoderTime)*millisPerSec;
-        prevEncoderTime = currEncoderTime;
+    currentEncoderTime = millis();    
+    if(currentEncoderTime-prevEncoderTime != 0){
+        measuredSpeed = -(currentEncoderPosition - prevEncoderPosition)*metersPerEncoderTick/(currentEncoderTime-prevEncoderTime)*millisPerSec;
+        prevEncoderTime = currentEncoderTime;
         prevEncoderPosition = currentEncoderPosition;
     }
 }
