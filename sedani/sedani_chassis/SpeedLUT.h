@@ -1,4 +1,6 @@
-double SpeedLUT[86][2] = {
+const byte SpeedLUTLength = 86;
+const byte SpeedLUTMaxIndex = SpeedLUTLength - 1;
+double SpeedLUT[SpeedLUTLength][2] = {
   {1492, 0.000000},
   {1493, 0.000000},
   {1494, 0.000000},
