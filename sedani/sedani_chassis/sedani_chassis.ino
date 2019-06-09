@@ -232,12 +232,6 @@ void loop() {
 
 }
 
-
-float fmap(float x, float in_min, float in_max, float out_min, float out_max) {
-  //@note this is the same as the arduino map() function but with floating point math
-  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
-}
-
 int escPwmFromMetersPerSecond(float velocity) {
     if(velocity <= 0) {
         return SpeedLUT[0][0];
@@ -273,7 +267,7 @@ int escPwmPID(float velocity) {
         derivative = (error - prevError) / dt; //difference derivative
 
         int writePwmSigned = kP * error + kI * integral + kD * derivative + escPwmFromMetersPerSecond(velocity);
-        int writePwm = constrain(writePwmSigned, 0, maxSpeedPwm); //control limits
+        int writePwm = constrain(writePwmSigned, centerSpeedPwm, maxSpeedPwm); //control limits
 
         prevError = error;
         return writePwm;
@@ -289,10 +283,10 @@ float metersPerSecondFromEscPwm(int escPwm) {
 float radiansFromServoPwm(int servoPwm) {
     float distanceFromCenter = (float)(servoPwm) - (float)(centerSteeringPwm);
     if(distanceFromCenter > 0) {
-        float prop = distanceFromCenter / (maxSteeringPwm - centerSteeringPwm);
+        float prop = distanceFromCenter / float(maxSteeringPwm - centerSteeringPwm);
         return prop * maxSteeringAngle;
     } else {
-        float prop = distanceFromCenter / (minSteeringPwm - centerSteeringPwm);
+        float prop = distanceFromCenter / float(minSteeringPwm - centerSteeringPwm);
         return prop * minSteeringAngle;
     }
 }
@@ -300,10 +294,10 @@ float radiansFromServoPwm(int servoPwm) {
 int steeringPwmFromRadians(float radiansToSteer) {
     if(radiansToSteer > 0) {
         float prop = radiansToSteer / maxSteeringAngle;
-        return (prop * (maxSteeringPwm - centerSteeringPwm)) + centerSteeringPwm;
+        return int(prop * (maxSteeringPwm - centerSteeringPwm)) + centerSteeringPwm;
     } else {
         float prop = radiansToSteer / minSteeringAngle;
-        return (prop * (minSteeringPwm - centerSteeringPwm)) + centerSteeringPwm;
+        return int(prop * (minSteeringPwm - centerSteeringPwm)) + centerSteeringPwm;
     }
 }
 
