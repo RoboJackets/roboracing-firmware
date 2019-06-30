@@ -5,7 +5,7 @@
 #include "pitch.h"
 #endif
 
-#include "SpeedLUT.h"
+//#include "SpeedLUT.h"
 #include <Servo.h>
 
 
@@ -54,7 +54,8 @@ const byte wirelessPinD = 16;
 const float maxSpeed = 3; // maximum velocity in m/s 
 const float minSpeed = -1; // minimum velocity in m/s 
 const int centerSpeedPwm = 1472;
-const int maxSpeedPwm = SpeedLUT[SpeedLUTMaxIndex][0];
+const int maxSpeedPwm = 1630;
+const int zeroSpeedPwm = 1500;
 
 const float maxSteeringAngle = 0.463; // Radians
 const float minSteeringAngle = -0.463; // Radians
@@ -234,8 +235,9 @@ void loop() {
 
 int escPwmFromMetersPerSecond(float velocity) {
     if(velocity <= 0) {
-        return SpeedLUT[0][0];
+        return zeroSpeedPwm;
     }
+    /*
     float prevLUTVelocity = 0.0;
     for(byte i = 1; i < SpeedLUTLength; i++) {
         float LUTVelocity = SpeedLUT[i][1];
@@ -245,13 +247,15 @@ int escPwmFromMetersPerSecond(float velocity) {
         prevLUTVelocity = LUTVelocity;
     }
     return SpeedLUT[SpeedLUTMaxIndex][0];
+    */
+    return 1525+(int)16.89*velocity;
 }
 
 
 int escPwmPID(float velocity) { 
     if(velocity <= 0) {
         integral = 0;
-        return SpeedLUT[0][0];
+        return zeroSpeedPwm;
     }
     else{
         const float dt = (float)millisPerLoop / millisPerSec;
@@ -275,9 +279,7 @@ int escPwmPID(float velocity) {
 }
 
 float metersPerSecondFromEscPwm(int escPwm) {
-    int index = escPwm - centerSpeedPwm; 
-    index = constrain(index, 0, SpeedLUTMaxIndex);
-    return SpeedLUT[index][1];
+    return 0.0592*escPwm-90.26;
 }
 
 float radiansFromServoPwm(int servoPwm) {

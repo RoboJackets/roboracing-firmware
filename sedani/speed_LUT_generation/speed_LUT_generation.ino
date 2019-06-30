@@ -1,6 +1,6 @@
 //#define AUDIO_ENABLE
 
-const int set_PWM = 1500;
+const long set_PWM = 1500;
 
 #ifdef AUDIO_ENABLE
 #include "pitch.h"
