@@ -503,6 +503,7 @@ void executeStateMachine() {
           currentState = STATE_MANUAL;
           playSong(2);
           break;
+
         }
         // Transition to Idle State
         if (!isEstopped && !isManual && !isTimedOut &&
@@ -546,6 +547,7 @@ void executeStateMachine() {
           currentState = STATE_TIMEOUT;
           playSong(1);
           break;
+
         }
         // Transition to Idle State
         if (!isEstopped && !isManual && !isTimedOut &&
@@ -560,7 +562,6 @@ void executeStateMachine() {
           playSong(3);
           break;
         }
-        
         // Default Loop Case
         currentState = STATE_MANUAL;
         break;
@@ -975,16 +976,12 @@ void drive(int pwm) {
 
 // Speed calculation
 void calculateSpeed() {
-  if(openLoop){
-    measuredSpeed = desiredSpeed;
-  }
-  else{
+
   currentEncoderTime = millis();
-    if (currentEncoderTime - prevEncoderTime != 0) {
-      measuredSpeed = -(currentEncoderPosition - prevEncoderPosition) * metersPerEncoderTick / (currentEncoderTime - prevEncoderTime) * millisPerSec;
-      prevEncoderTime = currentEncoderTime;
-      prevEncoderPosition = currentEncoderPosition;
-    }
+  if (currentEncoderTime - prevEncoderTime != 0) {
+    measuredSpeed = -(currentEncoderPosition - prevEncoderPosition) * metersPerEncoderTick / (currentEncoderTime - prevEncoderTime) * millisPerSec;
+    prevEncoderTime = currentEncoderTime;
+    prevEncoderPosition = currentEncoderPosition;
   }
 }
 
