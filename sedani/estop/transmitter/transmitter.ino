@@ -68,7 +68,10 @@ uint8_t payload[payloadLength];
 char buff[20];
 
 //Pins
-#define CONNECTED_LED A0
+//#define CONNECTED_LED A0
+#define SHIFTER_EN 7
+#define _HWB_H()  (PORTE |=  (1<<2))
+#define _HWB_L()  (PORTE &= ~(1<<2))
 
 #ifdef ENABLE_ATC
 RFM69_ATC radio;
@@ -86,9 +89,11 @@ void setup() {
     //radio.writeReg(REG_BITRATEMSB, RF_BITRATEMSB_2400);
     //radio.writeReg(REG_BITRATELSB, RF_BITRATELSB_2400);
     
-    
-    pinMode(CONNECTED_LED, OUTPUT);
+    pinMode(SHIFTER_EN, OUTPUT);
+    digitalWrite(SHIFTER_EN, HIGH);
+    DDRE |= (1<<2); //Enable HWB LED
     //radio.setFrequency(919000000); //set frequency to some custom frequency
+    _HWB_H();
 
 //Auto Transmission Control - dials down transmit power to save battery (-100 is the noise floor, -90 is still pretty good)
 //For indoor nodes that are pretty static and at pretty stable temperatures (like a MotionMote) -90dBm is quite safe
@@ -126,6 +131,7 @@ void loop() {
     }
     
     //Send the data. If successful, delay.
+    
     if (radio.sendWithRetry(GATEWAYID, payload, payloadLength, RETRIES, RETRY_DELAY)){
         Serial.print(" ok! RSSI: " + radio.RSSI);
         lastSendSuccessful = true;
@@ -135,8 +141,16 @@ void loop() {
         Serial.print(" SENDING FAILED");
         lastSendSuccessful = false;
     }
+    
 
     Serial.println();
     
-    digitalWrite(CONNECTED_LED, lastSendSuccessful);
+    
+    if((millis()/500) % 2 == 0) {
+        _HWB_H();
+    }
+    else {
+        _HWB_L();
+    }
+    
 }
