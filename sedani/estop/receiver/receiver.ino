@@ -54,14 +54,10 @@
 
 /*
 MAKE SURE TO KEEP THESE CODES THE SAME AS RECIEVER
-We are using 4-byte codes for stop and go to hopefully prevent the radio from 
-receiving a stop or go signal by random chance.
-The last byte in the message is for 
 */
-const static byte codeLength = 3;
-const static uint8_t eStopCode[codeLength] = {208, 238, 135};
-const static uint8_t goCode[codeLength] = {31, 32, 106};
-const static byte expectedMessageLength = codeLength + 1;
+const static uint8_t eStopCode = 98;
+const static uint8_t goCode = 97;
+const static byte expectedMessageLength = 1;
 
 const static bool promiscuousMode = false; //set to 'true' to sniff all packets on the same network
 #define SERIAL_BAUD   9600
@@ -76,7 +72,8 @@ RFM69 radio;
 #define _HWB_H()  (PORTE |=  (1<<2))
 #define _HWB_L()  (PORTE &= ~(1<<2))
 
-bool arrayCompare(uint8_t, uint8_t, unsigned int);
+bool compareData(uint8_t, uint8_t, unsigned int);
+bool compareData(uint8_t, uint8_t, unsigned int);
 
 void setup() {
     // Setting LED ouput pin
@@ -145,11 +142,11 @@ void loop() {
         messageValid = false;
         //If message wrong length, fail immediately
         if (expectedMessageLength >= radio.DATALEN){
-            if(arrayCompare(radio.DATA, goCode, codeLength)){
+            if(radio.DATA[0] == goCode){
                 go = true;
                 messageValid = true;
             }
-            else if (arrayCompare(radio.DATA, eStopCode, codeLength)){
+            else if (radio.DATA[0] == eStopCode){
                 go = false;
                 messageValid = true;
             }
@@ -209,7 +206,7 @@ void loop() {
 //Compares if two arrays are element-for-element the same
 //From https://forum.arduino.cc/index.php?topic=5157.0
 //numberOfElements MUST be less than the length of the two arrays
-bool arrayCompare(volatile uint8_t *a, uint8_t *b, unsigned int numberOfElements){
+bool compareData(volatile uint8_t *a, uint8_t *b, unsigned int numberOfElements){
     for (unsigned int n=0;n<numberOfElements;n++){
         if (a[n]!=b[n]){
             return false;

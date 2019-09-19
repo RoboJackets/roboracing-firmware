@@ -45,24 +45,25 @@
 //dial their power down to only the required level (ATC_RSSI)
 #define ENABLE_ATC    //comment out this line to disable AUTO TRANSMISSION CONTROL
 #define ATC_RSSI      -60
-//Possible antenna https://arduinodiy.wordpress.com/2015/07/25/coil-loaded-433-mhz-antenna/
 //*********************************************************************************************
 #define SERIAL_BAUD   9600
 
-//MAKE SURE TO KEEP THIS THE SAME AS RECIEVER
-const static byte codeLength = 3;
-const static uint8_t eStopCode[codeLength] = {208, 238, 135};
-const static uint8_t goCode[codeLength] = {31, 32, 106};
 
-//Payload is the code (go or stop) to send with the radio. Last byte is for other data.
-const static byte payloadLength = codeLength + 1;
+//MAKE SURE TO KEEP THESE CODES THE SAME AS RECIEVER
+
+const static uint8_t eStopCode = 98;
+const static uint8_t goCode = 97;
+const static byte expectedMessageLength = 1;
+
+//Payload is the code (go or stop) to send with the radio.
+const static byte payloadLength = 1;
 uint8_t payload[payloadLength];
 
 #define TRANSMIT_PERIOD 200 //wait this long after a successful send (in ms)
-#define TRNSMIT_FAILED_PERIOD 50 //wait this long if failed to send a burst (ms)
+#define TRNSMIT_FAILED_PERIOD 0 //wait this long if failed to send a burst (ms)
 //Each time we try to send a packet, try this many times
 #define RETRY_DELAY 20  //how many ms to wait before a retry
-#define RETRIES 1  //Retry how many times before failure
+#define RETRIES 0  //Retry how many times before failure. 0 means send only once.
 
 //Not sure what this does
 char buff[20];
@@ -107,22 +108,17 @@ void setup() {
 
 bool lastSendSuccessful = false;
 bool go = false;
+unsigned long startSendingTime = 0;
 
 void loop() {
     
     //Create the payload
     if (go){  //Copy goCode into payload
-        for(byte i = 0; i < codeLength; i++){
-            payload[i] = goCode[i];
-        }
+        payload[0] = goCode;
     }
     else{  //E_STOPPED: copy the e-stop code into payload
-        for(byte i = 0; i < codeLength; i++){
-            payload[i] = goCode[i];
-        }
+        payload[0] = goCode;
     }
-    
-    payload[payloadLength - 1] = (byte) ('a' + (millis()/1000)%25);
     
     //Print what we are sending
     Serial.print("Sending: ");
@@ -131,19 +127,18 @@ void loop() {
     }
     
     //Send the data. If successful, delay.
-    
+    startSendingTime = micros();
     if (radio.sendWithRetry(GATEWAYID, payload, payloadLength, RETRIES, RETRY_DELAY)){
         Serial.print(" ok! RSSI: " + radio.RSSI);
+        Serial.print(". ms to get an ACK:" + (micros() - startSendingTime)/1000);
         lastSendSuccessful = true;
         delay(TRANSMIT_PERIOD);
     }
     else {
-        Serial.print(" SENDING FAILED");
+        Serial.print(" SENDING FAILED. ms to FAIL:" + (micros() - startSendingTime)/1000);
         lastSendSuccessful = false;
+        delay(TRNSMIT_FAILED_PERIOD);
     }
-    
-
-    Serial.println();
     
     
     if((millis()/500) % 2 == 0) {
