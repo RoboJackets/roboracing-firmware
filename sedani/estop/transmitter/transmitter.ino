@@ -43,11 +43,10 @@
 //By reducing TX power even a little you save a significant amount of battery power
 //This setting enables this gateway to work with remote nodes that have ATC enabled to
 //dial their power down to only the required level (ATC_RSSI)
-#define ENABLE_ATC    //comment out this line to disable AUTO TRANSMISSION CONTROL
-#define ATC_RSSI      -60
+//#define ENABLE_ATC    //comment out this line to disable AUTO TRANSMISSION CONTROL
+//#define ATC_RSSI      -60
 //*********************************************************************************************
-#define SERIAL_BAUD   9600
-
+#define SERIAL_BAUD   115200
 
 //MAKE SURE TO KEEP THESE CODES THE SAME AS RECIEVER
 
@@ -60,19 +59,29 @@ const static byte payloadLength = 1;
 uint8_t payload[payloadLength];
 
 #define TRANSMIT_PERIOD 200 //wait this long after a successful send (in ms)
-#define TRNSMIT_FAILED_PERIOD 0 //wait this long if failed to send a burst (ms)
+#define TRNSMIT_FAILED_PERIOD 10 //wait this long if failed to send a burst (ms)
 //Each time we try to send a packet, try this many times
 #define RETRY_DELAY 20  //how many ms to wait before a retry
 #define RETRIES 0  //Retry how many times before failure. 0 means send only once.
 
-//Not sure what this does
-char buff[20];
-
 //Pins
-//#define CONNECTED_LED A0
-#define SHIFTER_EN 7
-#define _HWB_H()  (PORTE |=  (1<<2))
-#define _HWB_L()  (PORTE &= ~(1<<2))
+#define UNO
+
+#ifdef UNO
+    
+#define _LED_SETUP()  pinMode(13, OUTPUT)
+#define _LED_H()  digitalWrite(13, HIGH)
+#define _LED_L()  digitalWrite(13, LOW)
+
+#else
+    
+#define _LED_SETUP()  (DDRE |= (1<<2))
+#define _LED_H()  (PORTE |=  (1<<2))
+#define _LED_L()  (PORTE &= ~(1<<2))
+
+#endif
+
+#define SHIFTER_EN 7  //Not needed for UNO, but doesn't hurt anything
 
 #ifdef ENABLE_ATC
 RFM69_ATC radio;
@@ -87,14 +96,14 @@ void setup() {
     
     //Dial down transmit speed for increased range.
     //Causes sporadic connection losses
-    //radio.writeReg(REG_BITRATEMSB, RF_BITRATEMSB_2400);
-    //radio.writeReg(REG_BITRATELSB, RF_BITRATELSB_2400);
+    radio.writeReg(REG_BITRATEMSB, RF_BITRATEMSB_19200);
+    radio.writeReg(REG_BITRATELSB, RF_BITRATELSB_19200);
     
     pinMode(SHIFTER_EN, OUTPUT);
     digitalWrite(SHIFTER_EN, HIGH);
-    DDRE |= (1<<2); //Enable HWB LED
+    _LED_SETUP(); //Enable HWB LED
     //radio.setFrequency(919000000); //set frequency to some custom frequency
-    _HWB_H();
+    _LED_H();
 
 //Auto Transmission Control - dials down transmit power to save battery (-100 is the noise floor, -90 is still pretty good)
 //For indoor nodes that are pretty static and at pretty stable temperatures (like a MotionMote) -90dBm is quite safe
@@ -129,23 +138,26 @@ void loop() {
     //Send the data. If successful, delay.
     startSendingTime = micros();
     if (radio.sendWithRetry(GATEWAYID, payload, payloadLength, RETRIES, RETRY_DELAY)){
-        Serial.print(" ok! RSSI: " + radio.RSSI);
-        Serial.print(". ms to get an ACK:" + (micros() - startSendingTime)/1000);
+        Serial.print(" ok! RSSI: ");
+        Serial.print(radio.RSSI);
+        Serial.print(". ms to get an ACK: ");
+        Serial.println((micros() - startSendingTime)/1000);
         lastSendSuccessful = true;
         delay(TRANSMIT_PERIOD);
     }
     else {
-        Serial.print(" SENDING FAILED. ms to FAIL:" + (micros() - startSendingTime)/1000);
+        Serial.print(" SENDING FAILED. ms to FAIL: ");
+        Serial.println((micros() - startSendingTime)/1000);
         lastSendSuccessful = false;
         delay(TRNSMIT_FAILED_PERIOD);
     }
     
     
     if((millis()/500) % 2 == 0) {
-        _HWB_H();
+        _LED_H();
     }
     else {
-        _HWB_L();
+        _LED_L();
     }
     
 }

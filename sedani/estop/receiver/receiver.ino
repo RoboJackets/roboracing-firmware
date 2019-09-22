@@ -44,8 +44,8 @@
 //By reducing TX power even a little you save a significant amount of battery power
 //This setting enables this gateway to work with remote nodes that have ATC enabled to
 //dial their power down to only the required level
-#define ENABLE_ATC    //comment out this line to disable AUTO TRANSMISSION CONTROL
-#define ATC_RSSI      -60
+//#define ENABLE_ATC    //comment out this line to disable AUTO TRANSMISSION CONTROL
+//#define ATC_RSSI      -60
 //*********************************************************************************************
 
 //How many ms before we decide the connection is lost
@@ -60,7 +60,7 @@ const static uint8_t goCode = 97;
 const static byte expectedMessageLength = 1;
 
 const static bool promiscuousMode = false; //set to 'true' to sniff all packets on the same network
-#define SERIAL_BAUD   9600
+#define SERIAL_BAUD   115200
 
 #ifdef ENABLE_ATC
 RFM69_ATC radio;
@@ -68,16 +68,30 @@ RFM69_ATC radio;
 RFM69 radio;
 #endif
 
-// Fixes to make output LED work
-#define _HWB_H()  (PORTE |=  (1<<2))
-#define _HWB_L()  (PORTE &= ~(1<<2))
+#define UNO
+
+#ifdef UNO
+    
+#define _LED_SETUP()  pinMode(13, OUTPUT)
+#define _LED_H()  digitalWrite(13, HIGH)
+#define _LED_L()  digitalWrite(13, LOW)
+
+#else
+    
+#define _LED_SETUP()  (DDRE |= (1<<2))
+#define _LED_H()  (PORTE |=  (1<<2))
+#define _LED_L()  (PORTE &= ~(1<<2))
+
+#endif
+
+
 
 bool compareData(uint8_t, uint8_t, unsigned int);
 bool compareData(uint8_t, uint8_t, unsigned int);
 
 void setup() {
     // Setting LED ouput pin
-    DDRE |= (1<<2);
+    _LED_SETUP();
     
     Serial.begin(SERIAL_BAUD);
     delay(10);
@@ -87,8 +101,8 @@ void setup() {
     
     //Dial down transmit speed for increased range.
     //Causes sporadic connection losses
-    //radio.writeReg(REG_BITRATEMSB, RF_BITRATEMSB_2400);
-    //radio.writeReg(REG_BITRATELSB, RF_BITRATELSB_2400);
+    radio.writeReg(REG_BITRATEMSB, RF_BITRATEMSB_19200);
+    radio.writeReg(REG_BITRATELSB, RF_BITRATELSB_19200);
         
 #ifdef ENABLE_ATC
     radio.enableAutoPower(ATC_RSSI);
@@ -184,7 +198,7 @@ void loop() {
     
     //Write the signal out to the pins
     if (go){
-        _HWB_H();
+        _LED_H();
     }
     else {
         // Status LED blinks if e-stopped
@@ -194,9 +208,9 @@ void loop() {
         else {
             blinkState = !blinkState;
             if(blinkState){
-                _HWB_H();
+                _LED_H();
             } else {
-                _HWB_L();
+                _LED_L();
             }
             blinkCount = 0;
         }
