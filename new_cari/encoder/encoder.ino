@@ -1,6 +1,3 @@
-// Code found on the CUI website:
-// https://www.cuidevices.com/product/resource/sample-code/amt22
-
 /* Include the SPI library for the arduino boards */
 #include <SPI.h>
 
