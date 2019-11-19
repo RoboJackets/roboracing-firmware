@@ -53,7 +53,7 @@ void setup() {
 }
  
 void loop() {
-  currentAngle = spiWriteRead();    
+  currentAngle = getPositionSPI();    
   Serial.print(currentAngle);     // keep sending encoder data back to NUC
 }
 
@@ -72,7 +72,7 @@ void commandInterrupt(){
     desiredAngle = Serial.parseFloat(); 
     desiredAngle = constrain(desiredSteeringAngle, minSteeringAngle, maxSteeringAngle);
   }
-  currentAngle = spiWriteRead();         // read current position from encoder
+  currentAngle = getPositionSPI();         // read current position from encoder
   if (desiredAngle < currentAngle){      // set dirPIN to CW or CCW
     digitalWrite(dirPin, LOW);
   } else {
