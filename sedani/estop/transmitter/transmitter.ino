@@ -65,23 +65,31 @@ uint8_t payload[payloadLength];
 #define RETRIES 0  //Retry how many times before failure. 0 means send only once.
 
 //Pins
-#define UNO
 
 #ifdef UNO
     
-#define _LED_SETUP()  pinMode(13, OUTPUT)
-#define _LED_H()  digitalWrite(13, HIGH)
-#define _LED_L()  digitalWrite(13, LOW)
+#define LED1_SETUP  pinMode(13, OUTPUT)
+#define LED1_ON  digitalWrite(13, HIGH)
+#define LED1_OFF  digitalWrite(13, LOW)
+
+#define LED2_ON 
+#define LED2_OFF
 
 #else
-    
-#define _LED_SETUP()  (DDRE |= (1<<2))
-#define _LED_H()  (PORTE |=  (1<<2))
-#define _LED_L()  (PORTE &= ~(1<<2))
+
+#define LED1 1
+#define LED1_SETUP  pinMode(LED1, OUTPUT)
+#define LED1_ON digitalWrite(LED1, HIGH)
+#define LED1_OFF digitalWrite(LED1, LOW)
+
+#define LED2_ON TXLED0
+#define LED2_OFF TXLED1
 
 #endif
 
-#define SHIFTER_EN 7  //Not needed for UNO, but doesn't hurt anything
+
+
+#define RADIO_RESET A5 //Not needed for UNO, but doesn't hurt anything
 
 #ifdef ENABLE_ATC
 RFM69_ATC radio;
@@ -89,7 +97,14 @@ RFM69_ATC radio;
 RFM69 radio;
 #endif
 
+void resetRadio();
+
 void setup() {
+    pinMode(RADIO_RESET, OUTPUT);
+    digitalWrite(RADIO_RESET, LOW);
+    resetRadio();
+    
+    
     Serial.begin(SERIAL_BAUD);
     radio.initialize(FREQUENCY,NODEID,NETWORKID);
     radio.setHighPower(); //must include this only for RFM69HW/HCW!
@@ -99,11 +114,9 @@ void setup() {
     radio.writeReg(REG_BITRATEMSB, RF_BITRATEMSB_19200);
     radio.writeReg(REG_BITRATELSB, RF_BITRATELSB_19200);
     
-    pinMode(SHIFTER_EN, OUTPUT);
-    digitalWrite(SHIFTER_EN, HIGH);
-    _LED_SETUP(); //Enable HWB LED
+    LED1_SETUP;
     //radio.setFrequency(919000000); //set frequency to some custom frequency
-    _LED_H();
+    LED1_ON;
 
 //Auto Transmission Control - dials down transmit power to save battery (-100 is the noise floor, -90 is still pretty good)
 //For indoor nodes that are pretty static and at pretty stable temperatures (like a MotionMote) -90dBm is quite safe
@@ -153,11 +166,23 @@ void loop() {
     }
     
     
-    if((millis()/500) % 2 == 0) {
-        _LED_H();
+    if((millis()/497) % 2 == 0) {
+        LED1_ON;
     }
     else {
-        _LED_L();
+        LED1_OFF;
     }
     
+    
+}
+
+void resetRadio(){
+    //Ensure we don't call reset too quickly
+    digitalWrite(RADIO_RESET, LOW);
+    delayMicroseconds(5100);
+    //Execute reset
+    digitalWrite(RADIO_RESET, HIGH);
+    delayMicroseconds(150);
+    digitalWrite(RADIO_RESET, LOW);
+    delayMicroseconds(5100);
 }

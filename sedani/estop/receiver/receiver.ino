@@ -72,21 +72,30 @@ RFM69 radio;
 
 #ifdef UNO
     
-#define _LED_SETUP()  pinMode(13, OUTPUT)
-#define _LED_H()  digitalWrite(13, HIGH)
-#define _LED_L()  digitalWrite(13, LOW)
+#define LED1_SETUP  pinMode(13, OUTPUT)
+#define LED1_ON  digitalWrite(13, HIGH)
+#define LED1_OFF  digitalWrite(13, LOW)
+
+#define LED2_ON 
+#define LED2_OFF
 
 #else
-    
-#define _LED_SETUP()  (DDRE |= (1<<2))
-#define _LED_H()  (PORTE |=  (1<<2))
-#define _LED_L()  (PORTE &= ~(1<<2))
+
+#define LED1 1
+#define LED1_SETUP  pinMode(LED1, OUTPUT)
+#define LED1_ON digitalWrite(LED1, HIGH)
+#define LED1_OFF digitalWrite(LED1, LOW)
+
+#define LED2_ON TXLED0
+#define LED2_OFF TXLED1
 
 #endif
 
+#define RADIO_RESET A5 //Not needed for UNO, but doesn't hurt anything
 
 
-bool compareData(uint8_t, uint8_t, unsigned int);
+
+void resetRadio();
 bool compareData(uint8_t, uint8_t, unsigned int);
 
 void setup() {
@@ -227,4 +236,15 @@ bool compareData(volatile uint8_t *a, uint8_t *b, unsigned int numberOfElements)
         }
     }
     return true;
+}
+
+void resetRadio(){
+    //Ensure we don't call reset too quickly
+    digitalWrite(RADIO_RESET, LOW);
+    delayMicroseconds(5100);
+    //Execute reset
+    digitalWrite(RADIO_RESET, HIGH);
+    delayMicroseconds(150);
+    digitalWrite(RADIO_RESET, LOW);
+    delayMicroseconds(5100);
 }
