@@ -72,9 +72,9 @@ RFM69 radio;
 
 #ifdef UNO
     
-#define LED1_SETUP  pinMode(13, OUTPUT)
-#define LED1_ON  digitalWrite(13, HIGH)
-#define LED1_OFF  digitalWrite(13, LOW)
+#define LED1_SETUP  pinMode(5, OUTPUT)
+#define LED1_ON  digitalWrite(5, HIGH)
+#define LED1_OFF  digitalWrite(5, LOW)
 
 #define LED2_ON 
 #define LED2_OFF
@@ -100,7 +100,7 @@ bool compareData(uint8_t, uint8_t, unsigned int);
 
 void setup() {
     // Setting LED ouput pin
-    _LED_SETUP();
+    LED1_SETUP;
     
     Serial.begin(SERIAL_BAUD);
     delay(10);
@@ -135,7 +135,7 @@ bool connectionEstablished = false;
 bool go = false;
 
 // Number of loops per status LED state change
-const static uint32_t blinkLoopsReceiver = 100000;
+const static uint32_t blinkLoopsReceiver = 100;
 uint32_t blinkCount = 0;
 bool blinkState = false;
 
@@ -207,23 +207,26 @@ void loop() {
     
     //Write the signal out to the pins
     if (go){
-        _LED_H();
+        LED1_ON;
+        //Serial.println("GO");
     }
     else {
+        Serial.println(blinkCount);
         // Status LED blinks if e-stopped
-        if (blinkCount < blinkLoopsReceiver){
+        if (blinkCount < blinkLoopsReceiver){
             blinkCount++;
         }
         else {
             blinkState = !blinkState;
             if(blinkState){
-                _LED_H();
+                LED1_ON;
             } else {
-                _LED_L();
+                LED1_OFF;
             }
             blinkCount = 0;
         }
     }
+    //Serial.println("Finished");
 }
 
 //Compares if two arrays are element-for-element the same

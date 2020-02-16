@@ -100,6 +100,7 @@ RFM69 radio;
 void resetRadio();
 
 void setup() {
+    delay(10);
     pinMode(RADIO_RESET, OUTPUT);
     digitalWrite(RADIO_RESET, LOW);
     resetRadio();
