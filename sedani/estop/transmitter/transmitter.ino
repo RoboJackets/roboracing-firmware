@@ -22,9 +22,9 @@
 // Please maintain this license information along with authorship
 // and copyright notices in any redistribution of this code
 // **********************************************************************************
-#include <RFM69.h>         //get it here: https://www.github.com/lowpowerlab/rfm69
-#include <RFM69_ATC.h>     //get it here: https://www.github.com/lowpowerlab/rfm69
-#include <RFM69registers.h>
+#include "../RFM69-master/RFM69.h"         //get it here: https://www.github.com/lowpowerlab/rfm69
+#include "../RFM69-master/RFM69_ATC.h"     //get it here: https://www.github.com/lowpowerlab/rfm69
+#include "../RFM69-master/RFM69registers.h"
 #include <SPI.h>           //included with Arduino IDE install (www.arduino.cc)
 
 //*********************************************************************************************
@@ -66,11 +66,15 @@ uint8_t payload[payloadLength];
 
 //Pins
 
+#define UNO
+
 #ifdef UNO
+
+#define LED1 5
     
-#define LED1_SETUP  pinMode(13, OUTPUT)
-#define LED1_ON  digitalWrite(13, HIGH)
-#define LED1_OFF  digitalWrite(13, LOW)
+#define LED1_SETUP  pinMode(LED1, OUTPUT)
+#define LED1_ON  digitalWrite(LED1, HIGH)
+#define LED1_OFF  digitalWrite(LED1, LOW)
 
 #define LED2_ON 
 #define LED2_OFF
@@ -111,12 +115,14 @@ void setup() {
     
     //Dial down transmit speed for increased range.
     //Causes sporadic connection losses
-    radio.writeReg(REG_BITRATEMSB, RF_BITRATEMSB_19200);
-    radio.writeReg(REG_BITRATELSB, RF_BITRATELSB_19200);
+    //radio.writeReg(REG_BITRATEMSB, RF_BITRATEMSB_19200);
+    //radio.writeReg(REG_BITRATELSB, RF_BITRATELSB_19200);
     
     LED1_SETUP;
     //radio.setFrequency(919000000); //set frequency to some custom frequency
     LED1_ON;
+    
+    Serial.println("Finished radio setup");
 
 //Auto Transmission Control - dials down transmit power to save battery (-100 is the noise floor, -90 is still pretty good)
 //For indoor nodes that are pretty static and at pretty stable temperatures (like a MotionMote) -90dBm is quite safe
