@@ -62,22 +62,22 @@ const static byte expectedMessageLength = 1;
 const static bool promiscuousMode = false; //set to 'true' to sniff all packets on the same network
 #define SERIAL_BAUD   115200
 
+//#define UNO
+
+#ifdef UNO
+    
+#define LED1_SETUP  pinMode(13, OUTPUT)
+#define LED1_ON  digitalWrite(13, HIGH)
+#define LED1_OFF  digitalWrite(13, LOW)
+
+#define LED2_ON 
+#define LED2_OFF
+
 #ifdef ENABLE_ATC
 RFM69_ATC radio;
 #else
 RFM69 radio;
 #endif
-
-#define UNO
-
-#ifdef UNO
-    
-#define LED1_SETUP  pinMode(5, OUTPUT)
-#define LED1_ON  digitalWrite(5, HIGH)
-#define LED1_OFF  digitalWrite(5, LOW)
-
-#define LED2_ON 
-#define LED2_OFF
 
 #else
 
@@ -88,6 +88,12 @@ RFM69 radio;
 
 #define LED2_ON TXLED0
 #define LED2_OFF TXLED1
+
+#ifdef ENABLE_ATC
+RFM69_ATC radio(RF69_SPI_CS, 3);
+#else
+RFM69 radio(RF69_SPI_CS, 3);
+#endif
 
 #endif
 
@@ -211,7 +217,6 @@ void loop() {
         //Serial.println("GO");
     }
     else {
-        Serial.println(blinkCount);
         // Status LED blinks if e-stopped
         if (blinkCount < blinkLoopsReceiver){
             blinkCount++;

@@ -75,6 +75,12 @@ uint8_t payload[payloadLength];
 #define LED2_ON 
 #define LED2_OFF
 
+#ifdef ENABLE_ATC
+RFM69_ATC radio;
+#else
+RFM69 radio;
+#endif
+
 #else
 
 #define LED1 1
@@ -85,17 +91,17 @@ uint8_t payload[payloadLength];
 #define LED2_ON TXLED0
 #define LED2_OFF TXLED1
 
+#ifdef ENABLE_ATC
+RFM69_ATC radio(RF69_SPI_CS, 3);
+#else
+RFM69 radio(RF69_SPI_CS, 3);
+#endif
+
 #endif
 
 
 
 #define RADIO_RESET A5 //Not needed for UNO, but doesn't hurt anything
-
-#ifdef ENABLE_ATC
-RFM69_ATC radio;
-#else
-RFM69 radio;
-#endif
 
 void resetRadio();
 
