@@ -106,13 +106,18 @@ RFM69 radio(RF69_SPI_CS, 3);
 void resetRadio();
 
 void setup() {
-    delay(10);
+    delay(1);
+    Serial.begin(SERIAL_BAUD);
+    
+    // Setting LED ouput pin and turning LEDs off
+    LED4_SETUP();
+    LED3_OFF();
+    LED4_OFF();
+    
+    
     pinMode(RADIO_RESET, OUTPUT);
-    digitalWrite(RADIO_RESET, LOW);
     resetRadio();
     
-    
-    Serial.begin(SERIAL_BAUD);
     radio.initialize(FREQUENCY,NODEID,NETWORKID);
     radio.setHighPower(); //must include this only for RFM69HW/HCW!
     

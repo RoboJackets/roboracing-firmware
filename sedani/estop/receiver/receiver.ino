@@ -104,11 +104,16 @@ void resetRadio();
 bool compareData(uint8_t, uint8_t, unsigned int);
 
 void setup() {
-    // Setting LED ouput pin
-    LED4_SETUP();
-    
+    delay(1);
     Serial.begin(SERIAL_BAUD);
-    delay(10);
+    
+    // Setting LED ouput pin and turning LEDs off
+    LED4_SETUP();
+    LED3_OFF();
+    LED4_OFF();
+    
+    pinMode(RADIO_RESET, OUTPUT);
+    resetRadio();
     
     radio.initialize(FREQUENCY,NODEID,NETWORKID);
     radio.setHighPower(); //must include this only for RFM69HW/HCW!
