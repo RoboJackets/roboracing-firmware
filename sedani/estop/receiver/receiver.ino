@@ -59,19 +59,18 @@ const static uint8_t eStopCode = 98;
 const static uint8_t goCode = 97;
 const static byte expectedMessageLength = 1;
 
-const static bool promiscuousMode = false; //set to 'true' to sniff all packets on the same network
 #define SERIAL_BAUD   115200
 
-//#define UNO
+//#define UNO  //For debugging with hardware setup
 
 #ifdef UNO
     
-#define LED1_SETUP  pinMode(13, OUTPUT)
-#define LED1_ON  digitalWrite(13, HIGH)
-#define LED1_OFF  digitalWrite(13, LOW)
+#define LED4_SETUP()  pinMode(13, OUTPUT)
+#define LED4_ON()  digitalWrite(13, HIGH)
+#define LED4_OFF()  digitalWrite(13, LOW)
 
-#define LED2_ON 
-#define LED2_OFF
+#define LED3_ON() 
+#define LED3_OFF()
 
 #ifdef ENABLE_ATC
 RFM69_ATC radio;
@@ -81,13 +80,13 @@ RFM69 radio;
 
 #else
 
-#define LED1 1
-#define LED1_SETUP  pinMode(LED1, OUTPUT)
-#define LED1_ON digitalWrite(LED1, HIGH)
-#define LED1_OFF digitalWrite(LED1, LOW)
+#define LED4 1
+#define LED4_SETUP()  pinMode(LED4, OUTPUT)
+#define LED4_ON() digitalWrite(LED4, HIGH)
+#define LED4_OFF() digitalWrite(LED4, LOW)
 
-#define LED2_ON TXLED0
-#define LED2_OFF TXLED1
+#define LED3_ON() TXLED0
+#define LED3_OFF() TXLED1
 
 #ifdef ENABLE_ATC
 RFM69_ATC radio(RF69_SPI_CS, 3);
@@ -106,7 +105,7 @@ bool compareData(uint8_t, uint8_t, unsigned int);
 
 void setup() {
     // Setting LED ouput pin
-    LED1_SETUP;
+    LED4_SETUP();
     
     Serial.begin(SERIAL_BAUD);
     delay(10);
@@ -125,8 +124,8 @@ void setup() {
 #endif
 }
 
-byte ackCount=0;
-uint32_t packetCount = 0;
+//Total number of packets recieved
+unsigned long packetCount = 0;
 
 //Record when the last command was in ms
 unsigned long lastCommandTime = 0;
@@ -140,22 +139,21 @@ bool connectionEstablished = false;
 //Should the car go or not?
 bool go = false;
 
-// Number of loops per status LED state change
-const static uint32_t blinkLoopsReceiver = 100;
-uint32_t blinkCount = 0;
-bool blinkState = false;
+const static int MS_PER_PRINT = 1000;  //If we lost signal, print "LOST SIGNAL" every this many ms.
+unsigned long lastPrintTime = 0;
 
 void loop() {
 
     if (radio.receiveDone()){
+        int messageLength = radio.DATALEN;
         
         //Print out sender, message, and RSSI signal strength
         Serial.print("#[");
         Serial.print(++packetCount);
-        Serial.print(']');
-        Serial.print('[');Serial.print(radio.SENDERID, DEC);Serial.print("] ");
+        Serial.print("]");
+        Serial.print("[From: ");Serial.print(radio.SENDERID, DEC);Serial.print("] ");
         
-        for (byte i = 0; i < radio.DATALEN; i++) {
+        for (byte i = 0; i < messageLength; i++) {
             Serial.print((char)radio.DATA[i]);
         }
         Serial.print("     [RX_RSSI:");Serial.print(radio.RSSI);Serial.print("]");
@@ -164,13 +162,13 @@ void loop() {
         {
             byte theNodeID = radio.SENDERID;
             radio.sendACK();
-            Serial.print(" - ACK sent.");
+            Serial.print(" - ACK sent. ");
         }
         
         //Decode message and verify it
         messageValid = false;
         //If message wrong length, fail immediately
-        if (expectedMessageLength >= radio.DATALEN){
+        if (expectedMessageLength == messageLength){
             if(radio.DATA[0] == goCode){
                 go = true;
                 messageValid = true;
@@ -180,21 +178,20 @@ void loop() {
                 messageValid = true;
             }
             else{
-                Serial.println("Invalid message received");
+                Serial.println("Invalid message received. ");
             }
         }
         else {
-            Serial.println("Message length too short");
+            Serial.print("Message too short: "); Serial.print(messageLength);
         }
         
+        Serial.println("");
         
         //Update lastCommandTime if message was valid
         if (messageValid){
             lastCommandTime = millis();
             connectionEstablished = true;
         }
-                
-        Serial.println();
     }
     
     //Check for millis() rollovers. If it did, reset lastCommandTime to 0.
@@ -204,7 +201,9 @@ void loop() {
     
     //Check if E_STOP is timed out
     if (millis() > lastCommandTime + E_STOP_TIMEOUT){
-        if (connectionEstablished){
+        //Timed out
+        if (connectionEstablished || millis() > lastPrintTime + MS_PER_PRINT){
+            lastPrintTime = millis();
             Serial.println("LOST SIGNAL");
         }
         connectionEstablished = false;
@@ -212,26 +211,11 @@ void loop() {
     }
     
     //Write the signal out to the pins
-    if (go){
-        LED1_ON;
-        //Serial.println("GO");
-    }
-    else {
-        // Status LED blinks if e-stopped
-        if (blinkCount < blinkLoopsReceiver){
-            blinkCount++;
-        }
-        else {
-            blinkState = !blinkState;
-            if(blinkState){
-                LED1_ON;
-            } else {
-                LED1_OFF;
-            }
-            blinkCount = 0;
-        }
-    }
-    //Serial.println("Finished");
+    
+    //Debug LEDs
+    go ? LED4_ON() : LED4_OFF();
+    connectionEstablished ? LED3_ON() : LED3_OFF();
+    
 }
 
 //Compares if two arrays are element-for-element the same

@@ -59,21 +59,21 @@ const static byte payloadLength = 1;
 uint8_t payload[payloadLength];
 
 #define TRANSMIT_PERIOD 200 //wait this long after a successful send (in ms)
-#define TRNSMIT_FAILED_PERIOD 10 //wait this long if failed to send a burst (ms)
+#define TRANSMIT_FAILED_PERIOD 20 //wait this long if failed to send a burst (ms)
 //Each time we try to send a packet, try this many times
-#define RETRY_DELAY 20  //how many ms to wait before a retry
+#define RETRY_DELAY 50  //how many ms to wait before a retry
 #define RETRIES 0  //Retry how many times before failure. 0 means send only once.
 
 //Pins
 
 #ifdef UNO
     
-#define LED1_SETUP  pinMode(13, OUTPUT)
-#define LED1_ON  digitalWrite(13, HIGH)
-#define LED1_OFF  digitalWrite(13, LOW)
+#define LED4_SETUP()  pinMode(13, OUTPUT)
+#define LED4_ON()  digitalWrite(13, HIGH)
+#define LED4_OFF()  digitalWrite(13, LOW)
 
-#define LED2_ON 
-#define LED2_OFF
+#define LED3_ON() 
+#define LED3_OFF()
 
 #ifdef ENABLE_ATC
 RFM69_ATC radio;
@@ -83,13 +83,13 @@ RFM69 radio;
 
 #else
 
-#define LED1 1
-#define LED1_SETUP  pinMode(LED1, OUTPUT)
-#define LED1_ON digitalWrite(LED1, HIGH)
-#define LED1_OFF digitalWrite(LED1, LOW)
+#define LED4 1
+#define LED4_SETUP()  pinMode(LED4, OUTPUT)
+#define LED4_ON() digitalWrite(LED4, HIGH)
+#define LED4_OFF() digitalWrite(LED4, LOW)
 
-#define LED2_ON TXLED0
-#define LED2_OFF TXLED1
+#define LED3_ON() TXLED0
+#define LED3_OFF() TXLED1
 
 #ifdef ENABLE_ATC
 RFM69_ATC radio(RF69_SPI_CS, 3);
@@ -121,9 +121,9 @@ void setup() {
     radio.writeReg(REG_BITRATEMSB, RF_BITRATEMSB_19200);
     radio.writeReg(REG_BITRATELSB, RF_BITRATELSB_19200);
     
-    LED1_SETUP;
+    LED4_SETUP();
     //radio.setFrequency(919000000); //set frequency to some custom frequency
-    LED1_ON;
+    LED4_ON();
 
 //Auto Transmission Control - dials down transmit power to save battery (-100 is the noise floor, -90 is still pretty good)
 //For indoor nodes that are pretty static and at pretty stable temperatures (like a MotionMote) -90dBm is quite safe
@@ -140,13 +140,14 @@ bool go = false;
 unsigned long startSendingTime = 0;
 
 void loop() {
+    int delayTime = 0;
     
     //Create the payload
     if (go){  //Copy goCode into payload
         payload[0] = goCode;
     }
     else{  //E_STOPPED: copy the e-stop code into payload
-        payload[0] = goCode;
+        payload[0] = eStopCode;
     }
     
     //Print what we are sending
@@ -163,23 +164,25 @@ void loop() {
         Serial.print(". ms to get an ACK: ");
         Serial.println((micros() - startSendingTime)/1000);
         lastSendSuccessful = true;
-        delay(TRANSMIT_PERIOD);
+        delayTime = TRANSMIT_PERIOD;
     }
     else {
         Serial.print(" SENDING FAILED. ms to FAIL: ");
         Serial.println((micros() - startSendingTime)/1000);
         lastSendSuccessful = false;
-        delay(TRNSMIT_FAILED_PERIOD);
+        delayTime = TRANSMIT_FAILED_PERIOD;
     }
     
     
     if((millis()/497) % 2 == 0) {
-        LED1_ON;
+        LED4_ON();
     }
     else {
-        LED1_OFF;
+        LED4_OFF();
     }
     
+    lastSendSuccessful ? LED3_ON() : LED3_OFF();
+    delay(delayTime);
     
 }
 
