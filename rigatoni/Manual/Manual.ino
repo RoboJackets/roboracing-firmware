@@ -13,7 +13,7 @@ bool led_1_state = true;
 bool led_2_state = false;
 
 bool rc_present_state = false;
-bool rc_present_prev_state = true;
+bool rc_prev_state = true;
 
 bool manual_state = true;
 
@@ -84,21 +84,23 @@ void rc_missing(){
     rc_present_state = digitalRead(RC_IN);
     if(!rc_present_state){
         Serial.println("RC Reciever Missing");
-        detachInterrupt(digitalPinToInterrupt(CH_1));
-        detachInterrupt(digitalPinToInterrupt(CH_2));
-        detachInterrupt(digitalPinToInterrupt(CH_3));
         pwm_value_ch_1 = 0;
         pwm_value_ch_2 = 0;
         pwm_value_ch_3 = 0;
         prev_time_ch_1 = 0;
         prev_time_ch_2 = 0;
         prev_time_ch_3 = 0;
-    } else if (rc_present_state && !rc_present_prev_state){
+        if(rc_prev_state){
+            detachInterrupt(digitalPinToInterrupt(CH_1));
+            detachInterrupt(digitalPinToInterrupt(CH_2));
+            detachInterrupt(digitalPinToInterrupt(CH_3));
+        }
+    } else if (rc_present_state && !rc_prev_state){
         attachInterrupt(digitalPinToInterrupt(CH_1), isr_rising_ch_1, RISING);
         attachInterrupt(digitalPinToInterrupt(CH_2), isr_rising_ch_2, RISING);
         attachInterrupt(digitalPinToInterrupt(CH_3), isr_rising_ch_3, RISING);
     }
-    rc_present_prev_state = rc_present_state;
+    rc_prev_state = rc_present_state;
 }
 
 // Interrupt stuff
