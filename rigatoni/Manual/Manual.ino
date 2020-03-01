@@ -25,9 +25,9 @@ void setup(){
 
 
 void loop() {
-    rc_missing();
     evaluate_manual_switch();
     if(!manual_state){
+        rc_missing();
         if(rc_present_state){
             Serial.print("CH_1 ");
             Serial.println(pwm_value_ch_1);
