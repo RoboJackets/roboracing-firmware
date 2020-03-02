@@ -2,9 +2,9 @@
 
 // RC receiver channels
 // Wheel, Trigger, Switch
-#define CH_1 3
+#define CH_1 0
 #define CH_2 2
-#define CH_3 0
+#define CH_3 3
 
 // Is the receiver plugged in?
 #define RC_IN 13
