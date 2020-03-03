@@ -2,25 +2,25 @@ const int RXLED=8;
 
 const int MCU_RST=13;
 
-const int INT_ETH=18;
+const int INT_ETH=3;	// atmega pin 18, digital pin 3/SCL
 
-const int ENCODER_A=19;
-const int ENCODER_B=20;
+const int ENCODER_A=2;	// atmega pin 19, digital pin 2/SDA
+const int ENCODER_B=0;	// atmega pin 20, digital pin 0/RX
 
-const int ETH_RST=21;
+const int ETH_RST=21;	// atmega pin 21, digital pin 1/TX
 
-const int REVERSE_LED=27;
-const int USER_DEFINED_LED=28;
+const int REVERSE_LED=6;	// atmega pin 27, digital pin 6/PD7
+const int USER_DEFINED_LED=8;	// atmega pin 28, digital pin 8/PB4
 
-const int MOTOR_CONTROLLER_INPUT=9;
+const int MOTOR_CONTROL=9;	// atmega pin 29, digital pin 9/PB5
 
-const int BRAKE_EN=31;
-const int BRAKE_PWM=32;
+const int BRAKE_EN=5;	// atmega pin 31, digital pin 5/PC6
+const int BRAKE_PWM=13;	// atmega pin 32, digital pin 13/PC7
 
-const int REVERSE_OUT=37;
-const int FORWARD_OUT=38;
+const int REVERSE_OUT=A1;	// atmega pin 37, analog input 1/PF6
+const int FORWARD_OUT=A2;	// atmega pin 38, analog input 2/PF5
 
-const int CURR_DATA=41;
+const int CURR_DATA=A5;	// atmega pin 41, analog input 5/PF0
 
 void turnRXLEDOn(boolean on){
   if (on) digitalWrite(REVERSE_LED, HIGH);
