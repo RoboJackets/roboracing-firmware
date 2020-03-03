@@ -1,43 +1,61 @@
 #include "DriveBrake.h"
 #include "RJNet.h"
+#include <Ethernet.h>
 const char RJNet::startMarker = '$';
 const char RJNet::endMarker = ';';
-
+const static int PORT = 7;  //port RJNet uses
 
 volatile long encoder0Pos=0;
-float speed = 0;	// 0 - 255
+float desiredSpeed = 0;	
+
+// Enter a MAC address and IP address for your board below
+byte mac[] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xEE };
+IPAddress ip(192, 168, 0, 178); //set the IP to find us at
+EthernetServer server(PORT);
+
+// Enter a IP address for other board below
+IPAddress otherIP(192, 168, 0, 177); //set the IP to find us at
+EthernetClient otherBoard;
+
 
 void setup(){
-  pinMode(RXLED, OUTPUT);
+	pinMode(RXLED, OUTPUT);
+	pinMode(INT_ETH, INPUT);
+	pinMode(ENCODER_A, INPUT);
+	pinMode(ENCODER_B, INPUT);  
+	pinMode(ETH_RST, OUTPUT);
+	pinMode(REVERSE_LED, OUTPUT);
+	pinMode(USER_DEFINED_LED, OUTPUT);
+	pinMode(MOTOR_CONTROL, OUTPUT);
+	pinMode(BRAKE_EN, OUTPUT);
+	pinMode(BRAKE_PWM, OUTPUT);
+	pinMode(CURR_DATA, INPUT);
 
-  pinMode(INT_ETH, INPUT);
-
-  pinMode(ENCODER_A, INPUT);
-  pinMode(ENCODER_B, INPUT);  
-
-  pinMode(ETH_RST, OUTPUT);
-
-
-  
-  pinMode(REVERSE_LED, OUTPUT);
-  pinMode(USER_DEFINED_LED, OUTPUT);
-
-  pinMode(MOTOR_CONTROL, OUTPUT);
-  
-  pinMode(BRAKE_EN, OUTPUT);
-  pinMode(BRAKE_PWM, OUTPUT);
-
-  pinMode(CURR_DATA, INPUT);
-
-  Serial.begin(115200);
+	Serial.begin(115200);
+	
+	//********** Ethernet Initialization *************//
+	Ethernet.init(10); 	// SCLK pin from eth header
+	Ethernet.begin(mac, ip); 	// initialize the ethernet device
+	Ethernet.setSubnetMask();
+	server.begin();
 }
 
 
 void loop() {
-  // put your main code here, to run repeatedly:
+	// put your main code here, to run repeatedly:
+	// Ethernet stuff
+	EthernetClient client = server.available();
+	if (client) {
+		String data = RJNet::readData(client);	// if i get string from RJNet buffer ($speed_value;)
+		if (data.length() != 0) {				// if data exists (?)
+			// get data from nuc/manual board/E-Stop (?) and do something with it
+			desiredSpeed = data;
+		}
+	}
 	motorTest();
 	Serial.println(speed);
 	getSpeedMessage();
+	doEncoder();
 	
 }
 
@@ -118,6 +136,15 @@ void executeStateMachine(){
 		}
 	}
 }
+void runStateDisabled(){}
+void runStateTimeout(){}
+void runStateForward(){}
+void runStateForwaredBrake(){}
+void runStateReverse(){}
+void runStateReverseBrake(){}
+void runStateIdle(){}
+
+
 
 void RJNet() {}
 
