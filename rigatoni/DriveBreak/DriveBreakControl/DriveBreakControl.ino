@@ -1,9 +1,52 @@
 #include "DriveBrake.h"
 volatile long encoder0Pos=0;
+float speed = 0;	// 0 - 255
+
+void setup(){
+  pinMode(RXLED, OUTPUT);
+
+  pinMode(INT_ETH, INPUT);
+
+  pinMode(ENCODER_A, INPUT);
+  pinMode(ENCODER_B, INPUT);  
+
+  pinMode(ETH_RST, OUTPUT);
+
+
+  
+  pinMode(REVERSE_LED, OUTPUT);
+  pinMode(USER_DEFINED_LED, OUTPUT);
+
+  pinMode(MOTOR_CONTROL, OUTPUT);
+  
+  pinMode(BRAKE_EN, OUTPUT);
+  pinMode(BRAKE_PWM, OUTPUT);
+
+  pinMode(CURR_DATA, INPUT);
+
+  Serial.begin(115200);
+}
+
 
 void loop() {
   // put your main code here, to run repeatedly:
+	motorTest();
+	Serial.println(speed);
+	getSpeedMessage();
+	
+}
 
+void motorTest() {
+	analogWrite(MOTOR_CONTROLLER_INPUT, speed);
+	
+}
+
+void getSpeedMessage() {
+    while(Serial.available()){
+      if (Serial.read() == '#'){
+        speed = Serial.parseFloat();
+      }
+    }
 }
 
 double accelerate(double a){
@@ -15,8 +58,8 @@ double brake(double targetSpeed){
 }
 
 double getSpeed(){  
-  digitalWrite(encoder0PinA, HIGH);
-  digitalWrite(encoder0PinB, HIGH);
+  digitalWrite(ENCODER_A, HIGH);
+  digitalWrite(ENCODER_B, HIGH);
   //encoder counts 64 every revolution
   attachInterrupt(digitalPinToInterrupt(ENCODER_A), doEncoder, RISING); // interrupts encoderpin in 19
   int newposition = encoder0Pos;
@@ -26,8 +69,8 @@ double getSpeed(){
 
 }
 
-void doencoder(){
-  if (digitalRead(encoder0PinA) == digitalRead(encoder0PinB)) {
+void doEncoder(){
+  if (digitalRead(ENCODER_A) == digitalRead(ENCODER_B)) {
     encoder0Pos++;
   } else {
     encoder0Pos--;
@@ -42,5 +85,31 @@ void setMotorPWM(double voltage){
 
 int getCurrent(){
   int counts = analogRead(CURR_DATA);
-  return 200*5/counts; // 200A/V * 5V/count -> gives A
+  return (200*(5/1024)*counts) - 500; // 200A/V * 5V/count -> gives A
+}
+
+void executeStateMachine(){ 
+	switch(currentState) { 
+		case STATE_DISABLED:{
+			
+		}
+		case STATE_TIMEOUT:{
+			
+		}
+		case STATE_FORWARD:{
+			
+		}
+		case STATE_FORWARD_BRAKE:{
+			
+		}
+		case STATE_REVERSE:{
+			
+		}
+		case STATE_REVERSE_BRAKE:{
+			
+		}
+		case STATE_IDLE:{
+			// create state transition conditions	
+		}
+	}
 }
