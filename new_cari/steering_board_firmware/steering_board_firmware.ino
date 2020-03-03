@@ -33,18 +33,15 @@ void setup() {
 }
  
 void loop() {
-  
-  Serial.print(currentAngle);     // keep sending encoder data back to NUC
-}
- 
-void loop() {
   /*digitalWrite(pulsePin, HIGH);
   delayMicroseconds(20);
   digitalWrite(pulsePin, LOW);
   delayMicroseconds(20);*/
   Serial.print(toggle1);
-  /*currentAngle = getPositionSPI();    
-  Serial.print(currentAngle);     // keep sending encoder data back to NUC*/
+  readEthernet();
+  assignDirection();
+  currentAngle = getPositionSPI();    
+  Serial.print(currentAngle);     // keep sending encoder data back to NUC
 }
 
 ISR(TIMER1_OVF_VECTOR){ // timer interrupt to move stepper
@@ -80,6 +77,18 @@ ISR(TIMER1_OVF_VECTOR){ // timer interrupt to move stepper
 sei();//allow interrupts
 }
 
+void readEthernet(){
+  if(otherBoard.available()){
+    //Server sent us a message
+    String serversMessage = RJNet::readData(otherBoard);
+    Serial.print(serversMessage); //show us what we read 
+    Serial.print(" To us from server ");
+    Serial.print(otherBoard.remoteIP());
+    Serial.print(":");
+    Serial.println(otherBoard.remotePort());
+  }
+}
+
 ISR(TIMER1_COMPA_vect){//timer0 interrupt 2kHz toggles pin 8
 //generates pulse wave of frequency 2kHz/2 = 1kHz (takes two cycles for full wave- toggle high then toggle low)
   if (toggle1){
@@ -99,7 +108,7 @@ ISR(TIMER1_COMPA_vect){//timer0 interrupt 2kHz toggles pin 8
   prevtoggle = toggle1;
 }
 
-void commandInterrupt(){
+void assignDirection(){
   if(Serial.read() == '$') {
     desiredAngle = Serial.parseFloat(); 
     desiredAngle = constrain(desiredSteeringAngle, minSteeringAngle, maxSteeringAngle);
