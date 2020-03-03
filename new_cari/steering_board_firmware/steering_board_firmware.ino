@@ -5,11 +5,21 @@
 // 15.3 (gear ratio) * 1600 = pulses per revolution
 // make sure encoder switch is set to run mode
 
+<<<<<<< Updated upstream
 byte dirPin = 3;
 byte pulsePin = 6;
 byte commandInterruptPin = 2;
 float desiredAngle;
 float currentAngle;
+=======
+byte dirPin = 0;
+byte pulsePin = 1;
+byte commandInterruptPin = 2;
+float desiredAngle;
+float currentAngle;
+boolean toggle1 = 0;
+boolean prevtoggle = 0;
+>>>>>>> Stashed changes
 
 #define BAUDRATE        115200
 
@@ -34,15 +44,23 @@ void setup() {
   pinMode(SPI_MOSI, OUTPUT);
   pinMode(SPI_MISO, INPUT);
   pinMode(ENC_0, OUTPUT);
+<<<<<<< Updated upstream
   SPI.setClockDivider(SPI_CLOCK_DIV32);    // 500 kHz
   digitalWrite(ENC_0, HIGH); // encoder is active low
   SPI.begin();
+=======
+  pinMode(8, OUTPUT);
+//  SPI.setClockDivider(SPI_CLOCK_DIV32);    // 500 kHz
+  digitalWrite(ENC_0, HIGH); // encoder is active low
+//  SPI.begin();
+>>>>>>> Stashed changes
 
   /* Initialization for stepper*/
   Serial.begin(BAUDRATE);
   pinMode(dirPin, OUTPUT);
   pinMode(pulsePin, OUTPUT);
   pinMode(commandInterruptPin, INPUT_PULLUP);
+<<<<<<< Updated upstream
   attachInterrupt(digitalPinToInterrupt(commandInterruptPin), commandInterrupt, FALLING);
   digitalWrite(dirPin, LOW); // HIGH: clockwise, LOW: counter clockwise
   timer1_counter = 34286;    // preload timer 
@@ -58,6 +76,73 @@ void loop() {
 }
 
 ISR(TIMER1_OVF_VECTOR){                  // timer interrupt to move stepper motor
+=======
+  //attachInterrupt(digitalPinToInterrupt(commandInterruptPin), commandInterrupt, FALLING);
+  digitalWrite(dirPin, LOW); // HIGH: clockwise, LOW: counter clockwise
+  delayMicroseconds(30);
+
+  cli();//stop interrupts
+
+//set timer0 interrupt at 2kHz
+  TCCR0A = 0;// set entire TCCR0A register to 0
+  TCCR0B = 0;// same for TCCR0B
+  TCNT0  = 0;//initialize counter value to 0
+  // set compare match register for 2khz increments
+  OCR0A = 124;// = (16*10^6) / (2000*64) - 1 (must be <256)
+  // turn on CTC mode
+  TCCR0A |= (1 << WGM01);
+  // Set CS01 and CS00 bits for 64 prescaler
+  TCCR0B |= (1 << CS01) | (1 << CS00);   
+  // enable timer compare interrupt
+  TIMSK0 |= (1 << OCIE0A);
+
+  //set timer1 interrupt at 1Hz
+  TCCR1A = 0;// set entire TCCR1A register to 0
+  TCCR1B = 0;// same for TCCR1B
+  TCNT1  = 0;//initialize counter value to 0
+  // set compare match register for 1hz increments
+  OCR1A = 15624;// = (16*10^6) / (1*1024) - 1 (must be <65536)
+  // turn on CTC mode
+  TCCR1B |= (1 << WGM12);
+  // Set CS12 and CS10 bits for 1024 prescaler
+  TCCR1B |= (1 << CS12) | (1 << CS10);  
+  // enable timer compare interrupt
+  TIMSK1 |= (1 << OCIE1A);
+  
+sei();//allow interrupts
+}
+ 
+void loop() {
+  /*digitalWrite(pulsePin, HIGH);
+  delayMicroseconds(20);
+  digitalWrite(pulsePin, LOW);
+  delayMicroseconds(20);*/
+  Serial.print(toggle1);
+  /*currentAngle = getPositionSPI();    
+  Serial.print(currentAngle);     // keep sending encoder data back to NUC*/
+}
+
+ISR(TIMER1_COMPA_vect){//timer0 interrupt 2kHz toggles pin 8
+//generates pulse wave of frequency 2kHz/2 = 1kHz (takes two cycles for full wave- toggle high then toggle low)
+  if (toggle1){
+    digitalWrite(8,HIGH);
+    toggle1 = 0;
+  }
+  else{
+    digitalWrite(8,LOW);
+    toggle1 = 1;
+  }
+  if (prevtoggle!=toggle1){
+    digitalWrite(pulsePin, HIGH);
+    delayMicroseconds(20);
+    digitalWrite(pulsePin, LOW);
+    delayMicroseconds(20);
+  }
+  prevtoggle = toggle1;
+}
+
+/*ISR(TIMER1_OVF_VECTOR){                  // timer interrupt to move stepper motor
+>>>>>>> Stashed changes
   TCNT1 = timer1_counter;          // preload timer
   if (desiredAngle != currentAngle){
     digitalWrite(pulsePin, HIGH);
@@ -165,4 +250,8 @@ uint16_t getPositionSPI()
   }
 
   return currentPosition;
+<<<<<<< Updated upstream
 }
+=======
+}*/
+>>>>>>> Stashed changes
