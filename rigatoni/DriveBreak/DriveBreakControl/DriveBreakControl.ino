@@ -8,6 +8,18 @@ const static int PORT = 7;  //port RJNet uses
 volatile long encoder0Pos=0;
 float desiredSpeed = 0;	
 
+// State machine possible states
+enum ChassisState {
+    STATE_DISABLED = 0,
+    STATE_TIMEOUT = 1,
+    STATE_FORWARD = 2,
+    STATE_FORWARD_BRAKING = 3,
+    STATE_REVERSE = 4,
+    STATE_REVERSE_BRAKING = 5,
+    STATE_IDLE = 6
+} 
+currentState = STATE_DISABLED;
+
 // Enter a MAC address and IP address for your board below
 byte mac[] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xEE };
 IPAddress ip(192, 168, 0, 178); //set the IP to find us at
@@ -114,25 +126,46 @@ int getCurrent(){
 void executeStateMachine(){ 
 	switch(currentState) { 
 		case STATE_DISABLED:{
-			
+			runStateDisabled();
+			//transitions
+			currentState = STATE_DISABLED;
+			break;
 		}
 		case STATE_TIMEOUT:{
-			
+			runStateTimeout();
+			//transitions
+			currentState = STATE_TIMEOUT;
+			break;
 		}
 		case STATE_FORWARD:{
-			
+			runStateForward();
+			//transitions
+			currentState = STATE_FORWARD;
+			break;
 		}
 		case STATE_FORWARD_BRAKE:{
-			
+			runStateForwaredBrake();
+			//transitions
+			currentState = STATE_FORWARD_BRAKE;
+			break;
 		}
 		case STATE_REVERSE:{
-			
+			runStateReverse();
+			//transitions
+			currentState = STATE_REVERSE;
+			break;
 		}
 		case STATE_REVERSE_BRAKE:{
-			
+			runStateReverseBrake();
+			//transitions
+			currentState = STATE_REVERSE_BRAKE;
+			break;
 		}
 		case STATE_IDLE:{
-			// create state transition conditions	
+			runStateIdle();
+			//transitions
+			currentState = STATE_IDLE;
+			break;	
 		}
 	}
 }
