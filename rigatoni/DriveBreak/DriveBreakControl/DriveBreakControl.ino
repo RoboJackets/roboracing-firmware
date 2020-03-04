@@ -26,8 +26,8 @@ IPAddress ip(192, 168, 0, 178); //set the IP to find us at
 EthernetServer server(PORT);
 
 // Enter a IP address for other board below
-IPAddress otherIP(192, 168, 0, 177); //set the IP to find us at
-EthernetClient otherBoard;
+IPAddress otherIP(192, 168, 0, 177); //set the IP of the NUC
+EthernetClient otherBoard;	// client 
 
 
 void setup(){
@@ -45,25 +45,34 @@ void setup(){
 
 	Serial.begin(115200);
 	
+	
 	//********** Ethernet Initialization *************//
 	Ethernet.init(10); 	// SCLK pin from eth header
 	Ethernet.begin(mac, ip); 	// initialize the ethernet device
-	Ethernet.setSubnetMask();
-	server.begin();
+	while (Ethernet.hardwareStatus() == EthernetNoHardware) {
+		Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
+		delay(500);
+	}
+	while(Ethernet.linkStatus() == LinkOFF) {
+		Serial.println("Ethernet cable is not connected.");	// do something with this
+		delay(500);	 	// TURN down delay to check/startup faster
+	}
+	server.begin();	// launches server
 }
 
 
 void loop() {
 	// put your main code here, to run repeatedly:
 	// Ethernet stuff
-	EthernetClient client = server.available();
+	EthernetClient client = server.available();		// if there is a new message form client create client object, otherwise new client object null
 	if (client) {
 		String data = RJNet::readData(client);	// if i get string from RJNet buffer ($speed_value;)
 		if (data.length() != 0) {				// if data exists (?)
 			// get data from nuc/manual board/E-Stop (?) and do something with it
-			desiredSpeed = data;
+			desiredSpeed = data;	// convert from string to int potentially
 		}
 	}
+	
 	motorTest();
 	Serial.println(speed);
 	getSpeedMessage();
@@ -176,78 +185,3 @@ void runStateForwaredBrake(){}
 void runStateReverse(){}
 void runStateReverseBrake(){}
 void runStateIdle(){}
-
-
-
-void RJNet() {}
-
-/*
- *  Receives data from client you are connected to in a safe manner.
- *  @Note: not named read() to limit confusion with Arduino Stream library interface
- *
- *  client: Serial, ethernet client or server, other communication method
- */
-String RJNet::readData(Stream &client) {
-    static boolean recvInProgress = false;
-    static byte ndx = 0;
-    char rc;
-    const uint8_t numChars = 128; //buffer size
-    char receivedChars[numChars]; //input buffer
-    boolean newData = false;
-
-    while (client.available() > 0 && newData == false) {
-        rc = client.read();
-
-        if (recvInProgress == true) {
-            if (rc != endMarker) {
-                receivedChars[ndx] = rc;
-                ndx++;
-                if (ndx >= numChars) {
-                    ndx = numChars - 1;
-                }
-            }
-            else {
-                receivedChars[ndx] = '\0'; // terminate the string
-                recvInProgress = false;
-                ndx = 0;
-                newData = true;
-            }
-        }
-
-        else if (rc == startMarker) {
-            recvInProgress = true;
-        }
-    }
-
-    if (newData) {
-      return receivedChars;
-    } else {
-      return "";
-    }
-}
-
-/*
- * Sends info to client (Serial, Ethernet, etc output)
- * @Note: not named print() to limit confusion with Arduino Stream library interface
- * client: Serial, ethernet client or server, other communication method
- * msg: Message to send
- */
-void RJNet::sendData(Stream &client, String msg) {
-    client.print(addMarkersToMessage(msg));
-}
-
-/*
- * Formats String message to have start and end markers.
- * msg: Message to send
- */
-String RJNet::addMarkersToMessage(String msg) {
-    //add markers
-    if (msg.charAt(0) != startMarker) {
-        msg = startMarker + msg;
-    }
-    if (msg.charAt(msg.length() - 1) != endMarker) {
-        msg = msg + endMarker;
-    }
-
-    return msg;
-}
