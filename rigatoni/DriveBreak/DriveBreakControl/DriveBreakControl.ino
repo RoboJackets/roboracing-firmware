@@ -1,12 +1,22 @@
 #include "DriveBrake.h"
 #include "RJNet.h"
 #include <Ethernet.h>
-const char RJNet::startMarker = '$';
-const char RJNet::endMarker = ';';
+
+#define NUM_MAGNETS 16
+#define WHEEL_DIA 0.27305
+
 const static int PORT = 7;  //port RJNet uses
 
-volatile long encoder0Pos=0;
+volatile long encoder0Pos = 0;
+long encPrevPos = 0;
+float currentSpeed;
+long prevMillis;
+
 float desiredSpeed = 0;	
+float maxSpeed = 10; //m/s
+
+
+
 
 // State machine possible states
 enum ChassisState {
@@ -58,6 +68,8 @@ void setup(){
 		delay(500);	 	// TURN down delay to check/startup faster
 	}
 	server.begin();	// launches server
+
+  attachInterrupt(digitalPinToInterrupt(ENCODER_A), doEncoder, RISING);
 }
 
 
@@ -67,31 +79,24 @@ void loop() {
 	EthernetClient client = server.available();		// if there is a new message form client create client object, otherwise new client object null
 	if (client) {
 		String data = RJNet::readData(client);	// if i get string from RJNet buffer ($speed_value;)
-		if (data.length() != 0) {				// if data exists (?)
+		if (data.length() != 0) {			// if data exists (?)
 			// get data from nuc/manual board/E-Stop (?) and do something with it
-			desiredSpeed = data;	// convert from string to int potentially
+			desiredSpeed = data.toFloat();	// convert from string to int potentially
+      String reply = "$" + String(currentSpeed) + ";";
+      RJNet::sendData(client, reply);
 		}
 	}
 	
-	motorTest();
-	Serial.println(speed);
-	getSpeedMessage();
-	doEncoder();
-	
+	//motorTest(desiredSpeed);
+  currentSpeed = calcSpeed();
+  Serial.println(currentSpeed);
+  delay(100);
 }
 
-void motorTest() {
-	analogWrite(MOTOR_CONTROLLER_INPUT, speed);
-	
+void motorTest(float speed) { //open loop test
+	analogWrite(MOTOR_CONTROL, (int)(speed/maxSpeed)*255);
 }
 
-void getSpeedMessage() {
-    while(Serial.available()){
-      if (Serial.read() == '#'){
-        speed = Serial.parseFloat();
-      }
-    }
-}
 
 double accelerate(double a){
   
@@ -101,6 +106,7 @@ double brake(double targetSpeed){
   
 }
 
+/*
 double getSpeed(){  
   digitalWrite(ENCODER_A, HIGH);
   digitalWrite(ENCODER_B, HIGH);
@@ -112,25 +118,36 @@ double getSpeed(){
   
 
 }
+*/
 
 void doEncoder(){
+  /*
   if (digitalRead(ENCODER_A) == digitalRead(ENCODER_B)) {
     encoder0Pos++;
   } else {
     encoder0Pos--;
   }
+  */
+
+  encoder0Pos++;
+}
+
+float calcSpeed() {
+  return ((float)(encoder0Pos - encPrevPos)/(millis() - prevMillis)) * 1000 * 1/NUM_MAGNETS * 3.14* WHEEL_DIA;
 }
 
 
 void setMotorPWM(double voltage){
  byte PWM = ((0.556 - sqrt(0.556*0.556 - 0.00512*(62.1-voltage)))/0.00256); //see "rigatoni PWM to motor power" in drive for equation
- analogWrite(MOTOR_CONTROLLER_INPUT, PWM);
+ analogWrite(MOTOR_CONTROL, PWM);
 }
 
 int getCurrent(){
   int counts = analogRead(CURR_DATA);
   return (200*(5/1024)*counts) - 500; // 200A/V * 5V/count -> gives A
 }
+
+/*
 
 void executeStateMachine(){ 
 	switch(currentState) { 
@@ -178,6 +195,8 @@ void executeStateMachine(){
 		}
 	}
 }
+
+*/
 void runStateDisabled(){}
 void runStateTimeout(){}
 void runStateForward(){}
