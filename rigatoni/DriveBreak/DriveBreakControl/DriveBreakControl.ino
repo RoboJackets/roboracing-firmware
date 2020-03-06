@@ -2,8 +2,8 @@
 #include "RJNet.h"
 #include <Ethernet.h>
 
-#define NUM_MAGNETS 16
-#define WHEEL_DIA 0.27305
+#define NUM_MAGNETS 16 
+#define WHEEL_DIA 0.27305 //meters
 
 const static int PORT = 7;  //port RJNet uses
 
@@ -41,8 +41,8 @@ EthernetClient otherBoard;	// client
 
 
 void setup(){
-	pinMode(RXLED, OUTPUT);
-	pinMode(INT_ETH, INPUT);
+	pinMode(INT_ETH, OUTPUT);
+	
 	pinMode(ENCODER_A, INPUT);
 	pinMode(ENCODER_B, INPUT);  
 	pinMode(ETH_RST, OUTPUT);
@@ -54,10 +54,9 @@ void setup(){
 	pinMode(CURR_DATA, INPUT);
 
 	Serial.begin(115200);
-	
-	
+
 	//********** Ethernet Initialization *************//
-	Ethernet.init(10); 	// SCLK pin from eth header
+	Ethernet.init(INT_ETH); 	// SCLK pin from eth header
 	Ethernet.begin(mac, ip); 	// initialize the ethernet device
 	while (Ethernet.hardwareStatus() == EthernetNoHardware) {
 		Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
@@ -133,7 +132,10 @@ void doEncoder(){
 }
 
 float calcSpeed() {
-  return ((float)(encoder0Pos - encPrevPos)/(millis() - prevMillis)) * 1000 * 1/NUM_MAGNETS * 3.14* WHEEL_DIA;
+  float val = ((float)(encoder0Pos - encPrevPos)/(millis() - prevMillis)) * 1000* 3.1415 * WHEEL_DIA/NUM_MAGNETS;
+  encoder0Pos = encPrevPos;
+  prevMillis = millis();
+  return val;
 }
 
 
