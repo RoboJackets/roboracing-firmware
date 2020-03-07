@@ -2,7 +2,7 @@
 #include "RJNet.h"
 #include <Ethernet.h>
 
-#define NUM_MAGNETS 16 
+#define NUM_MAGNETS 24
 #define WHEEL_DIA 0.27305 //meters
 
 const static int PORT = 7;  //port RJNet uses
@@ -11,6 +11,7 @@ volatile long encoder0Pos = 0;
 long encPrevPos = 0;
 float currentSpeed;
 long prevMillis;
+long count = 0;
 
 float desiredSpeed = 0;	
 float maxSpeed = 10; //m/s
@@ -32,11 +33,11 @@ currentState = STATE_DISABLED;
 
 // Enter a MAC address and IP address for your board below
 byte mac[] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xEE };
-IPAddress ip(192, 168, 0, 178); //set the IP to find us at
+IPAddress ip(192, 168, 0, 177); //set the IP to find us at
 EthernetServer server(PORT);
 
 // Enter a IP address for other board below
-IPAddress otherIP(192, 168, 0, 177); //set the IP of the NUC
+IPAddress otherIP(192, 168, 0, 178); //set the IP of the NUC
 EthernetClient otherBoard;	// client 
 
 
@@ -58,17 +59,17 @@ void setup(){
 	//********** Ethernet Initialization *************//
 	Ethernet.init(INT_ETH); 	// SCLK pin from eth header
 	Ethernet.begin(mac, ip); 	// initialize the ethernet device
-	while (Ethernet.hardwareStatus() == EthernetNoHardware) {
+	/* while (Ethernet.hardwareStatus() == EthernetNoHardware) {
 		Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
 		delay(500);
 	}
 	while(Ethernet.linkStatus() == LinkOFF) {
 		Serial.println("Ethernet cable is not connected.");	// do something with this
 		delay(500);	 	// TURN down delay to check/startup faster
-	}
+	} */
 	server.begin();	// launches server
 
-  attachInterrupt(digitalPinToInterrupt(ENCODER_A), doEncoder, RISING);
+  attachInterrupt(digitalPinToInterrupt(ENCODER_A), doEncoder, FALLING);
 }
 
 
@@ -81,7 +82,8 @@ void loop() {
 		if (data.length() != 0) {			// if data exists (?)
 			// get data from nuc/manual board/E-Stop (?) and do something with it
 			desiredSpeed = data.toFloat();	// convert from string to int potentially
-      String reply = "$" + String(currentSpeed) + ";";
+      // String reply = "$" + String(currentSpeed) + ";";
+	  String reply = String(currentSpeed);
       RJNet::sendData(client, reply);
 		}
 	}
@@ -89,6 +91,7 @@ void loop() {
 	//motorTest(desiredSpeed);
   currentSpeed = calcSpeed();
   Serial.println(currentSpeed);
+  
   delay(100);
 }
 
@@ -129,6 +132,8 @@ void doEncoder(){
   */
 
   encoder0Pos++;
+  count++;
+  // Serial.println(count);
 }
 
 float calcSpeed() {
