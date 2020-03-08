@@ -81,14 +81,24 @@ ISR(TIMER1_OVF_VECTOR){ // timer interrupt to move stepper
 sei();//allow interrupts
 }
 
-void readEthernet(){
+void readEthernet(){ 
   EthernetClient client = server.available();    // if there is a new message form client create client object, otherwise new client object null
   if (client) {
     String data = RJNet::readData(client);  // if i get string from RJNet buffer ($speed_value;)
+    client.remoteIP()
     if (data.length() != 0) {   // if data exists
-      desiredAngle = data.toFloat();  // convert angle from string to float
-    String reply = String(currentAngle);
-      RJNet::sendData(client, reply);
+      if (data.substr(0,1) == "S"){    // if client is giving us new angle
+        desiredAngle = (data.substr(2)).toFloat(); // set new angle, convert from str to float
+        if (client.remoteIP() == NUC){ // if NUC is client
+          String reply = "R A=" + String(currentAngle); // reply with R A=currentAngle
+        } else if (client.remoteIP() == MANUAL){
+          String reply = "R=" + String(currentAngle);   // reply with R= currentAngle
+        }
+        RJNet::sendData(client, reply);
+      } else if (data.substr(0,1,) == "A"){  // otherwise if client just asking for angle
+        String reply = "A=" + String(currentAngle);  // reply with A=currentAngle
+        RJNet::sendData(client, reply);
+      }
     }
   }
 }
