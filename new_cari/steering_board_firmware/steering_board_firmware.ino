@@ -98,6 +98,25 @@ void readEthernet(){
       }
     }
   }
+  if(millis() - startTime >= 500){
+    Serial.println("");
+    //Dont' spam server with messages
+    startTime = millis();
+    if (!otherBoard.connected()) {
+      otherBoard.connect(otherIP, PORT);
+      /*Serial.print("Trying to connect to ");
+      Serial.print(otherIP);
+      Serial.print(":");
+      Serial.println(PORT);*/ 
+    }
+    else{
+      RJNet::sendData(otherBoard, "State?");
+      /*Serial.print("Sending data to ");
+      Serial.print(otherBoard.remoteIP());
+      Serial.print(":");
+      Serial.println(otherBoard.remotePort());*/
+    }
+  }
 }
 
 ISR(TIMER1_COMPA_vect){//timer0 interrupt 2kHz toggles pin 8
