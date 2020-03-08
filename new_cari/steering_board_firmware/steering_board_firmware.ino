@@ -8,9 +8,8 @@
 // make sure encoder switch is set to run mode
 
 /* Ethernet */
-// Enter a MAC address and IP address for your board below
-byte mac[] = {0xDE, 0xAD, 0xBE, 0xEF, 5};
-IPAddress ip(192, 168, 0, 5); // steering board's unique IP address
+byte mac[] = {0xDE, 0xAD, 0xBE, 0xEF, 5}; // steering board's mac address
+IPAddress ip(192, 168, 0, 5); // steering board's IP address
 EthernetServer server(PORT);
 
 // Enter a IP address for other board below
@@ -39,19 +38,12 @@ void setup() {
   pinMode(commandInterruptPin, INPUT_PULLUP);
   digitalWrite(dirPin, LOW); 
   delayMicroseconds(30);
-}
- 
-void loop() {
-  Serial.print(toggle1);
-  readEthernet();  // check for new angle from ethernet
-  assignDirection(); 
-}
 
-ISR(TIMER1_OVF_VECTOR){ // timer interrupt to move stepper
 
+  /* Initialization for timer interrupt for stepper motor */
   cli();//stop interrupts
 
-//set timer0 interrupt at 2kHz
+  //set timer0 interrupt at 2kHz
   TCCR0A = 0;// set entire TCCR0A register to 0
   TCCR0B = 0;// same for TCCR0B
   TCNT0  = 0;//initialize counter value to 0
@@ -77,7 +69,13 @@ ISR(TIMER1_OVF_VECTOR){ // timer interrupt to move stepper
   // enable timer compare interrupt
   TIMSK1 |= (1 << OCIE1A);
   
-sei();//allow interrupts
+  sei();//allow interrupts
+}
+ 
+void loop() {
+  Serial.print(toggle1);
+  readEthernet();  // check for new angle from ethernet
+  assignDirection(); 
 }
 
 void readEthernet(){ 
@@ -112,7 +110,7 @@ ISR(TIMER1_COMPA_vect){//timer0 interrupt 2kHz toggles pin 8
     digitalWrite(8,LOW);
     toggle1 = 1;
   }
-  if (prevtoggle!=toggle1){
+  if (prevtoggle!=toggle1 && currentAngle != desiredAngle){
     digitalWrite(pulsePin, HIGH);
     delayMicroseconds(20);
     digitalWrite(pulsePin, LOW);
