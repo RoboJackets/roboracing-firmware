@@ -24,3 +24,7 @@ const int INT_ETH=2;  // atmega pin 19, digital pin 2/SDA
 #define SPI_MOSI        MOSI
 #define SPI_MISO        MISO
 #define SPI_SCLK        SCK
+
+/* IP and MAC addresses */
+#define NUC     2
+#define MANUAL  6

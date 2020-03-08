@@ -9,9 +9,8 @@
 
 /* Ethernet */
 // Enter a MAC address and IP address for your board below
-byte mac[] = {
-  0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xE1 };
-IPAddress ip(192, 168, 0, 171); //set the IP to find us at
+byte mac[] = {0xDE, 0xAD, 0xBE, 0xEF, 5};
+IPAddress ip(192, 168, 0, 5); // steering board's unique IP address
 EthernetServer server(PORT);
 
 // Enter a IP address for other board below
