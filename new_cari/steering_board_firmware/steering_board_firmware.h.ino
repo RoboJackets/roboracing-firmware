@@ -22,14 +22,3 @@ const static int PORT = 7; // port RJnet uses
 #define SPI_MOSI        MOSI
 #define SPI_MISO        MISO
 #define SPI_SCLK        SCK
-
-/* Ethernet */
-// Enter a MAC address and IP address for your board below
-byte mac[] = {
-  0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xE1 };
-IPAddress ip(192, 168, 0, 171); //set the IP to find us at
-EthernetServer server(PORT);
-
-// Enter a IP address for other board below
-IPAddress otherIP(192, 168, 0, 175); //set the IP to find us at
-EthernetClient otherBoard;

@@ -7,6 +7,17 @@
 // Need to have feedback connected to function
 // make sure encoder switch is set to run mode
 
+/* Ethernet */
+// Enter a MAC address and IP address for your board below
+byte mac[] = {
+  0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xE1 };
+IPAddress ip(192, 168, 0, 171); //set the IP to find us at
+EthernetServer server(PORT);
+
+// Enter a IP address for other board below
+IPAddress otherIP(192, 168, 0, 175); //set the IP to find us at
+EthernetClient otherBoard;
+
 void setup() {
   /* Initialization for encoder*/
   pinMode(SPI_SCLK, OUTPUT);
