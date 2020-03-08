@@ -28,11 +28,10 @@ void setup() {
   SPI.begin();
 
   /* Initialization for ethernet*/
-  Ethernet.init(10);  // Most Arduino shields
+  pinMode(INT_ETH, OUTPUT);
+  Ethernet.init(INT_ETH);  // SCLK pin from eth header
   Ethernet.begin(mac, ip); // initialize ethernet device
   server.begin();
-  Serial.print("Our address: ");
-  Serial.println(Ethernet.localIP());
 
   /* Initialization for stepper*/
   Serial.begin(BAUDRATE);
@@ -44,15 +43,9 @@ void setup() {
 }
  
 void loop() {
-  /*digitalWrite(pulsePin, HIGH);
-  delayMicroseconds(20);
-  digitalWrite(pulsePin, LOW);
-  delayMicroseconds(20);*/
   Serial.print(toggle1);
-  readEthernet();
-  assignDirection();
-  currentAngle = getPositionSPI();    
-  Serial.print(currentAngle);     // keep sending encoder data back to NUC
+  readEthernet();  // check for new angle from ethernet
+  assignDirection(); 
 }
 
 ISR(TIMER1_OVF_VECTOR){ // timer interrupt to move stepper
@@ -89,14 +82,14 @@ sei();//allow interrupts
 }
 
 void readEthernet(){
-  if(otherBoard.available()){
-    //Server sent us a message
-    String serversMessage = RJNet::readData(otherBoard);
-    Serial.print(serversMessage); //show us what we read 
-    Serial.print(" To us from server ");
-    Serial.print(otherBoard.remoteIP());
-    Serial.print(":");
-    Serial.println(otherBoard.remotePort());
+  EthernetClient client = server.available();    // if there is a new message form client create client object, otherwise new client object null
+  if (client) {
+    String data = RJNet::readData(client);  // if i get string from RJNet buffer ($speed_value;)
+    if (data.length() != 0) {   // if data exists
+      desiredAngle = data.toFloat();  // convert angle from string to float
+    String reply = String(currentAngle);
+      RJNet::sendData(client, reply);
+    }
   }
 }
 
@@ -119,12 +112,9 @@ ISR(TIMER1_COMPA_vect){//timer0 interrupt 2kHz toggles pin 8
   prevtoggle = toggle1;
 }
 
-void assignDirection(){
-  if(Serial.read() == '$') {
-    desiredAngle = Serial.parseFloat(); 
-    desiredAngle = constrain(desiredSteeringAngle, minSteeringAngle, maxSteeringAngle);
-  }
-  currentAngle = getPositionSPI();         // read current position from encoder
+/* For setting direction of stepper motor */
+void assignDirection(){       
+  currentAngle = getPositionSPI();       // read current position from encoder
   if (desiredAngle < currentAngle){      // set dirPIN to CW or CCW
     digitalWrite(dirPin, LOW);
   } else {
@@ -146,8 +136,6 @@ uint8_t spiWriteRead(uint8_t sendByte, uint8_t releaseLine)
   setCSLine(ENC,LOW);
 
   //There is a minimum time requirement after CS goes low before data can be clocked out of the encoder.
-  //We will implement that time delay here, however the arduino is not the fastest device so the delay
-  //is likely inherantly there already
   delayMicroseconds(3);
 
   //send the command  
@@ -163,8 +151,6 @@ void setZeroSPI()
   spiWriteRead(NOP, false); // NOP needs to be first byte before extended command can be set
 
   //this is the time required between bytes as specified in the datasheet.
-  //We will implement that time delay here, however the arduino is not the fastest device so the delay
-  //is likely inherantly there already
   delayMicroseconds(3); 
   
   spiWriteRead(ZERO, true);
@@ -176,8 +162,6 @@ void resetAMT22()
   spiWriteRead(NOP, false); // NOP needs to be first byte before extended command can be set
 
   //this is the time required between bytes as specified in the datasheet.
-  //We will implement that time delay here, however the arduino is not the fastest device so the delay
-  //is likely inherantly there already
   delayMicroseconds(3); 
   
   spiWriteRead(RESET, true);
@@ -194,8 +178,6 @@ uint16_t getPositionSPI()
   currentPosition = spiWriteRead(NOP, false) << 8;   
 
   //this is the time required between bytes as specified in the datasheet.
-  //We will implement that time delay here, however the arduino is not the fastest device so the delay
-  //is likely inherantly there already
   delayMicroseconds(3);
 
   //OR the low byte with the currentPosition variable. release line after second byte
