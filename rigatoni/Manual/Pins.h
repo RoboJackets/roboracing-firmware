@@ -16,3 +16,7 @@
 // User-defined status LEDs
 #define LED_1 A3
 #define LED_2 A2
+
+// Ethernet 
+
+const int INT_ETH = ; // ASSIGN THIS!******

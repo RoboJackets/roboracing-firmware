@@ -1,5 +1,7 @@
 #include "pins.h"
 
+// Important note 3/8/20: voltage and angle variables need to be created. These variables will be converted to strings and sent to the Drive-brake and steering boards, respectively, in ethernet communication function. 
+
 // Interrupt stuff
 volatile unsigned long pwm_value_ch_1 = 0;
 volatile unsigned long pwm_value_ch_2 = 0;
@@ -29,14 +31,25 @@ bool value_ch_3;
 
 float value_throttle;
 
+/* Ethernet */
+byte mac[] = {0xDE, 0xAD, 0xBE, 0xEF, 6}; // manual board's mac address
+IPAddress ip(192, 168, 0, 6); // manual board's IP address
+EthernetServer server(PORT);
+
 void setup(){
     Serial.begin(115200);
     pin_assign();
-   
+
+    /* Initialization for ethernet*/
+    pinMode(INT_ETH, OUTPUT);
+    Ethernet.init(INT_ETH);  // SCLK pin from eth header
+    Ethernet.begin(mac, ip); // initialize ethernet device
+    server.begin();
 }
 
 
 void loop() {
+    readEthernet();
     evaluate_manual_switch();
     if(!manual_state){
         rc_missing();
@@ -62,7 +75,42 @@ void loop() {
     delay(50);
 }
 
-
+void readEthernet(){ 
+  EthernetClient client = server.available();    // if there is a new message form client create client object, otherwise new client object null
+  if (client) {
+    String data = RJNet::readData(client);  // if i get string from RJNet buffer ($speed_value;)
+    client.remoteIP()
+    if (data.length() != 0) {   // if data exists
+      if (data.substr(0,1) == "M"){    // if client is giving us new angle
+        if (rc_present_state){         // if in manual mode
+          String reply = "M";
+        } else {                       // if in autonomous mode
+          String reply = "A";
+        }
+        RJNet::sendData(client, reply);
+      }
+    }
+  }
+  if(millis() - startTime >= 500){   // now manual board is acting as a client
+    Serial.println("");
+    //Dont' spam server with messages
+    startTime = millis();
+    if (!otherBoard.connected()) {
+      otherBoard.connect(otherIP, PORT);
+    }
+    else{
+      if (otherboard.remoteIP() == DriveBrake){
+        RJNet::sendData(otherBoard, voltage); // sending a voltage to the drivebrake board
+      } else if (otherboard.remoteIP() == Steering){
+        RJNet::sendData(otherBoard, angle); // sending an angle to steering board
+      }
+        /*Serial.print("Sending data to ");
+        Serial.print(otherBoard.remoteIP());
+        Serial.print(":");
+        Serial.println(otherBoard.remotePort());*/
+    }
+  }
+}
 
 void pin_assign(){
     pinMode(RC_IN, INPUT);
