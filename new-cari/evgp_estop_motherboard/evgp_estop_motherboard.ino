@@ -1,4 +1,5 @@
 #include "evgp_estop_motherboard.h"
+#include <avr/wdt.h>
 
 // ALL STACK LIGHT COLOR OUTPUTS NEED TO BE CHANGED!
 
@@ -8,6 +9,19 @@ byte sensor2;      // input from sensor 2
 byte steeringIn;   // steering input from radio board
 byte driveIn;      // drive input from radio board
 
+long time_start;
+
+void stackLights(byte G, byte Y, byte R){
+  digitalWrite(STACK_G, G);
+  digitalWrite(STACK_Y, Y);
+  digitalWrite(STACK_R, R);
+}
+
+void steerDriveBrake(byte steer, byte drive, byte brake){
+  digitalWrite(STEERING_EN, steer);
+  digitalWrite(DRIVE_EN, drive);
+  digitalWrite(BRAKE_EN, brake);
+}
 
 void setup() {
   pinMode(INT, INPUT);
@@ -23,15 +37,25 @@ void setup() {
   pinMode(STACK_G, OUTPUT);
   pinMode(STACK_Y, OUTPUT);
   pinMode(STACK_R, OUTPUT);
-  // pinMode(LED, OUTPUT);
+//  pinMode(LED, OUTPUT);
   digitalWrite(DRIVE_EN, LOW);  // Initially start E-stopped
   digitalWrite(BRAKE_EN, LOW);  //
   digitalWrite(STACK_G, HIGH); // change these light settings
   digitalWrite(STACK_Y, HIGH);
   digitalWrite(STACK_R, HIGH); 
+  TXLED0;
+  wdt_reset();
+  wdt_enable(WDTO_500MS);
+
+  Serial.begin(9600);
+  Serial.print("reset");
 }
 
 void loop() {
+  time_start = millis();
+
+  wdt_reset();
+  delay(600);
   sensor1 = digitalRead(SENSOR_1);
   sensor2 = digitalRead(SENSOR_2);
   steeringIn = digitalRead(STEERING_IN);
@@ -46,7 +70,9 @@ void loop() {
     currentState = 0; // everything enabled
   }
   executeStateMachine();  
-  Serial.println(currentState);
+//  Serial.println(currentState);
+  Serial.println(millis() - time_start);
+//  Serial.println();
 }
 
 void executeStateMachine(){
@@ -68,16 +94,4 @@ void executeStateMachine(){
       stackLights(0, 1, 0);    // CHANGE this
       break;
   }
-}
-
-void stackLights(byte G, byte Y, byte R){
-  digitalWrite(STACK_G, G);
-  digitalWrite(STACK_Y, Y);
-  digitalWrite(STACK_R, R);
-}
-
-void steerDriveBrake(byte steer, byte drive, byte brake){
-  digitalWrite(STEERING_EN, steer);
-  digitalWrite(DRIVE_EN, drive);
-  digitalWrite(BRAKE_EN, brake);
 }
