@@ -10,9 +10,9 @@
 #define SENSOR_1 8 
 #define SENSOR_2 12 
 
-#define STACK_G A0
-#define STACK_Y A1 
-#define STACK_R A2 
+#define STACK_G A1 //Br
+#define STACK_Y A0 //B
+#define STACK_R A2 //W
 
 #define INT 7 
 // #define LED TXLED 

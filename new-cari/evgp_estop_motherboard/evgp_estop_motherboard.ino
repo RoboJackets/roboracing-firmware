@@ -41,11 +41,12 @@ void loop() {
   } else if(!steeringIn){
     currentState = 2;  // steering disabled, drive enabled
   } else if(!driveIn){
-    currentState = 3;  // everything enabled
+    currentState = 3;  // steering enabled, drive disabled
   } else {
-    currentState = 0;
+    currentState = 0; // everything enabled
   }
   executeStateMachine();  
+  Serial.println(currentState);
 }
 
 void executeStateMachine(){
