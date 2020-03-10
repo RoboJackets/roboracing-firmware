@@ -1,13 +1,25 @@
 #include "DriveBrake.h"
 #include "RJNet.h"
 #include <Ethernet.h>
-const char RJNet::startMarker = '$';
-const char RJNet::endMarker = ';';
+
+#define NUM_MAGNETS 24
+#define WHEEL_DIA 0.27305 //meters
+
 const static int PORT = 7;  //port RJNet uses
 const int millisPerSec = 1000;
 float startTime = 0; // the time used to run the loop
 volatile long encoder0Pos=0;
+
+long encPrevPos = 0;
+float currentSpeed;
+long prevMillis;
+long count = 0;
+
 float desiredSpeed = 0;	
+float maxSpeed = 10; //m/s
+
+
+
 
 // State machine possible states
 enum ChassisState {
@@ -23,12 +35,12 @@ currentState = STATE_DISABLED;
 
 // Enter a MAC address and IP address for your board below
 byte mac[] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xEE };
-IPAddress ip(192, 168, 0, 178); //set the IP to find us at
+IPAddress ip(192, 168, 0, 177); //set the IP to find us at
 EthernetServer server(PORT);
 
 // Enter a IP address for other board below
-IPAddress otherIP(192, 168, 0, 177); //set the IP to find us at
-EthernetClient otherBoard;
+IPAddress otherIP(192, 168, 0, 178); //set the IP of the NUC
+EthernetClient otherBoard;	// client 
 
 // PID Speed Control
 float integral = 0.0;
@@ -45,8 +57,8 @@ const int centerSpeedPwm;
 const int maxSpeedPwm;
 
 void setup(){
-	pinMode(RXLED, OUTPUT);
-	pinMode(INT_ETH, INPUT);
+	pinMode(INT_ETH, OUTPUT);
+	
 	pinMode(ENCODER_A, INPUT);
 	pinMode(ENCODER_B, INPUT);  
 	pinMode(ETH_RST, OUTPUT);
@@ -58,12 +70,21 @@ void setup(){
 	pinMode(CURR_DATA, INPUT);
 
 	Serial.begin(115200);
-	
+
 	//********** Ethernet Initialization *************//
-	Ethernet.init(10); 	// SCLK pin from eth header
+	Ethernet.init(INT_ETH); 	// SCLK pin from eth header
 	Ethernet.begin(mac, ip); 	// initialize the ethernet device
-	Ethernet.setSubnetMask();
-	server.begin();
+	/* while (Ethernet.hardwareStatus() == EthernetNoHardware) {
+		Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
+		delay(500);
+	}
+	while(Ethernet.linkStatus() == LinkOFF) {
+		Serial.println("Ethernet cable is not connected.");	// do something with this
+		delay(500);	 	// TURN down delay to check/startup faster
+	} */
+	server.begin();	// launches server
+
+  attachInterrupt(digitalPinToInterrupt(ENCODER_A), doEncoder, FALLING);
 }
 
 
@@ -71,12 +92,15 @@ void loop() {
 	// put your main code here, to run repeatedly:
   startTime = millis();
 	// Ethernet stuff
-	EthernetClient client = server.available();
+	EthernetClient client = server.available();		// if there is a new message form client create client object, otherwise new client object null
 	if (client) {
 		String data = RJNet::readData(client);	// if i get string from RJNet buffer ($speed_value;)
-		if (data.length() != 0) {				// if data exists (?)
+		if (data.length() != 0) {			// if data exists (?)
 			// get data from nuc/manual board/E-Stop (?) and do something with it
-			desiredSpeed = data;
+			desiredSpeed = data.toFloat();	// convert from string to int potentially
+      // String reply = "$" + String(currentSpeed) + ";";
+	  String reply = String(currentSpeed);
+      RJNet::sendData(client, reply);
 		}
 	}
 	motorTest();
@@ -84,20 +108,18 @@ void loop() {
 	getSpeedMessage();
 	doEncoder();
 	while((milis() - startTime) < 10);
-}
-
-void motorTest() {
-	analogWrite(MOTOR_CONTROLLER_INPUT, speed);
 	
+	//motorTest(desiredSpeed);
+  currentSpeed = calcSpeed();
+  Serial.println(currentSpeed);
+  
+  delay(100);
 }
 
-void getSpeedMessage() {
-    while(Serial.available()){
-      if (Serial.read() == '#'){
-        speed = Serial.parseFloat();
-      }
-    }
+void motorTest(float speed) { //open loop test
+	analogWrite(MOTOR_CONTROL, (int)(speed/maxSpeed)*255);
 }
+
 
 double accelerate(double a){
   
@@ -107,7 +129,9 @@ double brake(double targetSpeed){
   
 }
 
+
 double getSpeed(){  
+  /*
   digitalWrite(ENCODER_A, HIGH);
   digitalWrite(ENCODER_B, HIGH);
   //encoder counts 64 every revolution
@@ -116,21 +140,35 @@ double getSpeed(){
   int newtime = (0.001*millis());
   int counts = (newposition-oldposition)/(newtime-oldtime);
   
-
+*/
 }
 
+
 void doEncoder(){
+  /*
   if (digitalRead(ENCODER_A) == digitalRead(ENCODER_B)) {
     encoder0Pos++;
   } else {
     encoder0Pos--;
   }
+  */
+
+  encoder0Pos++;
+  count++;
+  // Serial.println(count);
+}
+
+float calcSpeed() {
+  float val = ((float)(encoder0Pos - encPrevPos)/(millis() - prevMillis)) * 1000* 3.1415 * WHEEL_DIA/NUM_MAGNETS;
+  encoder0Pos = encPrevPos;
+  prevMillis = millis();
+  return val;
 }
 
 
 void setMotorPWM(double voltage){
  byte PWM = ((0.556 - sqrt(0.556*0.556 - 0.00512*(62.1-voltage)))/0.00256); //see "rigatoni PWM to motor power" in drive for equation
- analogWrite(MOTOR_CONTROLLER_INPUT, PWM);
+ analogWrite(MOTOR_CONTROL, PWM);
 }
 
 int getCurrent(){
@@ -170,6 +208,7 @@ int PwmFromMetersPerSecond(float velocity) {};
 
 
 
+/*
 
 void executeStateMachine(){ 
 	switch(currentState) { 
@@ -217,6 +256,8 @@ void executeStateMachine(){
 		}
 	}
 }
+
+*/
 void runStateDisabled(){}
 void runStateTimeout(){}
 void runStateForward(){}
@@ -224,78 +265,3 @@ void runStateForwaredBrake(){}
 void runStateReverse(){}
 void runStateReverseBrake(){}
 void runStateIdle(){}
-
-
-
-void RJNet() {}
-
-/*
- *  Receives data from client you are connected to in a safe manner.
- *  @Note: not named read() to limit confusion with Arduino Stream library interface
- *
- *  client: Serial, ethernet client or server, other communication method
- */
-String RJNet::readData(Stream &client) {
-    static boolean recvInProgress = false;
-    static byte ndx = 0;
-    char rc;
-    const uint8_t numChars = 128; //buffer size
-    char receivedChars[numChars]; //input buffer
-    boolean newData = false;
-
-    while (client.available() > 0 && newData == false) {
-        rc = client.read();
-
-        if (recvInProgress == true) {
-            if (rc != endMarker) {
-                receivedChars[ndx] = rc;
-                ndx++;
-                if (ndx >= numChars) {
-                    ndx = numChars - 1;
-                }
-            }
-            else {
-                receivedChars[ndx] = '\0'; // terminate the string
-                recvInProgress = false;
-                ndx = 0;
-                newData = true;
-            }
-        }
-
-        else if (rc == startMarker) {
-            recvInProgress = true;
-        }
-    }
-
-    if (newData) {
-      return receivedChars;
-    } else {
-      return "";
-    }
-}
-
-/*
- * Sends info to client (Serial, Ethernet, etc output)
- * @Note: not named print() to limit confusion with Arduino Stream library interface
- * client: Serial, ethernet client or server, other communication method
- * msg: Message to send
- */
-void RJNet::sendData(Stream &client, String msg) {
-    client.print(addMarkersToMessage(msg));
-}
-
-/*
- * Formats String message to have start and end markers.
- * msg: Message to send
- */
-String RJNet::addMarkersToMessage(String msg) {
-    //add markers
-    if (msg.charAt(0) != startMarker) {
-        msg = startMarker + msg;
-    }
-    if (msg.charAt(msg.length() - 1) != endMarker) {
-        msg = msg + endMarker;
-    }
-
-    return msg;
-}

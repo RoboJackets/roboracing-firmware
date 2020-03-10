@@ -1,6 +1,5 @@
-const int RXLED=8;
+const int RXLED=17;
 
-const int MCU_RST=13;
 
 const int INT_ETH=3;	// atmega pin 18, digital pin 3/SCL
 
