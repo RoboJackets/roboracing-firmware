@@ -4,7 +4,8 @@
 const char RJNet::startMarker = '$';
 const char RJNet::endMarker = ';';
 const static int PORT = 7;  //port RJNet uses
-
+const int millisPerSec = 1000;
+float startTime = 0; // the time used to run the loop
 volatile long encoder0Pos=0;
 float desiredSpeed = 0;	
 
@@ -29,6 +30,19 @@ EthernetServer server(PORT);
 IPAddress otherIP(192, 168, 0, 177); //set the IP to find us at
 EthernetClient otherBoard;
 
+// PID Speed Control
+float integral = 0.0;
+float derivative = 0.0;
+float prevError = 0.0;
+float kP = 50.0;
+float kI = 0.0;
+float kD = 0.0;
+
+// Control Limits
+const float maxSpeed; // maximum velocity in 
+const float minSpeed; // minimum velocity in  
+const int centerSpeedPwm;
+const int maxSpeedPwm;
 
 void setup(){
 	pinMode(RXLED, OUTPUT);
@@ -55,6 +69,7 @@ void setup(){
 
 void loop() {
 	// put your main code here, to run repeatedly:
+  startTime = millis();
 	// Ethernet stuff
 	EthernetClient client = server.available();
 	if (client) {
@@ -68,7 +83,7 @@ void loop() {
 	Serial.println(speed);
 	getSpeedMessage();
 	doEncoder();
-	
+	while((milis() - startTime) < 10);
 }
 
 void motorTest() {
@@ -122,6 +137,39 @@ int getCurrent(){
   int counts = analogRead(CURR_DATA);
   return (200*(5/1024)*counts) - 500; // 200A/V * 5V/count -> gives A
 }
+
+
+
+
+
+int PwmPID(float velocity) { 
+    if (velocity <= 0) {
+        integral = 0;
+        return 0;
+    } else {
+        const float dt = (float) startTime / millisPerSec;
+        float error = velocity - (float)getSpeed();
+
+        // protect against runaway integral accumulation
+        float trapezoidIntegral = (prevError + error) * 0.5 * dt;
+        if (abs(kI * integral) < maxSpeedPwm - centerSpeedPwm || trapezoidIntegral < 0) {
+            integral += trapezoidIntegral;
+        }
+
+        derivative = (error - prevError) / dt; //difference derivative
+
+        int writePwmSigned = kP * error + kI * integral + kD * derivative + PwmFromMetersPerSecond(velocity);
+        int writePwm = constrain(writePwmSigned, centerSpeedPwm, maxSpeedPwm); //control limits
+
+        prevError = error;
+        return writePwm;
+    }
+}
+
+int PwmFromMetersPerSecond(float velocity) {}; 
+
+
+
 
 void executeStateMachine(){ 
 	switch(currentState) { 
