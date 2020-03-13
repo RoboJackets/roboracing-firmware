@@ -6,9 +6,11 @@
 // ALL STACK LIGHT COLOR OUTPUTS NEED TO BE CHANGED!
 byte oldState = 1;        // default state is STOP
 byte currentState = 1;
+byte nucState = 1;
 int respondStartTime;
 int stateStartTime = millis();
-bool hasResponded = 1;
+bool sentAcknowledged = 0;
+bool receivedAcknowledged = 0;
 byte sensor1;             // input from sensor 1
 byte sensor2;             // input from sensor 2
 byte steeringIn;          // steering input from radio board
@@ -40,7 +42,7 @@ void steerDriveBrake(byte steer, byte drive, byte brake) {
 
 
 void executeStateMachine() {  // CHANGE, STATUS NEEDS TO GO THROUGH NUC FIRST
-  switch(currentState) {
+  switch(nucState) {
     case 0:    // everything enabled
       steerDriveBrake(HIGH, HIGH, HIGH);
       stackLights(1, 0, 0);  
@@ -58,45 +60,53 @@ void executeStateMachine() {  // CHANGE, STATUS NEEDS TO GO THROUGH NUC FIRST
 
 
 void executeEthernetStuff() {
-  // send state to NUC when state changes
+  // send state change to NUC
   if(oldState != currentState) {
     if(!otherBoard.connected()) {
       otherBoard.connect(otherIP, PORT);
     }
     else {
       RJNet::sendData(otherBoard, stateMsg);
-      isAcknowledged = 0; // now wait for NUC to respond
+      sentAcknowledged = 1; // now wait for NUC to respond
       respondStartTime = millis();
     }
   }
 
-  // NUC has not responded yet
-  if(millis() - respondStartTime >= 100 && !isAcknowledged) {
-    respondStartTime = millis();
+  // Wait for NUC to respond to sent state change
+  if(millis() - respondStartTime >= 100 && sentAcknowledged) {
     if(otherBoard.available()){
-      //Server sent us a message
       String serversMessage = RJNet::readData(otherBoard);
+      respondStartTime = millis();
       if(serversMessage == "R") {
-        isAcknowledged = 1;
+        sentAcknowledged = 0;
       }
     }
   }
 
+  // Request state from NUC
   if(millis() - stateRespondTime >= 100) {
     if(!otherBoard.connected()) {
       otherBoard.connect(otherIP, PORT);
     }
     else {
       RJNet::sendData(otherBoard, "S?");
-      stateRespondTime = millis();
+      receivedAcknowledged = 1; // now wait for NUC to respond
     }
   }
 
-  // GET STATUS FROM NUC
-  
-  if(otherBoard.available()){
-    //Server sent us a message
+  // Receive state from NUC
+  if(receivedAcknowledged && otherBoard.available()) {
     String serversMessage = RJNet::readData(otherBoard);
+    if(serversMessage == "G") { // everything ENABLED
+      nucStatus = 0;
+    }
+    else if(serversMessage = "H") { // everything DISABLED
+      nucStatus = 1;
+    }
+//    else if(serversMessage = "??????CHANGE") { // LIMITED
+//      nucStatus = 2;
+//    }
+    receivedAcknowledged = 0;
   }
 }
 
