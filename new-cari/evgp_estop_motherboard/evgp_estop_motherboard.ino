@@ -1,9 +1,15 @@
 #include <avr/wdt.h>
 #include <Ethernet.h>
-#include "evgp_estop_motherboard.h"
+#include "evgp_estop_mnucServer.h"
 #include "RJNet.h"
 
 // ALL STACK LIGHT COLOR OUTPUTS NEED TO BE CHANGED!
+/*
+State numbering:
+0: GO. Everything enabled.
+1: Stop. Motor + steering disabled, emergency brake enabled.
+2: Testing. Steering enabled, drive motor disabled.
+*/
 byte oldState = 1;        // default state is STOP
 byte currentState = 1;
 byte nucState = 1;
@@ -23,8 +29,8 @@ String stateMsg;
 byte mac[] = {0xDE, 0xAD, 0xBE, 0xEF, 0x03};
 IPAddress ip(192, 168, 0, 3); //set the IP to find us at
 EthernetServer server(PORT);
-IPAddress otherIP(192, 168, 0, 175); //set the IP to find the other board at
-EthernetClient otherBoard;
+IPAddress nucIP(192, 168, 0, 175); //set the IP to find the other board at
+EthernetClient nucServer;
 
 
 void stackLights(byte G, byte Y, byte R) {
@@ -61,23 +67,26 @@ void executeStateMachine() {  // CHANGE, STATUS NEEDS TO GO THROUGH NUC FIRST
 
 void executeEthernetStuff() {
   // send state change to NUC
+  //This is wierd - if we are not connected, we attempt to connect and don't send the data. But below we still wait for the NUC's response to that data.
   if(oldState != currentState) {
-    if(!otherBoard.connected()) {
-      otherBoard.connect(otherIP, PORT);
+    if(!nucServer.connected()) {
+      nucServer.connect(nucIP, PORT);
     }
     else {
-      RJNet::sendData(otherBoard, stateMsg);
+      RJNet::sendData(nucServer, stateMsg);
       sentAcknowledged = 1; // now wait for NUC to respond
       respondStartTime = millis();
     }
   }
 
   // Wait for NUC to respond to sent state change
+  //we don't execute this code block when we have just sent a new state
   if(millis() - respondStartTime >= 100 && sentAcknowledged) {
-    if(otherBoard.available()){
-      String serversMessage = RJNet::readData(otherBoard);
+    if(nucServer.available()){
+      String serversMessage = RJNet::readData(nucServer);
       respondStartTime = millis();
       if(serversMessage == "R") {
+          //If server message not R, we have an infinite loop here
         sentAcknowledged = 0;
       }
     }
@@ -85,18 +94,18 @@ void executeEthernetStuff() {
 
   // Request state from NUC
   if(millis() - stateRespondTime >= 100) {
-    if(!otherBoard.connected()) {
-      otherBoard.connect(otherIP, PORT);
+    if(!nucServer.connected()) {
+      nucServer.connect(nucIP, PORT);
     }
     else {
-      RJNet::sendData(otherBoard, "S?");
+      RJNet::sendData(nucServer, "S?");
       receivedAcknowledged = 1; // now wait for NUC to respond
     }
   }
 
   // Receive state from NUC
-  if(receivedAcknowledged && otherBoard.available()) {
-    String serversMessage = RJNet::readData(otherBoard);
+  if(receivedAcknowledged && nucServer.available()) {
+    String serversMessage = RJNet::readData(nucServer);
     if(serversMessage == "G") { // everything ENABLED
       nucStatus = 0;
     }
@@ -166,16 +175,14 @@ void loop() {
   steeringIn = digitalRead(STEERING_IN);
   driveIn = digitalRead(DRIVE_IN);
 
+  oldState = currentState;
   if(steeringIn && driveIn) {
-    oldState = currentState;
     currentState = 0; // everything Enabled
     stateMsg = "E";
   } else if(!driveIn) { // includes steering enabled and disabled
-    oldState = currentState;
     currentState = 1;  // everything Disabled
     stateMsg = "D";
   } else {
-    oldState = currentState;
     currentState = 2; // steering enabled, drive disabled (Limited)
     stateMsg = "L";
   } 
