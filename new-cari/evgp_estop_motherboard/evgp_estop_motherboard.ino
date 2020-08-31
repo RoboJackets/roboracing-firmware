@@ -1,175 +1,143 @@
 #include <avr/wdt.h>
 #include <Ethernet.h>
-#include "evgp_estop_mnucServer.h"
+#include "evgp_estop_motherboard.h"
 #include "RJNet.h"
+
+/*
+A simplified sketch for the estop motherboard. It does not attempt to display anthing on the stack light
+except the state from the radio board. It provides the current state to anything that requests it via ethernet.
+*/
 
 #define TRUE 1
 #define FALSE 0
 
-// ALL STACK LIGHT COLOR OUTPUTS NEED TO BE CHANGED!
-/*
-State numbering:
-0: GO. Everything enabled.
-1: Stop. Motor + steering disabled, emergency brake enabled.
-2: Testing. Steering enabled, drive motor disabled.
-*/
 #define GO 0
 #define STOP 1
 #define TESTING 2
+const static String stopMsg = "D";
+const static String testingMsg = "L";
+const static String goMsg = "G";
+  
+byte currentState = STOP;  // default state is STOP
 
-byte oldState = STOP;        // default state is STOP
-byte currentState = STOP;
-byte nucState = STOP;
-int respondStartTime;
-int stateStartTime = millis();
-bool sentToNucWaitingForAck = FALSE;
-bool receivedAcknowledged = FALSE;
 byte sensor1;             // input from sensor 1
 byte sensor2;             // input from sensor 2
 byte steeringIn;          // steering input from radio board
 byte driveIn;             // drive input from radio board
 
 const static byte PORT = 7; //port RJNet uses
-double counter = 0;
-long int startTime = 0;
-String stateMsg;
 byte mac[] = {0xDE, 0xAD, 0xBE, 0xEF, 0x03};
 IPAddress ip(192, 168, 0, 3); //set the IP to find us at
 EthernetServer server(PORT);
-IPAddress nucIP(192, 168, 0, 175); //set the IP to find the other board at
-EthernetClient nucServer;
 
 
 void stackLights(byte G, byte Y, byte R) {
-  digitalWrite(STACK_G, G);
-  digitalWrite(STACK_Y, Y);
-  digitalWrite(STACK_R, R);
+    digitalWrite(STACK_G, G);
+    digitalWrite(STACK_Y, Y);
+    digitalWrite(STACK_R, R);
 }
 
 
 void steerDriveBrake(byte steer, byte drive, byte brake) {
-  digitalWrite(STEERING_EN, steer);
-  digitalWrite(DRIVE_EN, drive);
-  digitalWrite(BRAKE_EN, brake);
+    digitalWrite(STEERING_EN, steer);
+    digitalWrite(DRIVE_EN, drive);
+    digitalWrite(BRAKE_EN, brake);
 }
 
 
 void executeStateMachine() {  // CHANGE, STATUS NEEDS TO GO THROUGH NUC FIRST
-  switch(nucState) {
+    switch(currentState) {
     case GO:    // everything enabled
-      steerDriveBrake(HIGH, HIGH, HIGH);
-      stackLights(1, 0, 0);  
-      break; 
+        steerDriveBrake(HIGH, HIGH, HIGH);
+        stackLights(HIGH, LOW, LOW);  
+        break; 
     case STOP:    // everything disabled
-      steerDriveBrake(LOW, LOW, LOW);
-      stackLights(0, 0, 1);
-      break;
+        steerDriveBrake(LOW, LOW, LOW);
+        stackLights(LOW, LOW, HIGH);
+        break;
     case TESTING:    // steering enabled, drive disabled
-      steerDriveBrake(HIGH, LOW, HIGH);
-      stackLights(0, 1, 0);
-      break;
-  }
+        steerDriveBrake(HIGH, LOW, HIGH);
+        stackLights(LOW, HIGH, LOW);
+        break;
+    }
 }
 
 
-void executeEthernetStuff() {
-  // send state change to NUC
-  //This is wierd - if we are not connected, we attempt to connect and don't send the data. But below we still wait for the NUC's response to that data.
-  if(oldState != currentState) {
-    if(!nucServer.connected()) {
-      nucServer.connect(nucIP, PORT);
+void sendStateToClient() {
+    EthernetClient client = server.available();
+    if (client) {
+        String data = RJNet::readData(client);
+        if (data.length() != 0) {\
+            /*
+            Serial.print(data); //show us what we read 
+            Serial.print(" From client ");
+            Serial.print(client.remoteIP());
+            Serial.print(":");
+            Serial.println(client.remotePort());
+            */
+            
+            //Doesn't matter what they send us, we'll just send the state
+            switch(currentState) {
+            case GO:    // everything enabled
+                RJNet::sendData(client, goMsg); 
+                break; 
+            case STOP:    // everything disabled
+                RJNet::sendData(client, stopMsg);
+                break;
+            case TESTING:    // steering enabled, drive disabled
+                RJNet::sendData(client, testingMsg);
+                break;
+            }
+        }
+        else Serial.print("Empty message recieved.");
     }
-    else {
-      RJNet::sendData(nucServer, stateMsg);
-      sentToNucWaitingForAck = TRUE; // now wait for NUC to respond
-      respondStartTime = millis();
-    }
-  }
-
-  // Wait for NUC to respond to sent state change
-  //we don't execute this code block when we have just sent a new state
-  if(millis() - respondStartTime >= 100 && sentToNucWaitingForAck) {
-    if(nucServer.available()){
-      String serversMessage = RJNet::readData(nucServer);
-      respondStartTime = millis();
-      if(serversMessage == "R") {
-        sentToNucWaitingForAck = FALSE;
-      }
-    }
-  }
-
-  // Request state from NUC
-  if(millis() - stateRespondTime >= 100) {
-    if(!nucServer.connected()) {
-      nucServer.connect(nucIP, PORT);
-    }
-    else {
-      RJNet::sendData(nucServer, "S?");
-      receivedAcknowledged = TRUE; // now wait for NUC to respond
-    }
-  }
-
-  // Receive state from NUC
-  if(receivedAcknowledged && nucServer.available()) {
-    String serversMessage = RJNet::readData(nucServer);
-    if(serversMessage == "G") { // everything ENABLED
-      nucState = GO;
-    }
-    else if(serversMessage = "H") { // everything DISABLED
-      nucState = STOP;
-    }
-//    else if(serversMessage = "??????CHANGE") { // LIMITED
-//      nucState = 2;
-//    }
-    receivedAcknowledged = FALSE;
-  }
 }
 
 
 void setup() {
-  pinMode(INT, INPUT);
-  pinMode(SAFE_RB, INPUT);
-  pinMode(START_RB, INPUT);
-  pinMode(SENSOR_1, INPUT);
-  pinMode(SENSOR_2, INPUT);
-  pinMode(STEERING_IN, INPUT);
-  pinMode(DRIVE_IN, INPUT);
-  pinMode(STEERING_EN, OUTPUT);
-  pinMode(DRIVE_EN, OUTPUT);
-  pinMode(BRAKE_EN, OUTPUT);
-  pinMode(STACK_G, OUTPUT);
-  pinMode(STACK_Y, OUTPUT);
-  pinMode(STACK_R, OUTPUT);
-//  pinMode(LED, OUTPUT);
-  digitalWrite(DRIVE_EN, LOW);  // Initially start E-stopped
-  digitalWrite(BRAKE_EN, LOW);  //
-  digitalWrite(STACK_G, HIGH); // change these light settings
-  digitalWrite(STACK_Y, HIGH);
-  digitalWrite(STACK_R, HIGH); 
-//  TXLED0;
+    pinMode(INT, INPUT);
+    pinMode(SAFE_RB, INPUT);
+    pinMode(START_RB, INPUT);
+    pinMode(SENSOR_1, INPUT);
+    pinMode(SENSOR_2, INPUT);
+    pinMode(STEERING_IN, INPUT);
+    pinMode(DRIVE_IN, INPUT);
+    pinMode(STEERING_EN, OUTPUT);
+    pinMode(DRIVE_EN, OUTPUT);
+    pinMode(BRAKE_EN, OUTPUT);
+    pinMode(STACK_G, OUTPUT);
+    pinMode(STACK_Y, OUTPUT);
+    pinMode(STACK_R, OUTPUT);
+    //  pinMode(LED, OUTPUT);
+    digitalWrite(DRIVE_EN, LOW);  // Initially start E-stopped
+    digitalWrite(BRAKE_EN, LOW);  //
+    digitalWrite(STACK_G, HIGH); // change these light settings
+    digitalWrite(STACK_Y, HIGH);
+    digitalWrite(STACK_R, HIGH); 
+    //  TXLED0;
 
-  // ETHERNET STUFF
-  Serial.begin(115200);
-  // In case your RJ board wires the chip in an odd config,
-  // otherwise, leave commented out
-  // You can use Ethernet.init(pin) to configure the CS pin
-  Ethernet.init(10);  // Most Arduino shields  CHANGE?
-  Ethernet.begin(mac, ip);
-  while(Ethernet.hardwareStatus() == EthernetNoHardware) {
-    Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
-    delay(500);
-  }
-  while(Ethernet.linkStatus() == LinkOFF) {
-    Serial.println("Ethernet cable is not connected.");
-    delay(500);
-  }
-  server.begin();
-  Serial.print("Our address: ");
-  Serial.println(Ethernet.localIP());
+    // ETHERNET STUFF
+    Serial.begin(115200);
+    // In case your RJ board wires the chip in an odd config,
+    // otherwise, leave commented out
+    // You can use Ethernet.init(pin) to configure the CS pin
+    Ethernet.init(10);  // Most Arduino shields  CHANGE?
+    Ethernet.begin(mac, ip);
+    while(Ethernet.hardwareStatus() == EthernetNoHardware) {
+        Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
+        delay(100);
+    }
+    while(Ethernet.linkStatus() == LinkOFF) {
+        Serial.println("Ethernet cable is not connected.");
+        delay(100);
+    }
+    server.begin();
+    Serial.print("Our address: ");
+    Serial.println(Ethernet.localIP());
 
-  // WATCHDOG TIMER
-  wdt_reset();
-  wdt_enable(WDTO_500MS);
+    // WATCHDOG TIMER
+    wdt_reset();
+    wdt_enable(WDTO_500MS);
 }
 
 
@@ -181,18 +149,14 @@ void loop() {
   steeringIn = digitalRead(STEERING_IN);
   driveIn = digitalRead(DRIVE_IN);
 
-  oldState = currentState;
   if(steeringIn && driveIn) {
     currentState = GO; // everything Enabled
-    stateMsg = "E";
   } else if(!driveIn) { // includes steering enabled and disabled
     currentState = STOP;  // everything Disabled
-    stateMsg = "D";
   } else {
     currentState = TESTING; // steering enabled, drive disabled (Limited)
-    stateMsg = "L";
   } 
   
-//  executeStateMachine();  // CHANGE, STATUS NEEDS TO COME FROM NUC
-  executeEthernetStuff();
+  executeStateMachine();
+  sendStateToClient();
 }
