@@ -3,6 +3,9 @@
 #include "evgp_estop_mnucServer.h"
 #include "RJNet.h"
 
+#define TRUE 1
+#define FALSE 0
+
 // ALL STACK LIGHT COLOR OUTPUTS NEED TO BE CHANGED!
 /*
 State numbering:
@@ -10,13 +13,17 @@ State numbering:
 1: Stop. Motor + steering disabled, emergency brake enabled.
 2: Testing. Steering enabled, drive motor disabled.
 */
-byte oldState = 1;        // default state is STOP
-byte currentState = 1;
-byte nucState = 1;
+#define GO 0
+#define STOP 1
+#define TESTING 2
+
+byte oldState = STOP;        // default state is STOP
+byte currentState = STOP;
+byte nucState = STOP;
 int respondStartTime;
 int stateStartTime = millis();
-bool sentAcknowledged = 0;
-bool receivedAcknowledged = 0;
+bool sentToNucWaitingForAck = FALSE;
+bool receivedAcknowledged = FALSE;
 byte sensor1;             // input from sensor 1
 byte sensor2;             // input from sensor 2
 byte steeringIn;          // steering input from radio board
@@ -49,15 +56,15 @@ void steerDriveBrake(byte steer, byte drive, byte brake) {
 
 void executeStateMachine() {  // CHANGE, STATUS NEEDS TO GO THROUGH NUC FIRST
   switch(nucState) {
-    case 0:    // everything enabled
+    case GO:    // everything enabled
       steerDriveBrake(HIGH, HIGH, HIGH);
       stackLights(1, 0, 0);  
       break; 
-    case 1:    // everything disabled and emergency break enabled
+    case STOP:    // everything disabled
       steerDriveBrake(LOW, LOW, LOW);
       stackLights(0, 0, 1);
       break;
-    case 2:    // steering enabled, drive disabled
+    case TESTING:    // steering enabled, drive disabled
       steerDriveBrake(HIGH, LOW, HIGH);
       stackLights(0, 1, 0);
       break;
@@ -74,20 +81,19 @@ void executeEthernetStuff() {
     }
     else {
       RJNet::sendData(nucServer, stateMsg);
-      sentAcknowledged = 1; // now wait for NUC to respond
+      sentToNucWaitingForAck = TRUE; // now wait for NUC to respond
       respondStartTime = millis();
     }
   }
 
   // Wait for NUC to respond to sent state change
   //we don't execute this code block when we have just sent a new state
-  if(millis() - respondStartTime >= 100 && sentAcknowledged) {
+  if(millis() - respondStartTime >= 100 && sentToNucWaitingForAck) {
     if(nucServer.available()){
       String serversMessage = RJNet::readData(nucServer);
       respondStartTime = millis();
       if(serversMessage == "R") {
-          //If server message not R, we have an infinite loop here
-        sentAcknowledged = 0;
+        sentToNucWaitingForAck = FALSE;
       }
     }
   }
@@ -99,7 +105,7 @@ void executeEthernetStuff() {
     }
     else {
       RJNet::sendData(nucServer, "S?");
-      receivedAcknowledged = 1; // now wait for NUC to respond
+      receivedAcknowledged = TRUE; // now wait for NUC to respond
     }
   }
 
@@ -107,15 +113,15 @@ void executeEthernetStuff() {
   if(receivedAcknowledged && nucServer.available()) {
     String serversMessage = RJNet::readData(nucServer);
     if(serversMessage == "G") { // everything ENABLED
-      nucStatus = 0;
+      nucState = GO;
     }
     else if(serversMessage = "H") { // everything DISABLED
-      nucStatus = 1;
+      nucState = STOP;
     }
 //    else if(serversMessage = "??????CHANGE") { // LIMITED
-//      nucStatus = 2;
+//      nucState = 2;
 //    }
-    receivedAcknowledged = 0;
+    receivedAcknowledged = FALSE;
   }
 }
 
@@ -177,13 +183,13 @@ void loop() {
 
   oldState = currentState;
   if(steeringIn && driveIn) {
-    currentState = 0; // everything Enabled
+    currentState = GO; // everything Enabled
     stateMsg = "E";
   } else if(!driveIn) { // includes steering enabled and disabled
-    currentState = 1;  // everything Disabled
+    currentState = STOP;  // everything Disabled
     stateMsg = "D";
   } else {
-    currentState = 2; // steering enabled, drive disabled (Limited)
+    currentState = TESTING; // steering enabled, drive disabled (Limited)
     stateMsg = "L";
   } 
   
