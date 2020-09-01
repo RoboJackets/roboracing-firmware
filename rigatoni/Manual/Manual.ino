@@ -76,7 +76,7 @@ void loop() {
 }
 
 void readEthernet(){ 
-  EthernetClient client = server.available();    // if there is a new message form client create client object, otherwise new client object null
+  EthernetClient client = server.available();    // if there is a new message form client create client object, otherwise new client object, if evaluated, is false
   if (client) {
     String data = RJNet::readData(client);  // if i get string from RJNet buffer ($speed_value;)
     client.remoteIP()
