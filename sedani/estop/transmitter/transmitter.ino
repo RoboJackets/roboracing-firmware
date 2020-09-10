@@ -27,6 +27,9 @@
 #include <RFM69registers.h>
 #include <SPI.h>           //included with Arduino IDE install (www.arduino.cc)
 
+#define TRUE 1;
+#define FALSE 0;
+
 //*********************************************************************************************
 //************ IMPORTANT SETTINGS - YOU MUST CHANGE/CONFIGURE TO FIT YOUR HARDWARE ************
 //*********************************************************************************************
@@ -181,8 +184,10 @@ void loop() {
     
     if((millis()/497) % 2 == 0) {
         LED4_ON();
+        go = TRUE;
     }
     else {
+        go = FALSE;
         LED4_OFF();
     }
     

@@ -98,6 +98,9 @@ RFM69 radio(RF69_SPI_CS, 3);
 
 #define RADIO_RESET A5 //Not needed for UNO, but doesn't hurt anything
 
+#define DRIVE_ENABLE 12
+#define STEERING_ENABLE 6
+
 
 
 void resetRadio();
@@ -111,6 +114,11 @@ void setup() {
     LED4_SETUP();
     LED3_OFF();
     LED4_OFF();
+    
+    pinMode(DRIVE_ENABLE, OUTPUT);
+    pinMode(STEERING_ENABLE, OUTPUT);
+    digitalWrite(DRIVE_ENABLE, LOW);
+    digitalWrite(STEERING_ENABLE, LOW);
     
     pinMode(RADIO_RESET, OUTPUT);
     resetRadio();
@@ -216,6 +224,14 @@ void loop() {
     }
     
     //Write the signal out to the pins
+    if(go){
+        digitalWrite(DRIVE_ENABLE, HIGH);
+        digitalWrite(STEERING_ENABLE, HIGH);
+    }
+    else{
+        digitalWrite(DRIVE_ENABLE, LOW);
+        digitalWrite(STEERING_ENABLE, LOW);
+    }
     
     //Debug LEDs
     go ? LED4_ON() : LED4_OFF();
