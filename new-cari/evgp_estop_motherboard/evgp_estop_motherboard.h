@@ -14,5 +14,7 @@
 #define STACK_Y A0 //B
 #define STACK_R A2 //W
 
-#define INT 7 
-//#define LED TXLED 
+#define INT 7
+#define ETH_RST 13
+
+#define LED1 4

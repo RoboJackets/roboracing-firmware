@@ -89,8 +89,16 @@ void sendStateToClient() {
                 break;
             }
         }
-        else Serial.print("Empty message recieved.");
+        else Serial.println("Empty message recieved.");
     }
+}
+
+void resetEthernet(void){
+    //Resets the Ethernet shield
+    digitalWrite(ETH_RST, LOW);
+    delay(1);
+    digitalWrite(ETH_RST, HIGH);
+    delay(501);
 }
 
 
@@ -108,27 +116,31 @@ void setup() {
     pinMode(STACK_G, OUTPUT);
     pinMode(STACK_Y, OUTPUT);
     pinMode(STACK_R, OUTPUT);
-    //  pinMode(LED, OUTPUT);
+    pinMode(LED1, OUTPUT);
+    pinMode(ETH_RST, OUTPUT);
     digitalWrite(DRIVE_EN, LOW);  // Initially start E-stopped
     digitalWrite(BRAKE_EN, LOW);  //
     digitalWrite(STACK_G, HIGH); // change these light settings
     digitalWrite(STACK_Y, HIGH);
     digitalWrite(STACK_R, HIGH); 
-    //  TXLED0;
+    
+    Serial.begin(115200);
 
     // ETHERNET STUFF
-    Serial.begin(115200);
+    resetEthernet();
     // In case your RJ board wires the chip in an odd config,
     // otherwise, leave commented out
     // You can use Ethernet.init(pin) to configure the CS pin
-    Ethernet.init(10);  // Most Arduino shields  CHANGE?
+    Ethernet.init(11);  // Most Arduino shields  CHANGE?
     Ethernet.begin(mac, ip);
     while(Ethernet.hardwareStatus() == EthernetNoHardware) {
         Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
-        delay(100);
+        digitalWrite(LED1, !digitalRead(LED1));
+        delay(500);
     }
     while(Ethernet.linkStatus() == LinkOFF) {
         Serial.println("Ethernet cable is not connected.");
+        digitalWrite(LED1, !digitalRead(LED1));
         delay(100);
     }
     server.begin();
@@ -155,7 +167,9 @@ void loop() {
     currentState = STOP;  // everything Disabled
   } else {
     currentState = TESTING; // steering enabled, drive disabled (Limited)
-  } 
+  }
+  
+  digitalWrite(LED1, (millis()/1000)%2);
   
   executeStateMachine();
   sendStateToClient();
