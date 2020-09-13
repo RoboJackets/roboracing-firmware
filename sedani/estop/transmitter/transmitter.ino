@@ -27,9 +27,6 @@
 #include <RFM69registers.h>
 #include <SPI.h>           //included with Arduino IDE install (www.arduino.cc)
 
-#define TRUE 1;
-#define FALSE 0;
-
 //*********************************************************************************************
 //************ IMPORTANT SETTINGS - YOU MUST CHANGE/CONFIGURE TO FIT YOUR HARDWARE ************
 //*********************************************************************************************
@@ -53,9 +50,12 @@
 
 //MAKE SURE TO KEEP THESE CODES THE SAME AS RECIEVER
 
-const static uint8_t eStopCode = 98;
-const static uint8_t goCode = 97;
+const static uint8_t eStopCode = 's';
+const static uint8_t limitedCode = 'l';
+const static uint8_t goCode = 'g';
 const static byte expectedMessageLength = 1;
+
+uint8_t state = eStopCode;
 
 //Payload is the code (go or stop) to send with the radio.
 const static byte payloadLength = 1;
@@ -144,15 +144,17 @@ void setup() {
 }
 
 bool lastSendSuccessful = false;
-bool go = false;
 unsigned long startSendingTime = 0;
 
 void loop() {
     int delayTime = 0;
     
     //Create the payload
-    if (go){  //Copy goCode into payload
+    if (state == goCode){  //Copy goCode into payload
         payload[0] = goCode;
+    }
+    else if (state == limitedCode){
+        payload[0] = limitedCode;
     }
     else{  //E_STOPPED: copy the e-stop code into payload
         payload[0] = eStopCode;
@@ -182,12 +184,16 @@ void loop() {
     }
     
     
-    if((millis()/497) % 2 == 0) {
+    if((millis()/497) % 3 == 0) {
         LED4_ON();
-        go = TRUE;
+        state = goCode;
+    }
+    else if((millis()/497) % 3 == 1) {
+        LED4_ON();
+        state = limitedCode;
     }
     else {
-        go = FALSE;
+        state = eStopCode;
         LED4_OFF();
     }
     

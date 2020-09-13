@@ -55,8 +55,10 @@
 /*
 MAKE SURE TO KEEP THESE CODES THE SAME AS RECIEVER
 */
-const static uint8_t eStopCode = 98;
-const static uint8_t goCode = 97;
+const static uint8_t dieCode = 'd';
+const static uint8_t eStopCode = 's';
+const static uint8_t limitedCode = 'l';
+const static uint8_t goCode = 'g';
 const static byte expectedMessageLength = 1;
 
 #define SERIAL_BAUD   115200
@@ -149,8 +151,8 @@ bool messageValid = false;
 //Record if we currently have a connection
 bool connectionEstablished = false;
 
-//Should the car go or not?
-bool go = false;
+//Car's current state
+uint8_t state = eStopCode;
 
 const static int MS_PER_PRINT = 1000;  //If we lost signal, print "LOST SIGNAL" every this many ms.
 unsigned long lastPrintTime = 0;
@@ -183,11 +185,15 @@ void loop() {
         //If message wrong length, fail immediately
         if (expectedMessageLength == messageLength){
             if(radio.DATA[0] == goCode){
-                go = true;
+                state = goCode;
                 messageValid = true;
             }
             else if (radio.DATA[0] == eStopCode){
-                go = false;
+                state = eStopCode;
+                messageValid = true;
+            }
+            else if (radio.DATA[0] == limitedCode){
+                state = limitedCode;
                 messageValid = true;
             }
             else{
@@ -220,21 +226,28 @@ void loop() {
             Serial.println("LOST SIGNAL");
         }
         connectionEstablished = false;
-        go = false;
+        state = eStopCode;
     }
     
     //Write the signal out to the pins
-    if(go){
+    if(state == goCode){
+        //GO!!!!!
         digitalWrite(DRIVE_ENABLE, HIGH);
         digitalWrite(STEERING_ENABLE, HIGH);
     }
+    else if(state = limitedCode){
+        //Limited operations
+        digitalWrite(DRIVE_ENABLE, LOW);
+        digitalWrite(STEERING_ENABLE, HIGH);
+    }
     else{
+        //STOP
         digitalWrite(DRIVE_ENABLE, LOW);
         digitalWrite(STEERING_ENABLE, LOW);
     }
     
     //Debug LEDs
-    go ? LED4_ON() : LED4_OFF();
+    (state == goCode) ? LED4_ON() : LED4_OFF();
     connectionEstablished ? LED3_ON() : LED3_OFF();
     
 }
