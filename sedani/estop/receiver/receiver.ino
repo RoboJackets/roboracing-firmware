@@ -24,6 +24,7 @@
 #include <RFM69_ATC.h>     //get it here: https://www.github.com/lowpowerlab/rfm69
 #include <RFM69registers.h>
 #include <SPI.h>           //included with Arduino IDE install (www.arduino.cc)
+#include <avr/wdt.h>
 
 //*********************************************************************************************
 //************ IMPORTANT SETTINGS - YOU MUST CHANGE/CONFIGURE TO FIT YOUR HARDWARE *************
@@ -137,6 +138,8 @@ void setup() {
     radio.enableAutoPower(ATC_RSSI);
     Serial.println("RFM69_ATC Enabled (Auto Transmission Control)");
 #endif
+    wdt_reset();
+    wdt_enable(WDTO_500MS);
 }
 
 //Total number of packets recieved
@@ -158,6 +161,7 @@ const static int MS_PER_PRINT = 1000;  //If we lost signal, print "LOST SIGNAL" 
 unsigned long lastPrintTime = 0;
 
 void loop() {
+    wdt_reset();
 
     if (radio.receiveDone()){
         int messageLength = radio.DATALEN;

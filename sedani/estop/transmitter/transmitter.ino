@@ -26,6 +26,7 @@
 #include <RFM69_ATC.h>     //get it here: https://www.github.com/lowpowerlab/rfm69
 #include <RFM69registers.h>
 #include <SPI.h>           //included with Arduino IDE install (www.arduino.cc)
+#include <avr/wdt.h>
 
 //*********************************************************************************************
 //************ IMPORTANT SETTINGS - YOU MUST CHANGE/CONFIGURE TO FIT YOUR HARDWARE ************
@@ -141,12 +142,15 @@ void setup() {
     radio.enableAutoPower(ATC_RSSI);
     Serial.println("RFM69_ATC Enabled (Auto Transmission Control)\n");
 #endif
+    wdt_reset();
+    wdt_enable(WDTO_500MS);
 }
 
 bool lastSendSuccessful = false;
 unsigned long startSendingTime = 0;
 
 void loop() {
+    wdt_reset();
     int delayTime = 0;
     
     //Create the payload
