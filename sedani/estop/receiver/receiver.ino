@@ -103,6 +103,7 @@ RFM69 radio(RF69_SPI_CS, 3);
 
 #define DRIVE_ENABLE 12
 #define STEERING_ENABLE 6
+#define DIE_PIN 1  //CHANGE THIS
 
 
 
@@ -120,8 +121,10 @@ void setup() {
     
     pinMode(DRIVE_ENABLE, OUTPUT);
     pinMode(STEERING_ENABLE, OUTPUT);
+    pinMode(DIE_PIN, OUTPUT);
     digitalWrite(DRIVE_ENABLE, LOW);
     digitalWrite(STEERING_ENABLE, LOW);
+    digitalWrite(DIE_PIN, LOW);
     
     pinMode(RADIO_RESET, OUTPUT);
     resetRadio();
@@ -200,6 +203,10 @@ void loop() {
                 state = limitedCode;
                 messageValid = true;
             }
+            else if (radio.DATA[0] == dieCode){
+                state = dieCode;
+                messageValid = true;
+            }
             else{
                 Serial.println("Invalid message received. ");
             }
@@ -234,7 +241,18 @@ void loop() {
     }
     
     //Write the signal out to the pins
-    if(state == goCode){
+    if(state == dieCode){
+        //Die permanently
+        digitalWrite(DRIVE_ENABLE, LOW);
+        digitalWrite(STEERING_ENABLE, LOW);
+        digitalWrite(DIE_PIN, HIGH);
+        
+        while(true){
+            wdt_reset();
+            Serial.println("DYING");
+        }
+    }
+    else if(state == goCode){
         //GO!!!!!
         digitalWrite(DRIVE_ENABLE, HIGH);
         digitalWrite(STEERING_ENABLE, HIGH);

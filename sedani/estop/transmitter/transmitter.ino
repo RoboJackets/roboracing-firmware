@@ -51,6 +51,7 @@
 
 //MAKE SURE TO KEEP THESE CODES THE SAME AS RECIEVER
 
+const static uint8_t dieCode = 'd';
 const static uint8_t eStopCode = 's';
 const static uint8_t limitedCode = 'l';
 const static uint8_t goCode = 'g';
@@ -154,7 +155,10 @@ void loop() {
     int delayTime = 0;
     
     //Create the payload
-    if (state == goCode){  //Copy goCode into payload
+    if (state == dieCode){  //Copy dieCode into payload
+         payload[0] = dieCode;
+    }
+    else if (state == goCode){  //Copy goCode into payload
         payload[0] = goCode;
     }
     else if (state == limitedCode){
