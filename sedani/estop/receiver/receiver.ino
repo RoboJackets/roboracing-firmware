@@ -109,6 +109,7 @@ RFM69 radio(RF69_SPI_CS, 3);
 
 void resetRadio();
 bool compareData(uint8_t, uint8_t, unsigned int);
+void diePermanently();
 
 void setup() {
     delay(1);
@@ -243,14 +244,7 @@ void loop() {
     //Write the signal out to the pins
     if(state == dieCode){
         //Die permanently
-        digitalWrite(DRIVE_ENABLE, LOW);
-        digitalWrite(STEERING_ENABLE, LOW);
-        digitalWrite(DIE_PIN, HIGH);
-        
-        while(true){
-            wdt_reset();
-            Serial.println("DYING");
-        }
+        diePermanently();
     }
     else if(state == goCode){
         //GO!!!!!
@@ -295,4 +289,19 @@ void resetRadio(){
     delayMicroseconds(150);
     digitalWrite(RADIO_RESET, LOW);
     delayMicroseconds(5100);
+}
+
+void diePermanently(){
+    //Kill the robot until a power cycle
+    //Die permanently
+    
+    while(true){
+        digitalWrite(DRIVE_ENABLE, LOW);
+        digitalWrite(STEERING_ENABLE, LOW);
+        digitalWrite(DIE_PIN, HIGH);
+        
+        wdt_reset();
+        Serial.println("DYING");
+        delay(100);
+    }
 }
