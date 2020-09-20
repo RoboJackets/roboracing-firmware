@@ -1,37 +1,21 @@
-const int RXLED=17;
+#define ENCODER_A_PIN 2	    // ATMEGA32u4 pin PD1, Leonardo pin D2
+#define ENCODER_B_PIN 0	    // ATMEGA32u4 pin PD2, Leonardo pin D0
 
+#define ETH_RST_PIN 1	      // ATMEGA32u4 pin PD3, Leonardo pin D1
+#define ETH_CS_PIN 8        // ATMEGA32u4 pin PB4, Leonardo pin IO8 *JUMPER WIRE TO THIS*
+#define ETH_INT_PIN 3       // ATMEGA32u4 pin PD0, Leonardo pin D3
 
-const int INT_ETH=3;	// atmega pin 18, digital pin 3/SCL
+#define REVERSE_LED_PIN 6   // ATMEGA32u4 pin PD7, Leonardo pin D6
 
-const int ENCODER_A=2;	// atmega pin 19, digital pin 2/SDA
-const int ENCODER_B=0;	// atmega pin 20, digital pin 0/RX
+#define MOTOR_CNTRL_PIN 9	  // ATMEGA32u4 pin PB5, Leonardo pin IO9
+#define REVERSE_OUT_PIN 19  // ATMEGA32u4 pin PF6, Leonardo pin A1
+#define FORWARD_OUT_PIN 20  // ATMEGA32u4 pin PF5, Leonardo pin A2
 
-const int ETH_RST=21;	// atmega pin 21, digital pin 1/TX
+#define BRAKE_EN_PIN 5	    // ATMEGA32u4 pin PC6, Leonardo pin D5
+#define BRAKE_PWM_PIN 13	  // ATMEGA32u4 pin PC7, Leonardo pin IO13
 
-const int REVERSE_LED=6;	// atmega pin 27, digital pin 6/PD7
-const int USER_DEFINED_LED=8;	// atmega pin 28, digital pin 8/PB4
+#define CURR_DATA_PIN 23	  // ATMEGA32u4 pin PF0, Leonardo pin A5
 
-const int MOTOR_CONTROL=9;	// atmega pin 29, digital pin 9/PB5
-
-const int BRAKE_EN=5;	// atmega pin 31, digital pin 5/PC6
-const int BRAKE_PWM=13;	// atmega pin 32, digital pin 13/PC7
-
-const int REVERSE_OUT=A1;	// atmega pin 37, analog input 1/PF6
-const int FORWARD_OUT=A2;	// atmega pin 38, analog input 2/PF5
-
-const int CURR_DATA=A5;	// atmega pin 41, analog input 5/PF0
-
-void turnRXLEDOn(boolean on){
-  if (on) digitalWrite(REVERSE_LED, HIGH);
-  else digitalWrite(REVERSE_LED, LOW);
-}
-
-void turnReverseLEDOn(boolean on){
-  if (on) digitalWrite(REVERSE_LED, HIGH);
-  else digitalWrite(REVERSE_LED, LOW);
-}
-
-void turnUSERLEDOn(boolean on){
-  if (on) digitalWrite(USER_DEFINED_LED, HIGH);
-  else digitalWrite(USER_DEFINED_LED, LOW);
-}
+// DOES NOT CURRENTLY WORK ON board v1.0 
+// #define USER_LED_PIN   // ATMEGA32u4 pin PD5, Leonardo pin TXLED
+//
