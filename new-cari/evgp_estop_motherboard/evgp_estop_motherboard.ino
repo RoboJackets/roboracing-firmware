@@ -8,12 +8,6 @@ A simplified sketch for the estop motherboard. It does not attempt to display an
 except the state from the radio board. It provides the current state to anything that requests it via ethernet.
 */
 
-#define TRUE 1
-#define FALSE 0
-
-#define GO 0
-#define STOP 1
-#define TESTING 2
 const static String stopMsg = "D";
 const static String testingMsg = "L";
 const static String goMsg = "G";
@@ -31,33 +25,57 @@ IPAddress ip(192, 168, 0, 3); //set the IP to find us at
 EthernetServer server(PORT);
 
 
-void stackLights(byte G, byte Y, byte R) {
-    digitalWrite(STACK_G, G);
-    digitalWrite(STACK_Y, Y);
-    digitalWrite(STACK_R, R);
+void stackLights(byte green, byte yellow, byte red) {
+    /*
+    Sets the stack light to the specified state. Each byte is ON, OFF, or BLINK (predefined constants)
+    We handle blinking by checking to see what time it is every time this function is called
+    So if this function isn't being called, blinking lights won't blink
+    */
+    bool blink_status = (millis()/BLINK_PERIOD_MS) % 2;  //If blinking lights should be on or off right now
+    
+    if(green == BLINK){
+        digitalWrite(STACK_G, blink_status);
+    }
+    else{
+        digitalWrite(STACK_G, green == ON);
+    }
+    
+    if(yellow == BLINK){
+        digitalWrite(STACK_Y, blink_status);
+    }
+    else{
+        digitalWrite(STACK_Y, yellow == ON);
+    }
+    
+    if(red == BLINK){
+        digitalWrite(STACK_R, blink_status);
+    }
+    else{
+        digitalWrite(STACK_R, red == ON);
+    }
 }
 
 
-void steerDriveBrake(byte steer, byte drive, byte brake) {
+void steerDriveBrake(byte steer, byte drive, byte brake_release) {
     digitalWrite(STEERING_EN, steer);
     digitalWrite(DRIVE_EN, drive);
-    digitalWrite(BRAKE_EN, brake);
+    digitalWrite(BRAKE_EN, brake_release);
 }
 
 
-void executeStateMachine() {  // CHANGE, STATUS NEEDS TO GO THROUGH NUC FIRST
+void writeOutCurrentState() {  // CHANGE, STATUS NEEDS TO GO THROUGH NUC FIRST
     switch(currentState) {
     case GO:    // everything enabled
         steerDriveBrake(HIGH, HIGH, HIGH);
-        stackLights(HIGH, LOW, LOW);  
+        stackLights(ON, OFF, OFF);  
         break; 
     case STOP:    // everything disabled
         steerDriveBrake(LOW, LOW, LOW);
-        stackLights(LOW, LOW, HIGH);
+        stackLights(OFF, OFF, ON);
         break;
     case TESTING:    // steering enabled, drive disabled
         steerDriveBrake(HIGH, LOW, HIGH);
-        stackLights(LOW, HIGH, LOW);
+        stackLights(OFF, ON, OFF);
         break;
     }
 }
@@ -68,13 +86,13 @@ void sendStateToClient() {
     if (client) {
         String data = RJNet::readData(client);
         if (data.length() != 0) {\
-            /*
+            
             Serial.print(data); //show us what we read 
             Serial.print(" From client ");
             Serial.print(client.remoteIP());
             Serial.print(":");
             Serial.println(client.remotePort());
-            */
+            
             
             //Doesn't matter what they send us, we'll just send the state
             switch(currentState) {
@@ -131,7 +149,7 @@ void setup() {
     // In case your RJ board wires the chip in an odd config,
     // otherwise, leave commented out
     // You can use Ethernet.init(pin) to configure the CS pin
-    Ethernet.init(11);  // Most Arduino shields  CHANGE?
+    Ethernet.init(11);
     Ethernet.begin(mac, ip);
     while(Ethernet.hardwareStatus() == EthernetNoHardware) {
         Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
@@ -171,6 +189,6 @@ void loop() {
   
   digitalWrite(LED1, (millis()/1000)%2);
   
-  executeStateMachine();
+  writeOutCurrentState();
   sendStateToClient();
 }

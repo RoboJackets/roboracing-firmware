@@ -18,3 +18,15 @@
 #define ETH_RST 13
 
 #define LED1 4
+
+//States for state machine
+#define GO 0
+#define STOP 1
+#define TESTING 2
+
+//Easy names for light states
+#define OFF 0
+#define ON 1
+#define BLINK 2
+
+#define BLINK_PERIOD_MS 500
