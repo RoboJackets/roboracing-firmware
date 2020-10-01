@@ -51,14 +51,17 @@ unsigned long prevMillis = 0;
 ////
 // MOTOR
 ////
-
+const float Kv = 75.7576; // RPM/V
+const float inverseGearRatio = 1/2.909; // 64 / 22
+const float wheelCircumference = WHEEL_DIA*PI_M;
 // PID Speed Control
 float integral = 0.0;
 float derivative = 0.0;
 float prevError = 0.0;
-float kP = 50.0;
-float kI = 0.0;
-float kD = 0.0;
+// 2 second response time, Transient Behaviour of 0.9
+const float kP = 220.4;
+const float kI = 22.5;
+const float kD = 22.5;
 
 // Control Limits
 const float maxVelocity = 10.0; // maximum velocity in 
@@ -192,14 +195,18 @@ void motorTest(float percentage) { //open loop test
 }
 
 byte MotorPwmFromVoltage(double voltage){
- return (byte)((0.556 - sqrt(0.556*0.556 - 0.00512*(62.1-voltage)))/0.00256); //see "rigatoni PWM to motor power" in drive for equation
+  return (byte)((0.556 - sqrt(0.556*0.556 - 0.00512*(62.1-voltage)))/0.00256); //see "rigatoni PWM to motor power" in drive for equation
 }
 
-int MotorPwmFromVelocity(float velocity){
-  // TODO Make lookup table for velocity -> voltage
-  
+float LinearVelocityFromVoltage(float voltage)
+{
+  return ((Kv*voltage)/60.0)*inverseGearRatio*wheelCircumference;
+}
 
-} 
+float VoltageFromLinearVelocity(float velocity)
+{
+  return velocity*(60.0/(inverseGearRatio*wheelCircumference*Kv));
+}
 
 int MotorPwmFromVelocityPID(float velocity) { 
     if (velocity <= 0) {
@@ -217,8 +224,9 @@ int MotorPwmFromVelocityPID(float velocity) {
 
         derivative = (error - prevError) / dt; //difference derivative
 
-        int writePwmSigned = kP * error + kI * integral + kD * derivative + MotorPwmFromVelocity(velocity);
-        int writePwm = constrain(writePwmSigned, maxSpeedPwm, minSpeedPwm); //control limits *NOTE PWM is reverse (255 is min speed, 0 is max speed)
+        float velocityOutput = kP * error + kI * integral + kD * derivative;
+        int pwmCalculatedOutput = MotorPwmFromVoltage(VoltageFromLinearVelocity(velocityOutput)); 
+        int writePwm = constrain(pwmCalculatedOutput, maxSpeedPwm, minSpeedPwm); //control limits *NOTE PWM is reverse (255 is min speed, 0 is max speed)
 
         prevError = error;
         return writePwm;
