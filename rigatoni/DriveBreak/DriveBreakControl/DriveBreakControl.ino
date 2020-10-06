@@ -15,6 +15,9 @@
 #define REPLY_TIMEOUT_MS 400 //We have to receive a reply from Estop and Brake within this many MS of our message or we are timed out. NOT TCP timeout. Have to 
 #define MIN_MESSAGE_SPACING 100  //Send messages to Brake and request state from e-stop at 10 Hz
 
+/*******FUNCTION HEADERS*****/
+byte MotorPwmFromVoltage(double);
+
 /****************ETHERNET****************/
 // See https://docs.google.com/document/d/10klaJG9QIRAsYD0eMPjk0ImYSaIPZpM_lFxHCxdVRNs/edit#
 ////
@@ -76,8 +79,9 @@ Forward state if commanded velocity >=0. Backward if velocity < 0.
 // State machine possible states
 enum ChassisState {
     STATE_DISABLED = 0,
-    STATE_FORWARD = 1,
-    STATE_REVERSE = 2
+    STATE_TIMEOUT = 1,
+    STATE_FORWARD = 2,
+    STATE_REVERSE = 3
 }
 currentState = STATE_DISABLED;
 bool motorEnabled = false;
@@ -110,10 +114,13 @@ const float kI = 22.5;
 const float kD = 22.5;
 
 // Control Limits
-const float maxVelocity = 10.0; // maximum velocity in 
-const int maxSpeedPwm = 127; // 50% PWM, 23% Voltage
-const int minSpeedPwm = 255; // 100% PWM, 0% Voltage
-const float maxVoltage = 19.4; // 
+const float maxVelocity = 10.0; // maximum velocity in m/s
+const float maxVoltage = 19.4; //Maximum allowable voltage to motors
+
+const byte maxSpeedPwm = MotorPwmFromVoltage(maxVoltage); // 50% PWM, 23% Voltage
+const byte zeroSpeedPwm = 255; // 100% PWM, 0% Voltage
+
+const byte maxBrakingForce = 255;
 
 float desiredVelocity = 0;
 byte brakingForce = 0;
@@ -311,7 +318,7 @@ void sendToBrakeEstop(void){
     brakeConnected = brakeBoard.connected();
     if(!brakeConnected){
         //Lost TCP connection with the brake board
-        brakeBoard.connect();
+        estopBoard.connect(estopIP, PORT);
         Serial.println("Lost connection with brakes");
     }
     else{
@@ -324,7 +331,7 @@ void sendToBrakeEstop(void){
     estopConnected = estopBoard.connected();
     if(!estopConnected){
         //Lost TCP connection with the estop board
-        brakeBoard.connect();
+        brakeBoard.connect(brakeIP, PORT);
         Serial.println("Lost connection with estop");
     }
     else{
@@ -349,10 +356,13 @@ void resetEthernet(void){
 
 void executeStateMachine(){ 
     //Check what state we are in at the moment.
-    //We are disabled if the motor is disabled, or the 
+    //We are disabled if the motor is disabled, or any of our clients has timed out 
     unsigned int currTime = millis();
-    if(!motorEnabled || !brakeConnected || currTime > lastBrakeReply + REPLY_TIMEOUT_MS || !estopConnected || currTime > lastEstopReply + REPLY_TIMEOUT_MS){
+    if(!motorEnabled){
         currentState = STATE_DISABLED;
+    }
+    else if((!brakeConnected || currTime > lastBrakeReply + REPLY_TIMEOUT_MS) || (!estopConnected || currTime > lastEstopReply + REPLY_TIMEOUT_MS) || currTime > lastManualCommand + REPLY_TIMEOUT_MS){
+        currentState = STATE_TIMEOUT;
     }
     else{
         if(desiredVelocity < 0){
@@ -368,6 +378,10 @@ void executeStateMachine(){
 			runStateDisabled();
 			break;
 		}
+        case STATE_TIMEOUT:{
+			runStateTimeout();
+			break;
+		}
 		case STATE_FORWARD:{
 			runStateForward();
 			break;
@@ -377,6 +391,43 @@ void executeStateMachine(){
 			break;
 		}
 	}
+}
+
+void runStateDisabled(){
+    /*
+    Motor off, brakes engaged. Do't care what reversing contactor is doing.
+    */
+    writeMotorOff();
+    brakingForce = maxBrakingForce;
+}
+void runStateTimeout(){
+    /*
+    Motor off, brakes disengaged. Don't care what reversing contactor is doing.
+    */
+    writeMotorOff();
+    brakingForce = 0;
+}
+
+void runStateForward(){
+    /*
+    Going forward in normal operation.
+    */
+    writeReversingContactorForward(true);
+    
+    //TODO: controls math here
+    motorTest(0.5);
+    brakingForce = 0;
+}
+
+void runStateReverse(){
+    /*
+    Going reversed in normal operation.
+    */
+    writeReversingContactorForward(false);
+    
+    //TODO: controls math here
+    motorTest(0.5);
+    brakingForce = 0;
 }
 
 
@@ -412,13 +463,19 @@ float CalcCurrentSpeed() {
 void motorTest(float percentage) { //open loop test
   if(percentage > 0 && percentage < 1.0)
   {
-    byte writePercent = constrain(MotorPwmFromVoltage(maxVoltage*percentage),maxSpeedPwm,minSpeedPwm);
+    byte writePercent = constrain(MotorPwmFromVoltage(maxVoltage*percentage),maxSpeedPwm,zeroSpeedPwm);
     analogWrite(MOTOR_CNTRL_PIN, writePercent);
   }
   else
   {
-    analogWrite(MOTOR_CNTRL_PIN, minSpeedPwm);
+    analogWrite(MOTOR_CNTRL_PIN, zeroSpeedPwm);
   }
+}
+
+//Write voltage to motor
+void writeMotorOff(void){
+    //Disables the motor by writing correct voltage
+    analogWrite(MOTOR_CNTRL_PIN, zeroSpeedPwm);
 }
 
 byte MotorPwmFromVoltage(double voltage){
@@ -443,7 +500,7 @@ int MotorPwmFromVelocityPID(float velocity) {
 
         // protect against runaway integral accumulation
         float trapezoidIntegral = (prevError + error) * 0.5 * dt;
-        if (abs(kI * integral) < maxSpeedPwm - minSpeedPwm || trapezoidIntegral < 0) {
+        if (abs(kI * integral) < maxSpeedPwm - zeroSpeedPwm || trapezoidIntegral < 0) {
             integral += trapezoidIntegral;
         }
 
@@ -451,7 +508,7 @@ int MotorPwmFromVelocityPID(float velocity) {
 
         float velocityOutput = kP * error + kI * integral + kD * derivative;
         int pwmCalculatedOutput = MotorPwmFromVoltage(VoltageFromLinearVelocity(velocityOutput)); 
-        int writePwm = constrain(pwmCalculatedOutput, maxSpeedPwm, minSpeedPwm); //control limits *NOTE PWM is reverse (255 is min speed, 0 is max speed)
+        int writePwm = constrain(pwmCalculatedOutput, maxSpeedPwm, zeroSpeedPwm); //control limits *NOTE PWM is reverse (255 is min speed, 0 is max speed)
 
         prevError = error;
         return writePwm;
