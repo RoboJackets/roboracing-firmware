@@ -1,6 +1,7 @@
 #include "DriveBrake.h"
 #include "RJNet.h"
 #include <Ethernet.h>
+//#include <sstream>
 
 #define NUM_MAGNETS 24
 #define WHEEL_DIA 0.27305 //meters
@@ -9,12 +10,12 @@
 
 #define ETH_NUM_SENDS 2
 #define ETH_RETRANSMISSION_DELAY_MS 50  //Time before TCP tries to resend the packet
+#define ETH_TCP_INITIATION_DELAY 50 //How long we wait before .connected() or .connect() fails.
 
 #define REPLY_TIMEOUT_MS 400 //We have to receive a reply from Estop and Brake within this many MS of our message or we are timed out. NOT TCP timeout. Have to 
 #define MIN_MESSAGE_SPACING 100  //Send messages to Brake and request state from e-stop at 10 Hz
 
-////
-// ETHERNET
+/****************ETHERNET****************/
 // See https://docs.google.com/document/d/10klaJG9QIRAsYD0eMPjk0ImYSaIPZpM_lFxHCxdVRNs/edit#
 ////
 
@@ -30,7 +31,33 @@ const static IPAddress brakeIP(192, 168, 0, 5); //set the IP of the brake
 EthernetClient brakeBoard;  // client 
 
 const static IPAddress estopIP(192, 168, 0, 3); //set the IP of the estop
-EthernetClient estopBoard;  // client 
+EthernetClient estopBoard;  // client
+
+//Manual board, which is not a client:
+const static IPAddress manualIP(192, 168, 0, 6); //set the IP of the estop
+
+/****************Messages from clients****************/
+//Universal acknowledge message
+const static String ackMsg = "R";
+
+//Possible messages from e-stop
+const static String estopStopMsg = "D";
+const static String estopLimitedMsg = "L";
+const static String estopGoMsg = "G";
+
+//Speed request message
+const static String speedRequestMsg = "S?";
+
+//Manual RC speed command header
+const static String manualStringHeader = "v=";
+
+//Timestamps of replies from boards in ms
+unsigned long lastEstopReply = 0;
+unsigned long lastBrakeReply = 0;
+unsigned long lastManualCommand = 0;
+//Timestamps of our last messages to boards in ms
+unsigned long estopRequestSent = 0;
+unsigned long brakeCommandSent = 0;
 
 /*
 State Machine
@@ -47,9 +74,9 @@ enum ChassisState {
     STATE_DISABLED = 0,
     STATE_FORWARD = 1,
     STATE_REVERSE = 2
-} 
+}
 currentState = STATE_DISABLED;
-
+bool motorEnabled = false;
 
 
 ////
@@ -85,6 +112,8 @@ const float maxVoltage = 19.4; //
 float desiredSpeed = 0;  
 float currentSpeed = 0;
 
+float motorCurrent = 0;
+
 
 void setup(){
     // Ethernet Pins
@@ -103,20 +132,19 @@ void setup(){
     pinMode(FORWARD_OUT_PIN, OUTPUT);
     pinMode(REVERSE_OUT_PIN, OUTPUT);
 
-    // TODO BRAKE NO LONGER SERVO, CHANGING INTERFACE
-    // Brake Pins
-    // pinMode(BRAKE_EN, OUTPUT);
-	// pinMode(BRAKE_PWM, OUTPUT);
-
     // Current Sensing Pins
 	pinMode(CURR_DATA_PIN, INPUT);
-
-
-    resetEthernet();
+    
+    Serial.begin(115200);
 
 	//********** Ethernet Initialization *************//
+    resetEthernet();
+    
 	Ethernet.init(ETH_CS_PIN); 	// CS pin from eth header
 	Ethernet.begin(driveMAC, driveIP); 	// initialize the ethernet device
+    Ethernet.setRetransmissionCount(ETH_NUM_SENDS); //Set number resends before failure
+    Ethernet.setRetransmissionTimeout(ETH_RETRANSMISSION_DELAY_MS);  //Set timeout delay before failure
+    
 	while (Ethernet.hardwareStatus() == EthernetNoHardware) {
 		Serial.println("Ethernet shield was not found.");
 		delay(50);
@@ -126,18 +154,36 @@ void setup(){
 		delay(50);	 	// TURN down delay to check/startup faster
 	}
     
-	server.begin();	// launches server
+    server.begin();	// launches OUR server
+    Serial.println("Server started");
+    
+    //Make sure we are connected to clients before proceeding.
+    estopBoard.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);
+    brakeBoard.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);
+    
+    byte estopConnected = estopBoard.connect(estopIP, PORT);
+    byte brakeConnected = brakeBoard.connect(brakeIP, PORT);
+    
+    while(!estopConnected || !brakeConnected){
+        if(!estopConnected){
+            Serial.println("Estop not connected");
+            estopConnected = estopBoard.connect(estopIP, PORT);
+        }
+        if(!brakeConnected){
+            Serial.println("Brake not connected");
+            estopConnected = brakeBoard.connect(brakeIP, PORT);
+        }
+    }
 
-  Serial.begin(115200);
-  attachInterrupt(digitalPinToInterrupt(ENCODER_A_PIN), HallEncoderInterrupt, FALLING);
+    attachInterrupt(digitalPinToInterrupt(ENCODER_A_PIN), HallEncoderInterrupt, FALLING);
 }
 
 
 void loop() {
     loopStartTime = millis();
-	// Ethernet stuff
-	
-	getSpeedMessage();
+    
+	// Read new messages from WizNet and make necessary replies
+    readAllNewMessages();
 	
     currentSpeed = CalcCurrentSpeed();
     Serial.println(currentSpeed);
@@ -150,25 +196,85 @@ void loop() {
 // ETHERNET FUNCTIONS
 ////
 
-void getSpeedMessage()
-{
-  EthernetClient client = server.available();    // if there is a new message form client create client object, otherwise new client object null
-  if (client) {
-    String data = RJNet::readData(client);  // if i get string from RJNet buffer ($speed_value;)
-    if (data.length() != 0) {     // if data exists (?)
-      // get data from nuc/manual board/E-Stop (?) and do something with it
-      desiredSpeed = data.toFloat();  // convert from string to int potentially
-      // String reply = "$" + String(currentSpeed) + ";";
-    String reply = String(currentSpeed);
-      RJNet::sendData(client, reply);
+bool parseEstopMessage(const String msg){
+    /*
+    Parse a message from the estop board and determine if the drive motor is enabled or disabled.
+    If state is GO, motor enabled; in all other cases, motor is disabled.
+    */
+    return estopGoMsg.equals(msg);
+}
+
+float parseSpeedMessage(const String speedMessage){
+    //takes in message from manual and converts it to a float desired speed.
+    return speedMessage.substring(2).toFloat();
+}
+
+void readAllNewMessages(){
+    /*
+    Reads all messages that have come in since we last checked and deals with them.
+    If it is a request for the current speed, reply with the speed.
+    Else, see if it is Estop telling us the state
+    or Manual telling us the velocity
+    or Brake acknowledging a command
+    */
+    EthernetClient client = server.available();  //if there is a new message form client create client object, otherwise new client object null
+    while(client){
+        String data = RJNet::readData(client);  //RJNet handles getting complete message
+        
+        if(data.length() != 0){  //Got valid data - string will be empty if message not valid
+            if(speedRequestMsg.equals(data)){  //Somebody's asking for our speed
+                //Send back our current speed
+                RJNet::sendData(client, "v=" + String(currentSpeed) + " I=" + String(motorCurrent));
+            }
+            else if(estopIP == client.remoteIP()){
+                //Message from Estop board
+                motorEnabled = parseEstopMessage(data);
+                lastEstopReply = millis();
+            }
+            else if(brakeIP == client.remoteIP()){
+                //Message from brake board, should be acknoweldge
+                if(ackMsg.equals(data)){
+                    lastBrakeReply = millis();
+                }
+                else{
+                    Serial.print("Invalid message from brake: ");
+                    Serial.println(data);
+                }
+            }
+            else if(manualIP == client.remoteIP()){
+                //Message from manual board, should be speed command
+                if(data.length() > 2){
+                    if(manualStringHeader.equals(data.substring(0,2))){
+                        desiredSpeed = parseSpeedMessage(data);
+                        lastManualCommand = millis();
+                        
+                        //Acknowledge receipt of message
+                        RJNet::sendData(client, ackMsg);
+                    }
+                    else{
+                        Serial.print("Invalid message from manual: ");
+                        Serial.println(data);
+                    }
+                }
+                else{
+                    Serial.print("Invalid message from manual: ");
+                    Serial.println(data);
+                }
+            }
+        }
+        else{
+            Serial.print("Empty/invalid message recieved from ");
+            Serial.println(client.remoteIP());
+        }
     }
-  }
 }
 
 void resetEthernet(void){
     //Resets the Ethernet shield
     digitalWrite(ETH_RST_PIN, LOW);
-    delay(500);
+    delay(1);
+    digitalWrite(ETH_RST_PIN, HIGH);
+    delay(501);
 }
 
 
@@ -208,13 +314,11 @@ byte MotorPwmFromVoltage(double voltage){
   return (byte)((0.556 - sqrt(0.556*0.556 - 0.00512*(62.1-voltage)))/0.00256); //see "rigatoni PWM to motor power" in drive for equation
 }
 
-float LinearVelocityFromVoltage(float voltage)
-{
+float LinearVelocityFromVoltage(float voltage){
   return ((Kv*voltage)/60.0)*inverseGearRatio*wheelCircumference;
 }
 
-float VoltageFromLinearVelocity(float velocity)
-{
+float VoltageFromLinearVelocity(float velocity){
   return velocity*(60.0/(inverseGearRatio*wheelCircumference*Kv));
 }
 
@@ -264,48 +368,33 @@ void executeStateMachine(){
 			currentState = STATE_DISABLED;
 			break;
 		}
-		case STATE_TIMEOUT:{
-			runStateTimeout();
-			//transitions
-			currentState = STATE_TIMEOUT;
-			break;
-		}
 		case STATE_FORWARD:{
 			runStateForward();
 			//transitions
 			currentState = STATE_FORWARD;
 			break;
 		}
-		//case STATE_REVERSE:{
-		//	runStateReverse();
-		//	//transitions
-		//	currentState = STATE_REVERSE;
-		//	break;
-		//}
-		//case STATE_BRAKE:{
-		//	runStateBrake();
-		//	//transitions
-		//	currentState = STATE_BRAKE;
-		//	break;
-		//}
+		case STATE_REVERSE:{
+			runStateReverse();
+			//transitions
+			currentState = STATE_REVERSE;
+			break;
+		}
 	}
 }
 
-void runStateDisabled()
-{
+void runStateDisabled(){
   digitalWrite(FORWARD_OUT_PIN, LOW);
   digitalWrite(REVERSE_OUT_PIN, LOW);
     
 }
 
-void runStateTimeout()
-{
+void runStateTimeout(){
   digitalWrite(FORWARD_OUT_PIN, LOW);
   digitalWrite(REVERSE_OUT_PIN, LOW);
 
 }
-void runStateForward()
-{
+void runStateForward(){
   digitalWrite(FORWARD_OUT_PIN, HIGH);
   digitalWrite(REVERSE_OUT_PIN, LOW);
   
