@@ -17,8 +17,8 @@ enum ChassisState {
     STATE_DISABLED = 0,
     STATE_TIMEOUT = 1,
     STATE_FORWARD = 2,
-    STATE_REVERSE = 3,
-    STATE_BRAKE = 4
+    //STATE_REVERSE = 3,
+    //STATE_BRAKE = 4
 } 
 currentState = STATE_DISABLED;
 
@@ -266,23 +266,40 @@ void executeStateMachine(){
 			currentState = STATE_FORWARD;
 			break;
 		}
-		case STATE_REVERSE:{
-			runStateReverse();
-			//transitions
-			currentState = STATE_REVERSE;
-			break;
-		}
-		case STATE_BRAKE:{
-			runStateBrake();
-			//transitions
-			currentState = STATE_BRAKE;
-			break;
-		}
+		//case STATE_REVERSE:{
+		//	runStateReverse();
+		//	//transitions
+		//	currentState = STATE_REVERSE;
+		//	break;
+		//}
+		//case STATE_BRAKE:{
+		//	runStateBrake();
+		//	//transitions
+		//	currentState = STATE_BRAKE;
+		//	break;
+		//}
 	}
 }
 
-void runStateDisabled(){}
-void runStateTimeout(){}
-void runStateForward(){}
-void runStateReverse(){}
-void runStateBrake(){}
+void runStateDisabled()
+{
+  digitalWrite(FORWARD_OUT_PIN, LOW);
+  digitalWrite(REVERSE_OUT_PIN, LOW);
+    
+}
+
+void runStateTimeout()
+{
+  digitalWrite(FORWARD_OUT_PIN, LOW);
+  digitalWrite(REVERSE_OUT_PIN, LOW);
+
+}
+void runStateForward()
+{
+  digitalWrite(FORWARD_OUT_PIN, HIGH);
+  digitalWrite(REVERSE_OUT_PIN, LOW);
+  
+}
+
+//void runStateReverse(){}
+//void runStateBrake(){}
