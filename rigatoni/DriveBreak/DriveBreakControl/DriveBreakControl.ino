@@ -7,35 +7,48 @@
 #define MILLIS_PER_SEC 1000
 #define PI_M 3.14159
 
+#define ETH_NUM_SENDS 2
+#define ETH_RETRANSMISSION_DELAY_MS 50  //Time before TCP tries to resend the packet
+
+#define REPLY_TIMEOUT_MS 400 //We have to receive a reply from Estop and Brake within this many MS of our message or we are timed out. NOT TCP timeout. Have to 
+#define MIN_MESSAGE_SPACING 100  //Send messages to Brake and request state from e-stop at 10 Hz
 
 ////
-// STATE MACHINE
+// ETHERNET
+// See https://docs.google.com/document/d/10klaJG9QIRAsYD0eMPjk0ImYSaIPZpM_lFxHCxdVRNs/edit#
 ////
+
+// Enter a MAC address and IP address for your board below
+const static byte driveMAC[] = {0xDE, 0xAD, 0xBA, 0xEF, 0xFE, 0xEE};
+const static int PORT = 7;  //port RJNet uses
+
+const static IPAddress driveIP(192, 168, 0, 4); //set the IP to find us at
+EthernetServer server(PORT);
+
+// Our two clients: 
+const static IPAddress brakeIP(192, 168, 0, 5); //set the IP of the brake
+EthernetClient brakeBoard;  // client 
+
+const static IPAddress estopIP(192, 168, 0, 3); //set the IP of the estop
+EthernetClient estopBoard;  // client 
+
+/*
+State Machine
+
+We are disabled if:
+ - Estop says we are
+ - timed out waiting for message from estop, brake, or manual
+ 
+Forward state if commanded velocity >=0. Backward if velocity < 0.
+*/
 
 // State machine possible states
 enum ChassisState {
     STATE_DISABLED = 0,
-    STATE_TIMEOUT = 1,
-    STATE_FORWARD = 2,
-    //STATE_REVERSE = 3,
-    //STATE_BRAKE = 4
+    STATE_FORWARD = 1,
+    STATE_REVERSE = 2
 } 
 currentState = STATE_DISABLED;
-
-////
-// ETHERNET
-////
-
-// Enter a MAC address and IP address for your board below
-const byte driveMAC[] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xEE };
-const static int PORT = 7;  //port RJNet uses
-
-IPAddress driveIP(192, 168, 0, 177); //set the IP to find us at
-EthernetServer server(PORT);
-
-// Enter a IP address for other board below
-IPAddress otherIP(192, 168, 0, 178); //set the IP of the NUC
-EthernetClient otherBoard;  // client 
 
 
 
@@ -43,7 +56,7 @@ EthernetClient otherBoard;  // client
 // ENCODER
 ////
 
-unsigned long startTime = 0; // the time used to run the loop
+unsigned long loopStartTime = 0; // the time used to run the loop
 volatile unsigned long currEncoderCount = 0;
 unsigned long prevEncoderCount = 0;
 unsigned long prevMillis = 0;
@@ -74,44 +87,45 @@ float currentSpeed = 0;
 
 
 void setup(){
-  // Ethernet Pins
+    // Ethernet Pins
 	pinMode(ETH_INT_PIN, INPUT);
-  pinMode(ETH_RST_PIN, OUTPUT);
-  pinMode(ETH_CS_PIN, OUTPUT);
+    pinMode(ETH_RST_PIN, OUTPUT);
+    pinMode(ETH_CS_PIN, OUTPUT);
 
 	// Encoder Pins
 	pinMode(ENCODER_A_PIN, INPUT);
   
-  // LED Pins
+    // LED Pins
 	pinMode(REVERSE_LED_PIN, OUTPUT);
 
-  // Motor Pins
+    // Motor Pins
 	pinMode(MOTOR_CNTRL_PIN, OUTPUT);
-  pinMode(FORWARD_OUT_PIN, OUTPUT);
-  pinMode(REVERSE_OUT_PIN, OUTPUT);
+    pinMode(FORWARD_OUT_PIN, OUTPUT);
+    pinMode(REVERSE_OUT_PIN, OUTPUT);
 
-  // TODO BRAKE NO LONGER SERVO, CHANGING INTERFACE
-  // Brake Pins
-  // pinMode(BRAKE_EN, OUTPUT);
+    // TODO BRAKE NO LONGER SERVO, CHANGING INTERFACE
+    // Brake Pins
+    // pinMode(BRAKE_EN, OUTPUT);
 	// pinMode(BRAKE_PWM, OUTPUT);
 
-  // Current Sensing Pins
+    // Current Sensing Pins
 	pinMode(CURR_DATA_PIN, INPUT);
 
 
-  resetEthernet();
+    resetEthernet();
 
 	//********** Ethernet Initialization *************//
 	Ethernet.init(ETH_CS_PIN); 	// CS pin from eth header
 	Ethernet.begin(driveMAC, driveIP); 	// initialize the ethernet device
-	/* while (Ethernet.hardwareStatus() == EthernetNoHardware) {
-		Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
-		delay(500);
+	while (Ethernet.hardwareStatus() == EthernetNoHardware) {
+		Serial.println("Ethernet shield was not found.");
+		delay(50);
 	}
 	while(Ethernet.linkStatus() == LinkOFF) {
 		Serial.println("Ethernet cable is not connected.");	// do something with this
-		delay(500);	 	// TURN down delay to check/startup faster
-	} */
+		delay(50);	 	// TURN down delay to check/startup faster
+	}
+    
 	server.begin();	// launches server
 
   Serial.begin(115200);
@@ -120,20 +134,16 @@ void setup(){
 
 
 void loop() {
-	// put your main code here, to run repeatedly:
-  startTime = millis();
+    loopStartTime = millis();
 	// Ethernet stuff
 	
 	getSpeedMessage();
 	
-  currentSpeed = CalcCurrentSpeed();
-  Serial.println(currentSpeed);
+    currentSpeed = CalcCurrentSpeed();
+    Serial.println(currentSpeed);
 
-  executeStateMachine();
+    executeStateMachine();
 
-
-  
-  delay(100);
 }
 
 ////
@@ -213,7 +223,7 @@ int MotorPwmFromVelocityPID(float velocity) {
         integral = 0;
         return 0;
     } else {
-        const float dt = (float) startTime / MILLIS_PER_SEC;
+        const float dt = (float) loopStartTime / MILLIS_PER_SEC;
         float error = velocity - (float)CalcCurrentSpeed();
 
         // protect against runaway integral accumulation
