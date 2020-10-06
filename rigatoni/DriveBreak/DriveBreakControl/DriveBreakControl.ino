@@ -1,7 +1,7 @@
+#include <avr/wdt.h>
 #include "DriveBrake.h"
 #include "RJNet.h"
 #include <Ethernet.h>
-//#include <sstream>
 
 #define NUM_MAGNETS 24
 #define WHEEL_DIA 0.27305 //meters
@@ -90,7 +90,7 @@ bool motorEnabled = false;
 // ENCODER
 ////
 
-unsigned long loopStartTime = 0; // the time used to run the loop
+unsigned long lastPIDTimeMS = 0; // the time used to run the loop
 volatile unsigned long currEncoderCount = 0;
 unsigned long prevEncoderCount = 0;
 unsigned long lastSpeedReadTimeMs = 0;
@@ -185,25 +185,30 @@ void setup(){
     }
 
     attachInterrupt(digitalPinToInterrupt(ENCODER_A_PIN), HallEncoderInterrupt, FALLING);
+    
+    // WATCHDOG TIMER
+    wdt_reset();
+    wdt_enable(WDTO_500MS);
 }
 
 
 void loop() {
-    loopStartTime = millis();
-    
 	// Read new messages from WizNet and make necessary replies
     readAllNewMessages();
 	
     //Calculate current speed
+    motorCurrent = GetMotorCurrent();
     currentSpeed = CalcCurrentSpeed();
+    
     Serial.print("Current speed: ");
-    Serial.println(currentSpeed);
+    Serial.print(currentSpeed);
+    Serial.print(" Motor Current: ");
+    Serial.println(motorCurrent);
 
     executeStateMachine();
     
     //Now make requests to estop and brake
-    
-
+    sendToBrakeEstop();
 }
 
 ////
@@ -357,7 +362,7 @@ void resetEthernet(void){
 void executeStateMachine(){ 
     //Check what state we are in at the moment.
     //We are disabled if the motor is disabled, or any of our clients has timed out 
-    unsigned int currTime = millis();
+    unsigned long currTime = millis();
     if(!motorEnabled){
         currentState = STATE_DISABLED;
     }
@@ -495,7 +500,9 @@ int MotorPwmFromVelocityPID(float velocity) {
         integral = 0;
         return 0;
     } else {
-        const float dt = (float) loopStartTime / MILLIS_PER_SEC;
+        unsigned long currTime = millis();
+        
+        const float dt = ((float) (currTime - lastPIDTimeMS)) / MILLIS_PER_SEC;
         float error = velocity - (float)CalcCurrentSpeed();
 
         // protect against runaway integral accumulation
@@ -511,6 +518,7 @@ int MotorPwmFromVelocityPID(float velocity) {
         int writePwm = constrain(pwmCalculatedOutput, maxSpeedPwm, zeroSpeedPwm); //control limits *NOTE PWM is reverse (255 is min speed, 0 is max speed)
 
         prevError = error;
+        lastPIDTimeMS = currTime;
         return writePwm;
     }
 }
