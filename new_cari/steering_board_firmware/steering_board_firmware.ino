@@ -1,6 +1,7 @@
 #include "steering_board_firmware.h"
 #include "RJNet.h"
 #include <Ethernet.h>
+#include <SPI.h>
 
 // Notes:
 // Need to connect VDC GND and dir- to common GND
@@ -15,6 +16,12 @@ EthernetServer server(PORT);
 // Enter a IP address for other board below
 IPAddress otherIP(192, 168, 0, 175); //set the IP to find us at
 EthernetClient otherBoard;
+
+// NUC IP address
+IPAddress NUCIP(192, 168, 0, NUC);
+
+//Manual IP address
+IPAddress manualIP(192, 168, 0, MANUAL);
 
 void setup() {
   /* Initialization for encoder*/
@@ -82,17 +89,18 @@ void readEthernet(){
   EthernetClient client = server.available();    // if there is a new message form client create client object, otherwise new client object null
   if (client) {
     String data = RJNet::readData(client);  // if i get string from RJNet buffer ($speed_value;)
-    client.remoteIP()
+    client.remoteIP();
     if (data.length() != 0) {   // if data exists
-      if (data.substr(0,1) == "S"){    // if client is giving us new angle
-        desiredAngle = (data.substr(2)).toFloat(); // set new angle, convert from str to float
-        if (client.remoteIP() == NUC){ // if NUC is client
+      if (data.substring(0,1) == "S"){    // if client is giving us new angle
+        desiredAngle = (data.substring(2)).toFloat(); // set new angle, convert from str to float
+        if (client.remoteIP() == NUCIP){ // if NUC is client
           String reply = "R A=" + String(currentAngle); // reply with R A=currentAngle
-        } else if (client.remoteIP() == MANUAL){
+          RJNet::sendData(client, reply);
+        } else if (client.remoteIP() == manualIP){
           String reply = "R=" + String(currentAngle);   // reply with R= currentAngle
+          RJNet::sendData(client, reply);
         }
-        RJNet::sendData(client, reply);
-      } else if (data.substr(0,1,) == "A"){  // otherwise if client just asking for angle
+      } else if (data.substring(0,1) == "A"){  // otherwise if client just asking for angle
         String reply = "A=" + String(currentAngle);  // reply with A=currentAngle
         RJNet::sendData(client, reply);
       }
@@ -144,7 +152,7 @@ void assignDirection(){
   if (desiredAngle < currentAngle){      // set dirPIN to CW or CCW
     digitalWrite(dirPin, LOW);
   } else {
-    digitalWrite(dirPIN, HIGH);
+    digitalWrite(dirPin, HIGH);
   }
 }
 
@@ -159,7 +167,7 @@ uint8_t spiWriteRead(uint8_t sendByte, uint8_t releaseLine)
   uint8_t data;
 
   //set cs low, cs may already be low but there's no issue calling it again except for extra time
-  setCSLine(ENC,LOW);
+  setCSLine(LOW);
 
   //There is a minimum time requirement after CS goes low before data can be clocked out of the encoder.
   delayMicroseconds(3);
@@ -167,7 +175,7 @@ uint8_t spiWriteRead(uint8_t sendByte, uint8_t releaseLine)
   //send the command  
   data = SPI.transfer(sendByte);
   delayMicroseconds(3); //There is also a minimum time after clocking that CS should remain asserted before we release it
-  setCSLine(ENC, releaseLine); //if releaseLine is high set it high else it stays low
+  setCSLine(releaseLine); //if releaseLine is high set it high else it stays low
   
   return data;
 }
