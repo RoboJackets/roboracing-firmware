@@ -154,8 +154,6 @@ void setup(){
     
 	Ethernet.init(ETH_CS_PIN); 	// CS pin from eth header
 	Ethernet.begin(driveMAC, driveIP); 	// initialize the ethernet device
-    Ethernet.setRetransmissionCount(ETH_NUM_SENDS); //Set number resends before failure
-    Ethernet.setRetransmissionTimeout(ETH_RETRANSMISSION_DELAY_MS);  //Set timeout delay before failure
     
 	while (Ethernet.hardwareStatus() == EthernetNoHardware) {
 		Serial.println("Ethernet shield was not found.");
@@ -165,6 +163,9 @@ void setup(){
 		Serial.println("Ethernet cable is not connected.");	// do something with this
 		delay(50);	 	// TURN down delay to check/startup faster
 	}
+    
+    Ethernet.setRetransmissionCount(ETH_NUM_SENDS); //Set number resends before failure
+    Ethernet.setRetransmissionTimeout(ETH_RETRANSMISSION_DELAY_MS);  //Set timeout delay before failure
     
     server.begin();	// launches OUR server
     Serial.println("Server started");
@@ -180,7 +181,7 @@ void setup(){
         }
         if(!brakeConnected){
             Serial.println("Connecting to Brake");
-            estopConnected = brakeBoard.connect(brakeIP, PORT) > 0;
+            brakeConnected = brakeBoard.connect(brakeIP, PORT) > 0;
         }
     }
 
@@ -193,6 +194,8 @@ void setup(){
 
 
 void loop() {
+    wdt_reset();
+    
 	// Read new messages from WizNet and make necessary replies
     readAllNewMessages();
 	
@@ -243,6 +246,8 @@ void handleSingleClientMessage(EthernetClient otherBoard){
     IPAddress otherIP = otherBoard.remoteIP();
         
     if(data.length() != 0){  //Got valid data - string will be empty if message not valid
+        otherBoard.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);   //Set connection delay so we don't hang
+        
         if(speedRequestMsg.equals(data)){  //Somebody's asking for our speed
             //Send back our current speed
             RJNet::sendData(otherBoard, "v=" + String(currentSpeed) + " I=" + String(motorCurrent));
@@ -253,7 +258,7 @@ void handleSingleClientMessage(EthernetClient otherBoard){
             //Message from Estop board
             motorEnabled = parseEstopMessage(data);
             lastEstopReply = millis();
-            Serial.print("Estop: motor enabled: ");
+            Serial.print("Estop: motor enabled? ");
             Serial.println(motorEnabled);
         }
         else if(brakeIP == otherIP){
@@ -450,14 +455,14 @@ void writeReversingContactorForward(bool forward){
 ////
 
 void HallEncoderInterrupt(){
-  currEncoderCount++;
+    currEncoderCount++;
 }
 
 float CalcCurrentSpeed() {
-  float val = ((float)(currEncoderCount - prevEncoderCount)/(millis() - lastSpeedReadTimeMs)) * MILLIS_PER_SEC * PI_M * WHEEL_DIA/NUM_MAGNETS;
-  prevEncoderCount = currEncoderCount;
-  lastSpeedReadTimeMs = millis();
-  return val;
+    float val = ((float)(currEncoderCount - prevEncoderCount)/(millis() - lastSpeedReadTimeMs)) * MILLIS_PER_SEC * PI_M * WHEEL_DIA/NUM_MAGNETS;
+    prevEncoderCount = currEncoderCount;
+    lastSpeedReadTimeMs = millis();
+    return val;
 }
 
 ////
@@ -466,15 +471,15 @@ float CalcCurrentSpeed() {
 
 // Percentage 0.0 to 1.0 of max speed 
 void motorTest(float percentage) { //open loop test
-  if(percentage > 0 && percentage < 1.0)
-  {
-    byte writePercent = constrain(MotorPwmFromVoltage(maxVoltage*percentage),maxSpeedPwm,zeroSpeedPwm);
-    analogWrite(MOTOR_CNTRL_PIN, writePercent);
-  }
-  else
-  {
-    analogWrite(MOTOR_CNTRL_PIN, zeroSpeedPwm);
-  }
+    if(percentage > 0 && percentage < 1.0)
+    {
+        byte writePercent = constrain(MotorPwmFromVoltage(maxVoltage*percentage),maxSpeedPwm,zeroSpeedPwm);
+        analogWrite(MOTOR_CNTRL_PIN, writePercent);
+    }
+    else
+    {
+        analogWrite(MOTOR_CNTRL_PIN, zeroSpeedPwm);
+    }
 }
 
 //Write voltage to motor
@@ -484,15 +489,15 @@ void writeMotorOff(void){
 }
 
 byte MotorPwmFromVoltage(double voltage){
-  return (byte)((0.556 - sqrt(0.556*0.556 - 0.00512*(62.1-voltage)))/0.00256); //see "rigatoni PWM to motor power" in drive for equation
+    return (byte)((0.556 - sqrt(0.556*0.556 - 0.00512*(62.1-voltage)))/0.00256); //see "rigatoni PWM to motor power" in drive for equation
 }
 
 float LinearVelocityFromVoltage(float voltage){
-  return ((Kv*voltage)/60.0)*inverseGearRatio*wheelCircumference;
+    return ((Kv*voltage)/60.0)*inverseGearRatio*wheelCircumference;
 }
 
 float VoltageFromLinearVelocity(float velocity){
-  return velocity*(60.0/(inverseGearRatio*wheelCircumference*Kv));
+    return velocity*(60.0/(inverseGearRatio*wheelCircumference*Kv));
 }
 
 int MotorPwmFromVelocityPID(float velocity) { 
@@ -527,9 +532,13 @@ int MotorPwmFromVelocityPID(float velocity) {
 // CURRENT SENSE FUNCTIONS
 ////
 
-const static float currentSensorMidpoint = 500;
+const static float currentSensorMidpoint = 500.0;
+const static int adcResolution = 1024;
+const static float adcMaxVoltage = 5.0;
+const static float currentSensorAmpsPerVolt = 200.0;
+const static float ampsPerBit = currentSensorAmpsPerVolt*adcMaxVoltage/adcResolution;
 
 float GetMotorCurrent(){
-  unsigned int currentAnalog = analogRead(CURR_DATA_PIN);
-  return ((200.0*5/1024)*currentAnalog) - currentSensorMidpoint; // 200A/V * current voltage -> gives A
+    unsigned int rawCurrentBits = analogRead(CURR_DATA_PIN);
+    return (ampsPerBit*rawCurrentBits) - currentSensorMidpoint; // 200A/V * current voltage -> gives A
 }
