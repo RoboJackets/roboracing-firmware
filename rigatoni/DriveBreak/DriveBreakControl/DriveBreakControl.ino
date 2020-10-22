@@ -12,7 +12,7 @@
 #define ETH_RETRANSMISSION_DELAY_MS 50  //Time before TCP tries to resend the packet
 #define ETH_TCP_INITIATION_DELAY 50 //How long we wait before .connected() or .connect() fails.
 
-#define REPLY_TIMEOUT_MS 400 //We have to receive a reply from Estop and Brake within this many MS of our message or we are timed out. NOT TCP timeout. Have to 
+#define REPLY_TIMEOUT_MS 4000 //We have to receive a reply from Estop and Brake within this many MS of our message or we are timed out. NOT TCP timeout. Have to 
 #define MIN_MESSAGE_SPACING 100  //Send messages to Brake and request state from e-stop at 10 Hz
 
 /*******FUNCTION HEADERS*****/
@@ -23,7 +23,7 @@ byte MotorPwmFromVoltage(double);
 ////
 
 // Enter a MAC address and IP address for your board below
-const static byte driveMAC[] = {0xDE, 0xAD, 0xBA, 0xEF, 0xFE, 0xEE};
+const static byte driveMAC[] = {0x11, 0xAD, 0xBA, 0xEF, 0xFE, 0xEE};
 const static int PORT = 7;  //port RJNet uses
 
 const static IPAddress driveIP(192, 168, 0, 4); //set the IP to find us at
@@ -37,7 +37,7 @@ const static IPAddress estopIP(192, 168, 0, 3); //set the IP of the estop
 EthernetClient estopBoard;  // client
 
 //Manual board, which is not a client:
-const static IPAddress manualIP(192, 168, 0, 6); //set the IP of the estop
+const static IPAddress manualIP(192, 168, 0, 144); //set the IP of the estop
 
 /****************Messages from clients****************/
 //Universal acknowledge message
@@ -192,6 +192,8 @@ void setup(){
     wdt_enable(WDTO_500MS);
 }
 
+const static int printDelayMs = 1000;
+unsigned long lastPrintTime = 0;
 
 void loop() {
     wdt_reset();
@@ -203,10 +205,14 @@ void loop() {
     motorCurrent = GetMotorCurrent();
     currentSpeed = CalcCurrentSpeed();
     
-    Serial.print("Current speed: ");
-    Serial.print(currentSpeed);
-    Serial.print(" Motor Current: ");
-    Serial.println(motorCurrent);
+    if (millis() > lastPrintTime + printDelayMs){
+        Serial.print("Current speed: ");
+        Serial.print(currentSpeed);
+        Serial.print(" Motor Current: ");
+        Serial.println(motorCurrent);
+        
+        lastPrintTime = millis();
+    }
 
     executeStateMachine();
     
@@ -327,8 +333,9 @@ void sendToBrakeEstop(void){
     */
     brakeConnected = brakeBoard.connected();
     if(!brakeConnected){
-        //Lost TCP connection with the brake board
-        estopBoard.connect(estopIP, PORT);
+        //Lost TCP connection with the brake board. Takes 10 seconds for TCP connection to fail after disconnect.
+        //Takes a very long time to time out
+        brakeBoard.connect(brakeIP, PORT);
         Serial.println("Lost connection with brakes");
     }
     else{
@@ -341,7 +348,7 @@ void sendToBrakeEstop(void){
     estopConnected = estopBoard.connected();
     if(!estopConnected){
         //Lost TCP connection with the estop board
-        brakeBoard.connect(brakeIP, PORT);
+        estopBoard.connect(estopIP, PORT);
         Serial.println("Lost connection with estop");
     }
     else{
@@ -407,6 +414,7 @@ void runStateDisabled(){
     /*
     Motor off, brakes engaged. Do't care what reversing contactor is doing.
     */
+    Serial.println("Motor disabled");
     writeMotorOff();
     brakingForce = maxBrakingForce;
 }
@@ -414,6 +422,26 @@ void runStateTimeout(){
     /*
     Motor off, brakes disengaged. Don't care what reversing contactor is doing.
     */
+    unsigned long currTime = millis();
+    
+    if (!brakeConnected){
+        Serial.println("Lost brake TCP connection");
+    }
+    else if(currTime > lastBrakeReply + REPLY_TIMEOUT_MS){
+        Serial.println("Brake timed out");
+    }
+    
+    if (!estopConnected){
+        Serial.println("Lost estop TCP connection");
+    }
+    else if(currTime > lastEstopReply + REPLY_TIMEOUT_MS){
+        Serial.println("Estop timed out");
+    }
+    
+    if (currTime > lastManualCommand + REPLY_TIMEOUT_MS){
+        Serial.println("Manual timed out");
+    }
+    
     writeMotorOff();
     brakingForce = 0;
 }
@@ -459,6 +487,7 @@ void HallEncoderInterrupt(){
 }
 
 float CalcCurrentSpeed() {
+    //TODO: NEED TO FIX. Can divide by 0 if time interval too small.
     float val = ((float)(currEncoderCount - prevEncoderCount)/(millis() - lastSpeedReadTimeMs)) * MILLIS_PER_SEC * PI_M * WHEEL_DIA/NUM_MAGNETS;
     prevEncoderCount = currEncoderCount;
     lastSpeedReadTimeMs = millis();
