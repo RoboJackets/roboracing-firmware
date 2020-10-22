@@ -5,7 +5,7 @@
  * by Brian Cochran and Peter Wilson
  * 
  */
-
+  // foo
 #include <Ethernet.h>
 #include "RJNet.h" //make sure to install the RJNet library
 
