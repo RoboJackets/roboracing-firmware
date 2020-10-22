@@ -3,9 +3,11 @@
 #include "RJNet.h"
 #include <Ethernet.h>
 
+#define TIMER_MIN_RESOLUTION_US 8  //Timer minimum resolution of 8 us
+
 #define NUM_MAGNETS 24
 #define WHEEL_DIA 0.27305 //meters
-#define MILLIS_PER_SEC 1000
+const static unsigned long US_PER_SEC = 1000000;
 #define PI_M 3.14159
 
 #define ETH_NUM_SENDS 2
@@ -90,10 +92,10 @@ bool motorEnabled = false;
 // ENCODER
 ////
 
-unsigned long lastPIDTimeMS = 0; // the time used to run the loop
+unsigned long lastPIDTimeUS = 0; // the time used to run the loop
 volatile unsigned long currEncoderCount = 0;
 unsigned long prevEncoderCount = 0;
-unsigned long lastSpeedReadTimeMs = 0;
+unsigned long lastSpeedReadTimeUs = 0;
 
 float currentSpeed = 0;
 float motorCurrent = 0;
@@ -487,10 +489,12 @@ void HallEncoderInterrupt(){
 }
 
 float CalcCurrentSpeed() {
-    //TODO: NEED TO FIX. Can divide by 0 if time interval too small.
-    float val = ((float)(currEncoderCount - prevEncoderCount)/(millis() - lastSpeedReadTimeMs)) * MILLIS_PER_SEC * PI_M * WHEEL_DIA/NUM_MAGNETS;
+    unsigned long currTime = micros();
+    unsigned long timeDelta = max(currTime - lastSpeedReadTimeUs, TIMER_MIN_RESOLUTION_US);
+    
+    float val = (((float) currEncoderCount - prevEncoderCount)/timeDelta) * US_PER_SEC * PI_M * WHEEL_DIA/NUM_MAGNETS;
     prevEncoderCount = currEncoderCount;
-    lastSpeedReadTimeMs = millis();
+    lastSpeedReadTimeUs = currTime;
     return val;
 }
 
@@ -534,9 +538,9 @@ int MotorPwmFromVelocityPID(float velocity) {
         integral = 0;
         return 0;
     } else {
-        unsigned long currTime = millis();
+        unsigned long currTime = micros();
         
-        const float dt = ((float) (currTime - lastPIDTimeMS)) / MILLIS_PER_SEC;
+        const float dt = ((float) min(currTime - lastPIDTimeUS, TIMER_MIN_RESOLUTION_US)) / US_PER_SEC;
         float error = velocity - (float)CalcCurrentSpeed();
 
         // protect against runaway integral accumulation
@@ -552,7 +556,7 @@ int MotorPwmFromVelocityPID(float velocity) {
         int writePwm = constrain(pwmCalculatedOutput, maxSpeedPwm, zeroSpeedPwm); //control limits *NOTE PWM is reverse (255 is min speed, 0 is max speed)
 
         prevError = error;
-        lastPIDTimeMS = currTime;
+        lastPIDTimeUS = currTime;
         return writePwm;
     }
 }
