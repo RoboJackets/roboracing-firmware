@@ -18,7 +18,7 @@ const static int PORT = 7; //port RJNet uses
 // Enter a MAC address and IP address for your board below
 byte mac[] = {
   0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xE3 };
-IPAddress ip(192, 168, 0, 173); //set the IP to find us at
+IPAddress ip(192, 168, 0, 5); //set the IP to find us at
 EthernetServer server(PORT);
  
 void setup() {
@@ -27,7 +27,7 @@ void setup() {
   // In case your RJ board wires the chip in an odd config,
   // otherwise, leave commented out
   // You can use Ethernet.init(pin) to configure the CS pin
-  Ethernet.init(11);  // Most Arduino shields
+  Ethernet.init(10);  // Most Arduino shields
 
   // initialize the ethernet device
   Ethernet.begin(mac, ip);
