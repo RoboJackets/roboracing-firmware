@@ -1,0 +1,14 @@
+Changed:
+Undervoltage: 20V -> 38V
+Over voltage: 55 ->58V
+Max battery amps: 300->200 A
+Peak amp mode OFF
+
+Throttle set to 0-5V mode
+Throttle linearization changed to be fully linear (except 1 -> 0 so we turn off) ("Throttle Linearization" tab)
+Throttle to Speed curve set to be linear (Throttle Settings)
+Torque set to 100% at all speeds (I think this gives full current at all settings)
+
+Check Throttle Rate
+Check high pedal disable
+Check max forward motor speed? Does this affect peak voltage?
