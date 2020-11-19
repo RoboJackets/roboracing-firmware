@@ -1,8 +1,8 @@
 Changed:
 Undervoltage: 20V -> 38V
 Over voltage: 55 ->58V
-Max battery amps: 300->200 A
 Peak amp mode OFF
+Throttle Rate: 100%
 
 Throttle set to 0-5V mode
 Throttle linearization changed to be fully linear (except 1 -> 0 so we turn off) ("Throttle Linearization" tab)
