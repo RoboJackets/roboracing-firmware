@@ -18,4 +18,3 @@
 
 // DOES NOT CURRENTLY WORK ON board v1.0 
 // #define USER_LED_PIN   // ATMEGA32u4 pin PD5, Leonardo pin TXLED
-//

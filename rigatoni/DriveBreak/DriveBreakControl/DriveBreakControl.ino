@@ -1,6 +1,7 @@
 #include <avr/wdt.h>
 #include "DriveBrake.h"
 #include "RJNet.h"
+#include "controller_estimator.h"
 #include <Ethernet.h>
 
 #define TIMER_MIN_RESOLUTION_US 8  //Timer minimum resolution of 8 us
@@ -8,8 +9,6 @@
 #define NUM_MAGNETS 24
 #define WHEEL_DIA 0.27305 //meters
 const static unsigned long US_PER_SEC = 1000000;
-#define PI_M 3.141592653589793
-#define SQRT_2 1.4142135623730951
 
 #define ETH_NUM_SENDS 2
 #define ETH_RETRANSMISSION_DELAY_MS 50  //Time before TCP tries to resend the packet
@@ -89,71 +88,10 @@ enum ChassisState {
 currentState = STATE_DISABLED;
 bool motorEnabled = false;
 
-////
-// ENCODER
-// See motor_and_brake_independent_controllers.ipynb
-// Encoder measures position and we want speed, so we created an estimator
-////
 
-unsigned long lastPIDTimeUS = 0; // the time used to run the loop
-volatile unsigned long currEncoderCount = 0;
-unsigned long prevEncoderCount = 0;
-unsigned long lastSpeedReadTimeUs = 0;
-
-float currentSpeed = 0;
-float currentPosition = 0;
 float motorCurrent = 0;
-
-////
-// MOTOR CONTROL
-// See motor_and_brake_independent_controllers.ipynb
-// We construct two independent feedforward controllers - one for the brakes and one for the motor - and run them simultaneously
-// Motor controller is in volts, brake controller is in Newtons
-////
-
-
-// Control Limits and parameters
-#define USE_FEEDFORWARD_CONTROL true        //If false, will not use feedforward control
-const float maxVelocity = 10.0;             //maximum velocity in m/s
-const float controller_decel_limit = 6;     //maximum deceleration in m/s^2
-const float controller_accel_limit = 4.5;    //max accel in m/s^2
-const float velocity_filter_bandwidth = 5;
-
-const float batteryVoltage = 48;
-const byte maxSpeedPwm = 255;
-const byte zeroSpeedPwm = 0; // 100% PWM, 0% Voltage
-
-//Motor feedforward and PI parameters
-const float k_m_inv_r_to_u = 2.8451506121016807;
-const float k_m_inv_r_dot_to_u = 1.93359375;
-const float k_m_inv_r_to_x = 1.0;
-
-const float k_1m = 4.908560325397578;   //P gain
-const float k_2m = 7.773046874998515;   //I gain
-
-//Brake feedforward and PI parameters
-const float k_b_inv_r_to_u = -10.0;
-const float k_b_inv_r_dot_to_u = -150.0;
-const float k_b_inv_r_to_x = 1.0;
-
-const float k_1b = -591.5;   //P gain
-const float k_2b = -603;   //I gain
-
-const float maxBrakingForce = 600.0;    //In Newtons
-
-//Global variables
-float error_integral = 0;
-float softwareDesiredVelocity = 0;      //What Software is commanding us
-float trapezoidal_target_velocity = 0;  //trapezoidal interpolation of Software's commands
-float filtered_target_vel = 0;          //Lowpass filtered version of trapezoidal interpolated velocities
-float filtered_target_accel = 0;
-
 float desired_braking_force = 0;
-
-struct FloatPair{   //Replacement for std::pair only good for floats
-    float first;
-    float second;
-};
+float softwareDesiredVelocity = 0;      //What Software is commanding us
 
 
 void setup(){
@@ -233,11 +171,11 @@ void loop() {
 	
     //Calculate current speed
     motorCurrent = GetMotorCurrent();
-    currentSpeed = CalcCurrentSpeed();
+    //estimate_vel();
     
     if (millis() > lastPrintTime + printDelayMs){
         Serial.print("Current speed: ");
-        Serial.print(currentSpeed);
+        Serial.print(get_speed());
         Serial.print(" Motor Current: ");
         Serial.println(motorCurrent);
         
@@ -286,7 +224,7 @@ void handleSingleClientMessage(EthernetClient otherBoard){
         
         if(speedRequestMsg.equals(data)){  //Somebody's asking for our speed
             //Send back our current speed
-            RJNet::sendData(otherBoard, "v=" + String(currentSpeed) + " I=" + String(motorCurrent));
+            RJNet::sendData(otherBoard, "v=" + String(get_speed()) + " I=" + String(motorCurrent));
             Serial.print("Speed request from");
             Serial.println(otherIP);
         }
@@ -507,45 +445,9 @@ void writeReversingContactorForward(bool forward){
     digitalWrite(REVERSE_OUT_PIN, !forward);
 }
 
-
 ////
-// ENCODER FUNCTIONS
+// Motor hardware interface
 ////
-
-void HallEncoderInterrupt(){
-    currEncoderCount++;
-}
-
-float CalcCurrentSpeed() {
-    unsigned long currTime = micros();
-    unsigned long timeDelta = max(currTime - lastSpeedReadTimeUs, TIMER_MIN_RESOLUTION_US);
-    
-    float val = (((float) currEncoderCount - prevEncoderCount)/timeDelta) * US_PER_SEC * PI_M * WHEEL_DIA/NUM_MAGNETS;
-    prevEncoderCount = currEncoderCount;
-    lastSpeedReadTimeUs = currTime;
-    return val;
-}
-
-////
-// SPEED ESTIMATOR FUNCTIONS
-// See ipython notebook
-////
-void estimate_vel(float delta_t, float encoder_pos, float motor_current, float brake_force){
-    //All arguments are in SI units
-    //This updates the global velocity estimate, currentSpeed
-    //Use the Forward Euler method
-
-    float new_est_pos = est_pos + delta_t * (est_vel - L_pos*(est_pos - encoder_pos))
-    float new_est_vel = est_vel + delta_t * (-d/m*est_vel + Gr*Kt/(m*rw)*motor_current - 1/m*brake_force - L_vel*(est_pos - encoder_pos))
-    currentPosition = new_est_pos;
-    currentSpeed = new_est_vel;
-}
-
-
-////
-// MOTOR CONTROLLER FUNCTIONS
-////
-
 void writeMotorOff(void){
     //Disables the motor by writing correct voltage
     analogWrite(MOTOR_CNTRL_PIN, zeroSpeedPwm);
@@ -561,100 +463,6 @@ byte MotorPwmFromVoltage(float voltage){
     return (byte) maxSpeedPwm*voltage/batteryVoltage;
 }
 
-//Generate the target velocity and acceleration
-
-float gen_trapezoidal_vel(float timestep, float last_trapezoidal_vel, float software_cmd_vel){
-    //Limit our maximum acceleration.
-    float trapezoidal_target_vel = min(max(software_cmd_vel, last_trapezoidal_vel - timestep * controller_decel_limit), last_trapezoidal_vel + timestep * controller_accel_limit);
-    
-    //Cap our speed
-    trapezoidal_target_vel = max(trapezoidal_target_vel, 0);
-    return trapezoidal_target_vel;
-}
-
-const float butterworth_coeff_accel = -SQRT_2*velocity_filter_bandwidth;
-const float butterworth_coeff_vel = velocity_filter_bandwidth*velocity_filter_bandwidth;
-
-void filter_target_vel_accel(float timestep, float trap_target_vel){
-    //Applies a butterworth lowpass filter to the trapezoidal velocities, using the forward Euler approximation
-    //Updates filtered_target_vel, filtered_target_accel in place
-    
-    float new_filtered_target_vel = filtered_target_vel + timestep*filtered_target_accel;
-    float new_filtered_target_accel = filtered_target_accel + timestep*(butterworth_coeff_accel*filtered_target_accel + butterworth_coeff_vel*(trap_target_vel - filtered_target_vel));
-   
-    filtered_target_vel = new_filtered_target_vel;
-    filtered_target_accel = new_filtered_target_accel;
-}
-
-//Feedforward reference commands for motor + brake
-
-FloatPair gen_motor_feedforward_reference(float target_vel, float target_accel){
-    //Returns (voltage reference in volts, velocity reference in m/s) for motor controller
-    if(!USE_FEEDFORWARD_CONTROL){
-        return make_float_pair(0.0, 0.0);
-    }
-    //Generate the feedforward reference commands
-    float voltage_ref = k_m_inv_r_to_u * target_vel + k_m_inv_r_dot_to_u * target_accel;
-    float vel_ref_m = k_m_inv_r_to_x * target_vel;
-    
-    return make_float_pair(voltage_ref, vel_ref_m);
-}
-
-FloatPair gen_brake_feedforward_reference(float target_vel, float target_accel){
-    //Returns (force reference in N, velocity reference in m/s) for brake controller
-    if(!USE_FEEDFORWARD_CONTROL){
-        return make_float_pair(0.0, 0.0);
-    }
-    //Generate the feedforward reference commands
-    float brake_force_ref = k_b_inv_r_to_u * target_vel + k_b_inv_r_dot_to_u * target_accel;
-    float vel_ref_b = k_b_inv_r_to_x * target_vel;
-    
-    return make_float_pair(brake_force_ref, vel_ref_b);
-}
-
-//PI control functions for motor and brake
-float gen_motor_PI_control_voltage(float voltage_ref, float vel_ref_m, float current_vel, float err_integral){
-    return voltage_ref - k_1m * (current_vel - vel_ref_m) - k_2m * err_integral;
-}
-
-float gen_brake_PI_control_voltage(float brake_force_ref, float vel_ref_b, float current_vel, float err_integral){
-    return brake_force_ref - k_1b * (current_vel - vel_ref_b) - k_2b * err_integral;
-}
-
-FloatPair gen_control_voltage_brake_force(float delta_t, float est_vel, float software_cmd_vel){
-    //The main controller function.
-    //Returns (motor voltage, braking force). All arguments are in SI units (seconds, m/s)
-    
-    //Get target velocity + accel
-    trapezoidal_target_velocity = gen_trapezoidal_vel(delta_t, trapezoidal_target_velocity, software_cmd_vel);
-    
-    //Now filter it
-    filter_target_vel_accel(delta_t, trapezoidal_target_velocity);
-    
-    //For the motor
-    //Get feedforward reference values
-    FloatPair motor_voltage_velocity_ref = gen_motor_feedforward_reference(filtered_target_vel, filtered_target_accel);
-    float voltage_ref = motor_voltage_velocity_ref.first;
-    float vel_ref_m = motor_voltage_velocity_ref.second;
-    
-    //Get voltage command
-    float voltage_command = gen_motor_PI_control_voltage(voltage_ref, vel_ref_m, est_vel, error_integral);
-    
-    //For the brakes
-    //Get feedforward reference values
-    FloatPair brake_force_velocity_ref = gen_brake_feedforward_reference(filtered_target_vel, filtered_target_accel);
-    float brake_force_ref = brake_force_velocity_ref.first;
-    float vel_ref_b = brake_force_velocity_ref.second;
-    
-    //Get brake force command
-    float brake_force_command = max(gen_brake_PI_control_voltage(brake_force_ref, vel_ref_b, est_vel, error_integral), 0);
-    
-    //Update error integral
-    error_integral += delta_t * (est_vel - filtered_target_vel);
-    
-    return make_float_pair(voltage_command, brake_force_command);
-}
-
 ////
 // CURRENT SENSE FUNCTIONS
 ////
@@ -668,10 +476,4 @@ const static float ampsPerBit = currentSensorAmpsPerVolt*adcMaxVoltage/adcResolu
 float GetMotorCurrent(){
     unsigned int rawCurrentBits = analogRead(CURR_DATA_PIN);
     return (ampsPerBit*rawCurrentBits) - currentSensorMidpoint; // 200A/V * current voltage -> gives A
-}
-
-//Pair-making function
-FloatPair make_float_pair(float first, float second){
-    struct FloatPair retVal = {first, second};
-    return retVal;
 }
