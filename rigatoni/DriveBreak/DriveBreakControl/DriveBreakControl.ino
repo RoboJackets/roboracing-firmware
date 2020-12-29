@@ -8,7 +8,8 @@
 #define NUM_MAGNETS 24
 #define WHEEL_DIA 0.27305 //meters
 const static unsigned long US_PER_SEC = 1000000;
-#define PI_M 3.14159
+#define PI_M 3.141592653589793
+#define SQRT_2 1.4142135623730951
 
 #define ETH_NUM_SENDS 2
 #define ETH_RETRANSMISSION_DELAY_MS 50  //Time before TCP tries to resend the packet
@@ -18,7 +19,7 @@ const static unsigned long US_PER_SEC = 1000000;
 #define MIN_MESSAGE_SPACING 100  //Send messages to Brake and request state from e-stop at 10 Hz
 
 /*******FUNCTION HEADERS*****/
-byte MotorPwmFromVoltage(double);
+byte MotorPwmFromVoltage(float);
 
 /****************ETHERNET****************/
 // See https://docs.google.com/document/d/10klaJG9QIRAsYD0eMPjk0ImYSaIPZpM_lFxHCxdVRNs/edit#
@@ -90,6 +91,8 @@ bool motorEnabled = false;
 
 ////
 // ENCODER
+// See motor_and_brake_independent_controllers.ipynb
+// Encoder measures position and we want speed, so we created an estimator
 ////
 
 unsigned long lastPIDTimeUS = 0; // the time used to run the loop
@@ -98,34 +101,59 @@ unsigned long prevEncoderCount = 0;
 unsigned long lastSpeedReadTimeUs = 0;
 
 float currentSpeed = 0;
+float currentPosition = 0;
 float motorCurrent = 0;
 
 ////
-// MOTOR
+// MOTOR CONTROL
+// See motor_and_brake_independent_controllers.ipynb
+// We construct two independent feedforward controllers - one for the brakes and one for the motor - and run them simultaneously
+// Motor controller is in volts, brake controller is in Newtons
 ////
-const float Kv = 75.7576; // RPM/V
-const float inverseGearRatio = 1/2.909; // 64 / 22
-const float wheelCircumference = WHEEL_DIA*PI_M;
-// PID Speed Control
-float integral = 0.0;
-float derivative = 0.0;
-float prevError = 0.0;
-// 2 second response time, Transient Behaviour of 0.9
-const float kP = 220.4;
-const float kI = 22.5;
-const float kD = 22.5;
 
-// Control Limits
-const float maxVelocity = 10.0; // maximum velocity in m/s
-const float maxVoltage = 19.4; //Maximum allowable voltage to motors
 
-const byte maxSpeedPwm = MotorPwmFromVoltage(maxVoltage); // 50% PWM, 23% Voltage
-const byte zeroSpeedPwm = 255; // 100% PWM, 0% Voltage
+// Control Limits and parameters
+#define USE_FEEDFORWARD_CONTROL true        //If false, will not use feedforward control
+const float maxVelocity = 10.0;             //maximum velocity in m/s
+const float controller_decel_limit = 6;     //maximum deceleration in m/s^2
+const float controller_accel_limit = 4.5;    //max accel in m/s^2
+const float velocity_filter_bandwidth = 5;
 
-const byte maxBrakingForce = 255;
+const float batteryVoltage = 48;
+const byte maxSpeedPwm = 255;
+const byte zeroSpeedPwm = 0; // 100% PWM, 0% Voltage
 
-float desiredVelocity = 0;
-byte brakingForce = 0;
+//Motor feedforward and PI parameters
+const float k_m_inv_r_to_u = 2.8451506121016807;
+const float k_m_inv_r_dot_to_u = 1.93359375;
+const float k_m_inv_r_to_x = 1.0;
+
+const float k_1m = 4.908560325397578;   //P gain
+const float k_2m = 7.773046874998515;   //I gain
+
+//Brake feedforward and PI parameters
+const float k_b_inv_r_to_u = -10.0;
+const float k_b_inv_r_dot_to_u = -150.0;
+const float k_b_inv_r_to_x = 1.0;
+
+const float k_1b = -591.5;   //P gain
+const float k_2b = -603;   //I gain
+
+const float maxBrakingForce = 600.0;    //In Newtons
+
+//Global variables
+float error_integral = 0;
+float softwareDesiredVelocity = 0;      //What Software is commanding us
+float trapezoidal_target_velocity = 0;  //trapezoidal interpolation of Software's commands
+float filtered_target_vel = 0;          //Lowpass filtered version of trapezoidal interpolated velocities
+float filtered_target_accel = 0;
+
+float desired_braking_force = 0;
+
+struct FloatPair{   //Replacement for std::pair only good for floats
+    float first;
+    float second;
+};
 
 
 void setup(){
@@ -283,14 +311,14 @@ void handleSingleClientMessage(EthernetClient otherBoard){
             //Message from manual board, should be speed command
             if(data.length() > 2){
                 if(manualStringHeader.equals(data.substring(0,2))){
-                    desiredVelocity = parseSpeedMessage(data);
+                    softwareDesiredVelocity = parseSpeedMessage(data);
                     lastManualCommand = millis();
                     
                     //Acknowledge receipt of message
                     RJNet::sendData(otherBoard, ackMsg);
                     
                     Serial.print("New target speed: ");
-                    Serial.println(desiredVelocity);
+                    Serial.println(softwareDesiredVelocity);
                 }
                 else{
                     Serial.print("Wrong prefix from manual: ");
@@ -342,7 +370,7 @@ void sendToBrakeEstop(void){
     }
     else{
         if(millis() > lastBrakeReply + MIN_MESSAGE_SPACING && millis() > brakeCommandSent + MIN_MESSAGE_SPACING){
-            RJNet::sendData(brakeBoard, "B=" + String(brakingForce));
+            RJNet::sendData(brakeBoard, "B=" + String(desired_braking_force));
             brakeCommandSent = millis();
         }
     }
@@ -384,7 +412,7 @@ void executeStateMachine(){
         currentState = STATE_TIMEOUT;
     }
     else{
-        if(desiredVelocity < 0){
+        if(softwareDesiredVelocity < 0){
             currentState = STATE_REVERSE;
         }
         else{
@@ -414,11 +442,11 @@ void executeStateMachine(){
 
 void runStateDisabled(){
     /*
-    Motor off, brakes engaged. Do't care what reversing contactor is doing.
+    Motor off, brakes engaged. Don't care what reversing contactor is doing.
     */
     Serial.println("Motor disabled");
     writeMotorOff();
-    brakingForce = maxBrakingForce;
+    desired_braking_force = maxBrakingForce;
 }
 void runStateTimeout(){
     /*
@@ -445,7 +473,7 @@ void runStateTimeout(){
     }
     
     writeMotorOff();
-    brakingForce = 0;
+    desired_braking_force = 0;
 }
 
 void runStateForward(){
@@ -455,8 +483,8 @@ void runStateForward(){
     writeReversingContactorForward(true);
     
     //TODO: controls math here
-    motorTest(0.5);
-    brakingForce = 0;
+    MotorPwmFromVoltage(12.0);
+    desired_braking_force = 0;
 }
 
 void runStateReverse(){
@@ -466,8 +494,8 @@ void runStateReverse(){
     writeReversingContactorForward(false);
     
     //TODO: controls math here
-    motorTest(0.5);
-    brakingForce = 0;
+    MotorPwmFromVoltage(12.0);
+    desired_braking_force = 0;
 }
 
 
@@ -499,66 +527,132 @@ float CalcCurrentSpeed() {
 }
 
 ////
-// MOTOR FUNCTIONS
+// SPEED ESTIMATOR FUNCTIONS
+// See ipython notebook
 ////
+void estimate_vel(float delta_t, float encoder_pos, float motor_current, float brake_force){
+    //All arguments are in SI units
+    //This updates the global velocity estimate, currentSpeed
+    //Use the Forward Euler method
 
-// Percentage 0.0 to 1.0 of max speed 
-void motorTest(float percentage) { //open loop test
-    if(percentage > 0 && percentage < 1.0)
-    {
-        byte writePercent = constrain(MotorPwmFromVoltage(maxVoltage*percentage),maxSpeedPwm,zeroSpeedPwm);
-        analogWrite(MOTOR_CNTRL_PIN, writePercent);
-    }
-    else
-    {
-        analogWrite(MOTOR_CNTRL_PIN, zeroSpeedPwm);
-    }
+    float new_est_pos = est_pos + delta_t * (est_vel - L_pos*(est_pos - encoder_pos))
+    float new_est_vel = est_vel + delta_t * (-d/m*est_vel + Gr*Kt/(m*rw)*motor_current - 1/m*brake_force - L_vel*(est_pos - encoder_pos))
+    currentPosition = new_est_pos;
+    currentSpeed = new_est_vel;
 }
 
-//Write voltage to motor
+
+////
+// MOTOR CONTROLLER FUNCTIONS
+////
+
 void writeMotorOff(void){
     //Disables the motor by writing correct voltage
     analogWrite(MOTOR_CNTRL_PIN, zeroSpeedPwm);
 }
 
-byte MotorPwmFromVoltage(double voltage){
-    return (byte)((0.556 - sqrt(0.556*0.556 - 0.00512*(62.1-voltage)))/0.00256); //see "rigatoni PWM to motor power" in drive for equation
-}
-
-float LinearVelocityFromVoltage(float voltage){
-    return ((Kv*voltage)/60.0)*inverseGearRatio*wheelCircumference;
-}
-
-float VoltageFromLinearVelocity(float velocity){
-    return velocity*(60.0/(inverseGearRatio*wheelCircumference*Kv));
-}
-
-int MotorPwmFromVelocityPID(float velocity) { 
-    if (velocity <= 0) {
-        integral = 0;
-        return 0;
-    } else {
-        unsigned long currTime = micros();
-        
-        const float dt = ((float) min(currTime - lastPIDTimeUS, TIMER_MIN_RESOLUTION_US)) / US_PER_SEC;
-        float error = velocity - (float)CalcCurrentSpeed();
-
-        // protect against runaway integral accumulation
-        float trapezoidIntegral = (prevError + error) * 0.5 * dt;
-        if (abs(kI * integral) < maxSpeedPwm - zeroSpeedPwm || trapezoidIntegral < 0) {
-            integral += trapezoidIntegral;
-        }
-
-        derivative = (error - prevError) / dt; //difference derivative
-
-        float velocityOutput = kP * error + kI * integral + kD * derivative;
-        int pwmCalculatedOutput = MotorPwmFromVoltage(VoltageFromLinearVelocity(velocityOutput)); 
-        int writePwm = constrain(pwmCalculatedOutput, maxSpeedPwm, zeroSpeedPwm); //control limits *NOTE PWM is reverse (255 is min speed, 0 is max speed)
-
-        prevError = error;
-        lastPIDTimeUS = currTime;
-        return writePwm;
+byte MotorPwmFromVoltage(float voltage){
+    if(voltage > batteryVoltage){
+        return maxSpeedPwm;
     }
+    else if(voltage < 0){
+        return 0;
+    }
+    return (byte) maxSpeedPwm*voltage/batteryVoltage;
+}
+
+//Generate the target velocity and acceleration
+
+float gen_trapezoidal_vel(float timestep, float last_trapezoidal_vel, float software_cmd_vel){
+    //Limit our maximum acceleration.
+    float trapezoidal_target_vel = min(max(software_cmd_vel, last_trapezoidal_vel - timestep * controller_decel_limit), last_trapezoidal_vel + timestep * controller_accel_limit);
+    
+    //Cap our speed
+    trapezoidal_target_vel = max(trapezoidal_target_vel, 0);
+    return trapezoidal_target_vel;
+}
+
+const float butterworth_coeff_accel = -SQRT_2*velocity_filter_bandwidth;
+const float butterworth_coeff_vel = velocity_filter_bandwidth*velocity_filter_bandwidth;
+
+void filter_target_vel_accel(float timestep, float trap_target_vel){
+    //Applies a butterworth lowpass filter to the trapezoidal velocities, using the forward Euler approximation
+    //Updates filtered_target_vel, filtered_target_accel in place
+    
+    float new_filtered_target_vel = filtered_target_vel + timestep*filtered_target_accel;
+    float new_filtered_target_accel = filtered_target_accel + timestep*(butterworth_coeff_accel*filtered_target_accel + butterworth_coeff_vel*(trap_target_vel - filtered_target_vel));
+   
+    filtered_target_vel = new_filtered_target_vel;
+    filtered_target_accel = new_filtered_target_accel;
+}
+
+//Feedforward reference commands for motor + brake
+
+FloatPair gen_motor_feedforward_reference(float target_vel, float target_accel){
+    //Returns (voltage reference in volts, velocity reference in m/s) for motor controller
+    if(!USE_FEEDFORWARD_CONTROL){
+        return make_float_pair(0.0, 0.0);
+    }
+    //Generate the feedforward reference commands
+    float voltage_ref = k_m_inv_r_to_u * target_vel + k_m_inv_r_dot_to_u * target_accel;
+    float vel_ref_m = k_m_inv_r_to_x * target_vel;
+    
+    return make_float_pair(voltage_ref, vel_ref_m);
+}
+
+FloatPair gen_brake_feedforward_reference(float target_vel, float target_accel){
+    //Returns (force reference in N, velocity reference in m/s) for brake controller
+    if(!USE_FEEDFORWARD_CONTROL){
+        return make_float_pair(0.0, 0.0);
+    }
+    //Generate the feedforward reference commands
+    float brake_force_ref = k_b_inv_r_to_u * target_vel + k_b_inv_r_dot_to_u * target_accel;
+    float vel_ref_b = k_b_inv_r_to_x * target_vel;
+    
+    return make_float_pair(brake_force_ref, vel_ref_b);
+}
+
+//PI control functions for motor and brake
+float gen_motor_PI_control_voltage(float voltage_ref, float vel_ref_m, float current_vel, float err_integral){
+    return voltage_ref - k_1m * (current_vel - vel_ref_m) - k_2m * err_integral;
+}
+
+float gen_brake_PI_control_voltage(float brake_force_ref, float vel_ref_b, float current_vel, float err_integral){
+    return brake_force_ref - k_1b * (current_vel - vel_ref_b) - k_2b * err_integral;
+}
+
+FloatPair gen_control_voltage_brake_force(float delta_t, float est_vel, float software_cmd_vel){
+    //The main controller function.
+    //Returns (motor voltage, braking force). All arguments are in SI units (seconds, m/s)
+    
+    //Get target velocity + accel
+    trapezoidal_target_velocity = gen_trapezoidal_vel(delta_t, trapezoidal_target_velocity, software_cmd_vel);
+    
+    //Now filter it
+    filter_target_vel_accel(delta_t, trapezoidal_target_velocity);
+    
+    //For the motor
+    //Get feedforward reference values
+    FloatPair motor_voltage_velocity_ref = gen_motor_feedforward_reference(filtered_target_vel, filtered_target_accel);
+    float voltage_ref = motor_voltage_velocity_ref.first;
+    float vel_ref_m = motor_voltage_velocity_ref.second;
+    
+    //Get voltage command
+    float voltage_command = gen_motor_PI_control_voltage(voltage_ref, vel_ref_m, est_vel, error_integral);
+    
+    //For the brakes
+    //Get feedforward reference values
+    FloatPair brake_force_velocity_ref = gen_brake_feedforward_reference(filtered_target_vel, filtered_target_accel);
+    float brake_force_ref = brake_force_velocity_ref.first;
+    float vel_ref_b = brake_force_velocity_ref.second;
+    
+    //Get brake force command
+    float brake_force_command = max(gen_brake_PI_control_voltage(brake_force_ref, vel_ref_b, est_vel, error_integral), 0);
+    
+    //Update error integral
+    error_integral += delta_t * (est_vel - filtered_target_vel);
+    
+    return make_float_pair(voltage_command, brake_force_command);
 }
 
 ////
@@ -574,4 +668,10 @@ const static float ampsPerBit = currentSensorAmpsPerVolt*adcMaxVoltage/adcResolu
 float GetMotorCurrent(){
     unsigned int rawCurrentBits = analogRead(CURR_DATA_PIN);
     return (ampsPerBit*rawCurrentBits) - currentSensorMidpoint; // 200A/V * current voltage -> gives A
+}
+
+//Pair-making function
+FloatPair make_float_pair(float first, float second){
+    struct FloatPair retVal = {first, second};
+    return retVal;
 }
