@@ -4,21 +4,15 @@
 #include "controller_estimator.h"
 #include <Ethernet.h>
 
-#define TIMER_MIN_RESOLUTION_US 8  //Timer minimum resolution of 8 us
-
 #define NUM_MAGNETS 24
-#define WHEEL_DIA 0.27305 //meters
-const static unsigned long US_PER_SEC = 1000000;
+const static float US_PER_SEC = 1000000.0;
 
 #define ETH_NUM_SENDS 2
 #define ETH_RETRANSMISSION_DELAY_MS 50  //Time before TCP tries to resend the packet
-#define ETH_TCP_INITIATION_DELAY 50 //How long we wait before .connected() or .connect() fails.
+#define ETH_TCP_INITIATION_DELAY 50     //How long we wait before .connected() or .connect() fails.
 
-#define REPLY_TIMEOUT_MS 4000 //We have to receive a reply from Estop and Brake within this many MS of our message or we are timed out. NOT TCP timeout. Have to 
-#define MIN_MESSAGE_SPACING 100  //Send messages to Brake and request state from e-stop at 10 Hz
-
-/*******FUNCTION HEADERS*****/
-byte MotorPwmFromVoltage(float);
+#define REPLY_TIMEOUT_MS 4000   //We have to receive a reply from Estop and Brake within this many MS of our message or we are timed out. NOT TCP timeout. Have to 
+#define MIN_MESSAGE_SPACING 100 //Send messages to Brake and request state from e-stop at 10 Hz
 
 /****************ETHERNET****************/
 // See https://docs.google.com/document/d/10klaJG9QIRAsYD0eMPjk0ImYSaIPZpM_lFxHCxdVRNs/edit#
@@ -80,19 +74,24 @@ Forward state if commanded velocity >=0. Backward if velocity < 0.
 
 // State machine possible states
 enum ChassisState {
-    STATE_DISABLED = 0,
-    STATE_TIMEOUT = 1,
-    STATE_FORWARD = 2,
-    STATE_REVERSE = 3
+    STATE_DISABLED_FORWARD = 0,
+    STATE_DRIVING_FORWARD = 1,
+    STATE_DISABLED_REVERSE = 2,
+    STATE_DRIVING_REVERSE = 3
 }
-currentState = STATE_DISABLED;
+currentState = STATE_DISABLED_FORWARD;
 bool motorEnabled = false;
 
+unsigned long lastControllerRunTime = 0;    //Last time the controller and speed estimator was executed
 
-float motorCurrent = 0;
-float desired_braking_force = 0;
+float motorCurrent = 0;                 //Current passing through the motor (can be + or -, depending on direction)
+float desired_braking_force = 0;        //Desired braking force in N (should be >=0)
 float softwareDesiredVelocity = 0;      //What Software is commanding us
 
+//Motor translation parameters
+static const float batteryVoltage = 48.0;
+static const byte maxSpeedPwm = 255;
+static const byte zeroSpeedPwm = 0; // 100% PWM, 0% Voltage
 
 void setup(){
     // Ethernet Pins
@@ -169,10 +168,18 @@ void loop() {
 	// Read new messages from WizNet and make necessary replies
     readAllNewMessages();
 	
+    //How long since the last controller execution
+    unsigned long currTime = micros();
+    float loopTimeStep = (currTime - lastControllerRunTime)/US_PER_SEC;
+    lastControllerRunTime = currTime;
+    
     //Calculate current speed
     motorCurrent = GetMotorCurrent();
-    //estimate_vel();
+    estimate_vel(loopTimeStep, motorCurrent, desired_braking_force);
+
+    executeStateMachine(loopTimeStep);
     
+    //Print diagnostics
     if (millis() > lastPrintTime + printDelayMs){
         Serial.print("Current speed: ");
         Serial.print(get_speed());
@@ -181,8 +188,6 @@ void loop() {
         
         lastPrintTime = millis();
     }
-
-    executeStateMachine();
     
     //Now make requests to estop and brake
     sendToBrakeEstop();
@@ -339,40 +344,83 @@ void resetEthernet(void){
 // STATE MACHINE FUNCTIONS
 ////
 
-void executeStateMachine(){ 
+void executeStateMachine(float timeSinceLastLoop){ 
     //Check what state we are in at the moment.
     //We are disabled if the motor is disabled, or any of our clients has timed out 
     unsigned long currTime = millis();
+    
     if(!motorEnabled){
-        currentState = STATE_DISABLED;
+        Serial.println("Motor disabled");
     }
-    else if((!brakeConnected || currTime > lastBrakeReply + REPLY_TIMEOUT_MS) || (!estopConnected || currTime > lastEstopReply + REPLY_TIMEOUT_MS) || currTime > lastManualCommand + REPLY_TIMEOUT_MS){
-        currentState = STATE_TIMEOUT;
+    
+    //Check if we are connected to all boards
+    bool connected_to_all_board = true;
+    if(!brakeConnected){
+        Serial.println("Lost brake TCP connection");
+        connected_to_all_board = false;
+    }
+    else if(currTime > lastBrakeReply + REPLY_TIMEOUT_MS){
+        Serial.println("Brake timed out");
+        connected_to_all_board = false;
+    }
+    else if(!estopConnected){
+        Serial.println("Lost estop TCP connection");
+        connected_to_all_board = false;
+    }
+    else if(currTime > lastEstopReply + REPLY_TIMEOUT_MS){
+        Serial.println("Estop timed out");
+        connected_to_all_board = false;
+    }
+    else if(currTime > lastManualCommand + REPLY_TIMEOUT_MS){
+        Serial.println("Manual timed out");
+        connected_to_all_board = false;
+    }
+    
+    //State transitions. See .gv file.
+    if(currentState == STATE_DRIVING_FORWARD){
+        if(!motorEnabled || !connected_to_all_board){
+            currentState = STATE_DISABLED_FORWARD;
+        }
+        else if(softwareDesiredVelocity < 0 && get_speed() < switch_direction_max_speed){
+            currentState = STATE_DRIVING_REVERSE;
+        }
+    }
+    else if(currentState == STATE_DRIVING_REVERSE){
+        if(!motorEnabled || !connected_to_all_board){
+            currentState = STATE_DISABLED_REVERSE;
+        }
+        else if(softwareDesiredVelocity > 0 && get_speed() < switch_direction_max_speed){
+            currentState = STATE_DRIVING_FORWARD;
+        }
+    }
+    else if(currentState == STATE_DISABLED_REVERSE){
+        if(motorEnabled && connected_to_all_board){
+            currentState = STATE_DRIVING_REVERSE;
+        }
     }
     else{
-        if(softwareDesiredVelocity < 0){
-            currentState = STATE_REVERSE;
-        }
-        else{
-            currentState = STATE_FORWARD;
+        //State is STATE_DISABLED_FORWARD
+        if(motorEnabled && connected_to_all_board){
+            currentState = STATE_DRIVING_FORWARD;
         }
     }
+    
     //Now execute that state
 	switch(currentState) { 
-		case STATE_DISABLED:{
+		case STATE_DISABLED_FORWARD:{
 			runStateDisabled();
 			break;
 		}
-        case STATE_TIMEOUT:{
-			runStateTimeout();
+        case STATE_DISABLED_REVERSE:{
+			runStateDisabled();
 			break;
 		}
-		case STATE_FORWARD:{
-			runStateForward();
+		case STATE_DRIVING_FORWARD:{
+			runStateForward(timeSinceLastLoop);
 			break;
 		}
-		case STATE_REVERSE:{
-			runStateReverse();
+		case STATE_DRIVING_REVERSE:{
+			runStateReverse(timeSinceLastLoop);
 			break;
 		}
 	}
@@ -382,58 +430,44 @@ void runStateDisabled(){
     /*
     Motor off, brakes engaged. Don't care what reversing contactor is doing.
     */
-    Serial.println("Motor disabled");
     writeMotorOff();
     desired_braking_force = maxBrakingForce;
-}
-void runStateTimeout(){
-    /*
-    Motor off, brakes disengaged. Don't care what reversing contactor is doing.
-    */
-    unsigned long currTime = millis();
     
-    if (!brakeConnected){
-        Serial.println("Lost brake TCP connection");
-    }
-    else if(currTime > lastBrakeReply + REPLY_TIMEOUT_MS){
-        Serial.println("Brake timed out");
-    }
-    
-    if (!estopConnected){
-        Serial.println("Lost estop TCP connection");
-    }
-    else if(currTime > lastEstopReply + REPLY_TIMEOUT_MS){
-        Serial.println("Estop timed out");
-    }
-    
-    if (currTime > lastManualCommand + REPLY_TIMEOUT_MS){
-        Serial.println("Manual timed out");
-    }
-    
-    writeMotorOff();
-    desired_braking_force = 0;
+    //Reset speed filter so we don't have problems coming out of this state
+    reset_controller(get_speed());
 }
 
-void runStateForward(){
+void runStateForward(float timestep){
     /*
     Going forward in normal operation.
     */
     writeReversingContactorForward(true);
     
-    //TODO: controls math here
-    MotorPwmFromVoltage(12.0);
-    desired_braking_force = 0;
+    float capped_target_speed = max(0, softwareDesiredVelocity);    //If softwareDesiredVelocity < 0, then this is 0, so we will brake in preparation for going backwards
+    
+    //controls math here
+    FloatPair voltage_and_braking_force = gen_control_voltage_brake_force(timestep, get_speed(), capped_target_speed);
+    float desired_motor_voltage = voltage_and_braking_force.first;
+    desired_braking_force = voltage_and_braking_force.second;
+    
+    writeVoltageToMotor(desired_motor_voltage);
 }
 
-void runStateReverse(){
+void runStateReverse(float timestep){
     /*
     Going reversed in normal operation.
+    Remeber our controller controls SPEED and disregards direction. So to go backwards we flip the reversing contactor and make the speed positive
     */
     writeReversingContactorForward(false);
     
-    //TODO: controls math here
-    MotorPwmFromVoltage(12.0);
-    desired_braking_force = 0;
+    float capped_target_speed = max(0, -softwareDesiredVelocity);    //If softwareDesiredVelocity > 0, then this is 0, so we will brake in preparation for going forwards
+    
+    //controls math here
+    FloatPair voltage_and_braking_force = gen_control_voltage_brake_force(timestep, get_speed(), capped_target_speed);
+    float desired_motor_voltage = voltage_and_braking_force.first;
+    desired_braking_force = voltage_and_braking_force.second;
+    
+    writeVoltageToMotor(desired_motor_voltage);
 }
 
 
@@ -453,14 +487,16 @@ void writeMotorOff(void){
     analogWrite(MOTOR_CNTRL_PIN, zeroSpeedPwm);
 }
 
-byte MotorPwmFromVoltage(float voltage){
+void writeVoltageToMotor(float voltage){
     if(voltage > batteryVoltage){
-        return maxSpeedPwm;
+        analogWrite(MOTOR_CNTRL_PIN, maxSpeedPwm);
     }
     else if(voltage < 0){
-        return 0;
+        analogWrite(MOTOR_CNTRL_PIN, zeroSpeedPwm);
     }
-    return (byte) maxSpeedPwm*voltage/batteryVoltage;
+    
+    byte desiredPWM = (byte) maxSpeedPwm*voltage/batteryVoltage;
+    analogWrite(MOTOR_CNTRL_PIN, desiredPWM);
 }
 
 ////

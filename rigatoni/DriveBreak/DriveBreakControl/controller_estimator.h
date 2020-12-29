@@ -7,14 +7,11 @@ static const float SQRT_2 = 1.4142135623730951;
 // Control Limits and parameters
 #define USE_FEEDFORWARD_CONTROL true        //If false, will not use feedforward control
 
-static const float maxVelocity = 10.0;             //maximum velocity in m/s
+static const float switch_direction_max_speed = 0.1;    //Will switch directions only when estimated speed is less than this
+
 static const float controller_decel_limit = 6;     //maximum deceleration in m/s^2
 static const float controller_accel_limit = 4.5;    //max accel in m/s^2
 static const float velocity_filter_bandwidth = 5;
-
-static const float batteryVoltage = 48;
-static const byte maxSpeedPwm = 255;
-static const byte zeroSpeedPwm = 0; // 100% PWM, 0% Voltage
 
 //Motor feedforward and PI parameters
 static const float k_m_inv_r_to_u = 2.8451506121016807;
@@ -32,20 +29,22 @@ static const float k_b_inv_r_to_x = 1.0;
 static const float k_1b = -591.5;   //P gain
 static const float k_2b = -603;   //I gain
 
-static const float maxBrakingForce = 600.0;    //In Newtons
+static const float maxBrakingForce = 900.0;    //In Newtons
 
 /*Estimator*/
 //Gain matricies
 static const float L_pos = 39.94333333;
 static const float L_vel = 397.53711112;
 
-//Car parameters. THIS ONLY AFFECTS PART OF THE ESTIMATOR. Go back to the ipython notebook and recalculate ALL the gains in this file if you change these.
+//Car physics parameters. THIS ONLY AFFECTS PART OF THE ESTIMATOR. Go back to the ipython notebook and recalculate ALL the gains in this file if you change these.
 static const float d = 10.0;        //Drag in N/(m/s)
 static const float Gr = 64.0/22.0;  //Gear ratio
 static const float m = 150;         //Car mass in kg
 static const float rw = 0.27/2;     //Tire radius in m
 static const float Kt = 0.1260;      //Nm/Amp
 
+static const int num_magnets_on_shaft = 24; //Number of magnets on rear axle. This can change without recalculating other controller parameters
+static const float meters_per_encoder_tick = 2*PI*rw/num_magnets_on_shaft;
 
 //Replacement for std::pair only good for floats
 struct FloatPair{   
@@ -56,9 +55,10 @@ struct FloatPair{
 /*Function headers. There are many helper functions not listed here - you don't need to call them!*/
 //Encoder
 void HallEncoderInterrupt();                        //Encoder callback
-float estimate_vel(float, float, float, float);     //Estimates velocity. Call this once per loop. Can handle a timestep of 0.0
+float estimate_vel(float, float, float);     //Estimates velocity. Call this once per loop. Can handle a timestep of 0.0
 float get_speed();                                  //Getter function that returns the current velocity
 
 //Controller
 FloatPair gen_control_voltage_brake_force(float, float, float);     //Returns (motor voltage, braking force). All arguments are in SI units (seconds, m/s)
 float get_curr_target_speed();                                      //Does not calculate anything. Returns target speed from last call of controller function
+void reset_controller(float);

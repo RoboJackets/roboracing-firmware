@@ -1,0 +1,29 @@
+//https://fsteeg.wordpress.com/2006/11/17/uml-class-diagrams-with-graphviz/     how to format
+//use pydot to auto-generate code
+
+digraph train_lab {
+node[shape=record,style=filled,fillcolor=gray95]
+edge[arrowtail=empty]
+
+DISABLED_FORWARD[label = "{DISABLED_FORWARD|Controller Reset|Motor off; max brake}"]
+DISABLED_REVERSE[label = "{DISABLED_REVERSE|Controller Reset|Motor off; max brake}"]
+DRIVING_FORWARD[label = "{DRIVING_FORWARD|Controller On|target_speed = max(0, software_speed)}"]
+DRIVING_REVERSE[label = "{DRIVING_REVERSE|Controller On|target_speed = max(0, -software_speed)}"]
+
+
+
+
+//Transitions
+//Remember car's speed is always >= 0, even in reverse
+
+DISABLED_FORWARD -> DRIVING_FORWARD[label="Estop Go and All boards connected"];
+
+DRIVING_FORWARD -> DISABLED_FORWARD[label="Estop Stop or Something disconnected"];
+DRIVING_FORWARD -> DRIVING_REVERSE[label="software's command < 0 and current speed < threshold"];
+
+DISABLED_REVERSE -> DRIVING_REVERSE[label="Estop Go and All boards connected"];
+
+DRIVING_REVERSE -> DISABLED_REVERSE[label="Estop Stop or Something disconnected"];
+DRIVING_REVERSE -> DRIVING_FORWARD[label="software's command > 0 and current speed < threshold"];
+
+}

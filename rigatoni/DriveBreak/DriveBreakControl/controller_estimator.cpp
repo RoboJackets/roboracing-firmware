@@ -43,13 +43,20 @@ void HallEncoderInterrupt(){
 // SPEED ESTIMATOR FUNCTIONS
 // See ipython notebook
 ////
-float estimate_vel(float delta_t, float encoder_pos, float motor_current, float brake_force){
+
+float estimate_vel(float delta_t, float motor_current, float brake_force){
     //All arguments are in SI units
     //This updates the global velocity estimate, currentSpeed
     //Use the Forward Euler method
+    float SI_encoder_pos = currEncoderCount * meters_per_encoder_tick;
+    float change_in_position = SI_encoder_pos - est_pos;
+    
+    //To prevent floating-point overflow, subtract encoder count from both encoder count AND current position (i.e. shift start point forward by currEncoderCount
+    currEncoderCount = 0;
+    est_pos -= SI_encoder_pos;
 
-    float new_est_pos = est_pos + delta_t * (est_vel - L_pos*(est_pos - encoder_pos));
-    float new_est_vel = est_vel + delta_t * (-d/m*est_vel + Gr*Kt/(m*rw)*motor_current - 1.0/m*brake_force - L_vel*(est_pos - encoder_pos));
+    float new_est_pos = est_pos + delta_t * (est_vel + L_pos*change_in_position);
+    float new_est_vel = est_vel + delta_t * (-d/m*est_vel + Gr*Kt/(m*rw)*motor_current - 1.0/m*brake_force + L_vel*change_in_position);
     est_pos = new_est_pos;
     est_vel = new_est_vel;
     return est_vel;
@@ -91,6 +98,15 @@ void filter_target_vel_accel(float timestep, float trap_target_vel){
    
     filtered_target_vel = new_filtered_target_vel;
     filtered_target_accel = new_filtered_target_accel;
+}
+
+void reset_controller(float new_speed){
+    //A way of resetting the trapezoidal interpolator and the speed filter to a new tartget speed
+    //Also resets the error integral
+    trapezoidal_target_velocity = new_speed;
+    filtered_target_vel = new_speed;
+    filtered_target_accel = 0;
+    error_integral = 0;
 }
 
 //Feedforward reference commands for motor + brake
