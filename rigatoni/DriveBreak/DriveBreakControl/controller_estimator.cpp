@@ -54,6 +54,7 @@ float estimate_vel(float delta_t, float motor_current, float brake_force){
     //All arguments are in SI units
     //This updates the global velocity estimate, currentSpeed
     //Use the Forward Euler method
+    //Call this ONCE per loop
     float SI_encoder_pos = currEncoderCount * meters_per_encoder_tick;
     float change_in_position = SI_encoder_pos - est_pos;
     
@@ -183,4 +184,8 @@ FloatPair gen_control_voltage_brake_force(float delta_t, float est_vel, float so
     error_integral += delta_t * (est_vel - filtered_target_vel);
     
     return make_float_pair(voltage_command, brake_force_command);
+}
+
+float get_error_integral(){
+    return error_integral;
 }

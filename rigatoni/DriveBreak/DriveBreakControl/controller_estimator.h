@@ -1,4 +1,14 @@
 #pragma once
+/*
+This file contains the constants and definitions for the speed controller
+The controller first acceleration-limits Software's velocity, then Butterworth lowpass filter it
+Then we do state-space PI control with feedforward control to almost exactly follow our filtered target velocity
+See motor_and_brake_independent_controllers.ipynb
+
+Changing the PI gains for the motor and brake DOES NOT AFFECT THE CAR'S RESPONSE. Almost all the delay in our response
+is caused by the Butterworth lowpass filter. For a more aggressive response increase velocity_filter_bandwidth
+(this can be done without recalculating other controller gains).
+*/
 
 static const float pi = 3.141592653589793;
 
@@ -9,9 +19,9 @@ static const float SQRT_2 = 1.4142135623730951;
 
 static const float switch_direction_max_speed = 0.1;    //Will switch directions only when estimated speed is less than this
 
-static const float controller_decel_limit = 6;     //maximum deceleration in m/s^2
+static const float controller_decel_limit = 6;      //maximum deceleration in m/s^2
 static const float controller_accel_limit = 4.5;    //max accel in m/s^2
-static const float velocity_filter_bandwidth = 5;
+static const float velocity_filter_bandwidth = 5;   //Lowpass filter on command velocity. This controls how aggressive the car's response is
 
 //Motor feedforward and PI parameters
 static const float k_m_inv_r_to_u = 2.8451506121016807;
@@ -62,3 +72,4 @@ extern "C" float get_speed();                                  //Getter function
 extern "C" FloatPair gen_control_voltage_brake_force(float, float, float);     //Returns (motor voltage, braking force). All arguments are in SI units (seconds, m/s)
 extern "C" float get_curr_target_speed();                                      //Does not calculate anything. Returns target speed from last call of controller function
 extern "C" void reset_controller(float);
+extern "C" float get_error_integral();                                         //Returns the current accumulated error integral. Useful for debugging.
