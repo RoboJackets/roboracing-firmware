@@ -47,18 +47,18 @@ static const int num_magnets_on_shaft = 24; //Number of magnets on rear axle. Th
 static const float meters_per_encoder_tick = 2*pi*rw/num_magnets_on_shaft;
 
 //Replacement for std::pair only good for floats
-struct FloatPair{   
+extern "C" struct FloatPair{   
     float first;
     float second;
 };
 
 /*Function headers. There are many helper functions not listed here - you don't need to call them!*/
 //Encoder
-void HallEncoderInterrupt();                        //Encoder callback
-float estimate_vel(float, float, float);     //Estimates velocity. Call this once per loop. Can handle a timestep of 0.0
-float get_speed();                                  //Getter function that returns the current velocity
+extern "C" void HallEncoderInterrupt();                        //Encoder callback
+extern "C" float estimate_vel(float, float, float);     //Estimates velocity. Call this once per loop. Can handle a timestep of 0.0
+extern "C" float get_speed();                                  //Getter function that returns the current velocity
 
 //Controller
-FloatPair gen_control_voltage_brake_force(float, float, float);     //Returns (motor voltage, braking force). All arguments are in SI units (seconds, m/s)
-float get_curr_target_speed();                                      //Does not calculate anything. Returns target speed from last call of controller function
-void reset_controller(float);
+extern "C" FloatPair gen_control_voltage_brake_force(float, float, float);     //Returns (motor voltage, braking force). All arguments are in SI units (seconds, m/s)
+extern "C" float get_curr_target_speed();                                      //Does not calculate anything. Returns target speed from last call of controller function
+extern "C" void reset_controller(float);
