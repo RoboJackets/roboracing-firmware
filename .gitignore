@@ -1,4 +1,6 @@
+# C Compiled files
 *.o
+*.so
 
 # build files (makefile can/should be generated each time)
 *~

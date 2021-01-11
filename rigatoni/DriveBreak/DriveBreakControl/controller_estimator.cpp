@@ -1,5 +1,11 @@
 #include "controller_estimator.h"
 
+#ifndef max
+#define min(a,b) ((a)<(b)?(a):(b))
+#define max(a,b) ((a)>(b)?(a):(b))
+#endif
+
+
 //Pair-making function
 FloatPair make_float_pair(float first, float second){
     struct FloatPair retVal = {first, second};
@@ -82,7 +88,7 @@ float gen_trapezoidal_vel(float timestep, float last_trapezoidal_vel, float soft
     float trapezoidal_target_vel = min(max(software_cmd_vel, last_trapezoidal_vel - timestep * controller_decel_limit), last_trapezoidal_vel + timestep * controller_accel_limit);
     
     //Cap our speed
-    trapezoidal_target_vel = max(trapezoidal_target_vel, 0);
+    trapezoidal_target_vel = max(trapezoidal_target_vel, 0.0);
     return trapezoidal_target_vel;
 }
 
@@ -170,7 +176,8 @@ FloatPair gen_control_voltage_brake_force(float delta_t, float est_vel, float so
     float vel_ref_b = brake_force_velocity_ref.second;
     
     //Get brake force command
-    float brake_force_command = max(gen_brake_PI_control_voltage(brake_force_ref, vel_ref_b, est_vel, error_integral), 0);
+    float brake_force_command = gen_brake_PI_control_voltage(brake_force_ref, vel_ref_b, est_vel, error_integral);
+    brake_force_command = max(brake_force_command, 0);
     
     //Update error integral
     error_integral += delta_t * (est_vel - filtered_target_vel);

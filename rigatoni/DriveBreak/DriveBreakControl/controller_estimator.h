@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Arduino.h>
+static const float pi = 3.141592653589793;
 
 static const float SQRT_2 = 1.4142135623730951;
 
@@ -44,7 +44,7 @@ static const float rw = 0.27/2;     //Tire radius in m
 static const float Kt = 0.1260;      //Nm/Amp
 
 static const int num_magnets_on_shaft = 24; //Number of magnets on rear axle. This can change without recalculating other controller parameters
-static const float meters_per_encoder_tick = 2*PI*rw/num_magnets_on_shaft;
+static const float meters_per_encoder_tick = 2*pi*rw/num_magnets_on_shaft;
 
 //Replacement for std::pair only good for floats
 struct FloatPair{   
