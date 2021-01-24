@@ -46,25 +46,32 @@ bool value_ch_3;
 /* Ethernet */
 const static byte mac[] = {0xDE, 0xAD, 0xBE, 0xEF, 6}; // manual board's mac address
 const static IPAddress manualIP(192, 168, 0, 6); // manual board's IP address
-EthernetServer server(PORT);
+EthernetServer manualServer(PORT);
 
 // Enter a IP address for nuc below, nuc client to manual
-const static IPAddress nucIP(192, 168, 0, 178); //set the IP of the NUC
+const static IPAddress nucIP(192, 168, 0, 2); //set the IP of the NUC
 EthernetClient nuc;  // client 
 
 // Enter a IP address for steering below, manual client to steering and drive
-const static IPAddress steeringIP(192, 168, 0, 178); //set the IP of the steering board
-const static IPAddress driveIP(192, 168, 0, 4); //set the IP of the drive board
+const static IPAddress steeringIP(192, 168, 0, 5); //set the IP of the steering board
+EthernetClient steeringBoard; // client
+
+const static IPAddress driveIP(192, 168, 0, 7); //set the IP of the drive board
+EthernetClient driveBoard; // client
+
+//TCP Connection status to brake and estop
+bool driveConnected = false;
+bool steeringConnected = false;
 
 /****************Messages from clients****************/
 //Universal acknowledge message
 const static String ackMsg = "R";
 
 //NUC commanded speed header
-const static String manualDriveStringHeader = "v=";
+const static String nucDriveStringHeader = "v=";
 
 //NUC commanded steering header
-const static String manualDriveStringHeader = " a=";
+const static String nucSteeringStringHeader = " a=";
 
 /****************Messages to clients****************/
 //Manual RC speed command header
@@ -73,7 +80,66 @@ const static String manualDriveStringHeader = "v=";
 //Manual RC steering angle command header
 const static String manualSteeringStringHeader = "S=";
 
+// Interrupt stuff
+void isr_rising_ch_1() {
+  attachInterrupt(digitalPinToInterrupt(CH_1), isr_falling_ch_1, FALLING);
+  prev_time_ch_1 = micros();
+}
+ 
+void isr_falling_ch_1() {
+  attachInterrupt(digitalPinToInterrupt(CH_1), isr_rising_ch_1, RISING);
+  pwm_value_ch_1 = micros()-prev_time_ch_1;
+}
 
+void isr_rising_ch_2() {
+  attachInterrupt(digitalPinToInterrupt(CH_2), isr_falling_ch_2, FALLING);
+  prev_time_ch_2 = micros();
+}
+ 
+void isr_falling_ch_2() {
+  attachInterrupt(digitalPinToInterrupt(CH_2), isr_rising_ch_2, RISING);
+  pwm_value_ch_2 = micros()-prev_time_ch_2;
+}
+
+void isr_rising_ch_3() {
+  attachInterrupt(digitalPinToInterrupt(CH_3), isr_falling_ch_3, FALLING);
+  prev_time_ch_3 = micros();
+}
+ 
+void isr_falling_ch_3() {
+  attachInterrupt(digitalPinToInterrupt(CH_3), isr_rising_ch_3, RISING);
+  pwm_value_ch_3 = micros()-prev_time_ch_3;
+}
+
+void pin_assign(){
+    pinMode(RC_IN, INPUT);
+  
+//    pinMode(THROTTLE, INPUT); TODO NOT USED
+//    pinMode(SWITCH, INPUT); TODO NOT USED
+  
+    pinMode(LED_1, OUTPUT);
+    pinMode(LED_2, OUTPUT);
+
+    pinMode(CH_1, INPUT);
+    pinMode(CH_2, INPUT);
+    pinMode(CH_3, INPUT);
+
+    // Ethernet pins
+    pinMode(ETH_INT_PIN, INPUT);
+    //pinMode(ETH_RST_PIN, INPUT); TODO Not connected in current version
+    pinMode(ETH_CS_PIN, OUTPUT);
+
+    attachInterrupt(digitalPinToInterrupt(CH_1), isr_rising_ch_1, RISING);
+    attachInterrupt(digitalPinToInterrupt(CH_2), isr_rising_ch_2, RISING);
+    attachInterrupt(digitalPinToInterrupt(CH_3), isr_rising_ch_3, RISING);
+}
+
+void rc_missing();
+void evaluate_ch_1();
+void evaluate_ch_2();
+void evaluate_ch_3();
+void set_led_1(bool);
+void set_led_2(bool);
 
 void setup(){
     pin_assign();
@@ -81,9 +147,11 @@ void setup(){
     startTime = 0;
 
     /* Initialization for ethernet*/
-    resetEthernet();
+    //resetEthernet();
     Ethernet.init(ETH_CS_PIN);  // SCLK pin from eth header
     Ethernet.begin(mac, manualIP); // initialize ethernet device
+
+    
     while (Ethernet.hardwareStatus() == EthernetNoHardware) {
          Serial.println("Ethernet shield was not found.");
          delay(50);
@@ -95,14 +163,18 @@ void setup(){
 
     Ethernet.setRetransmissionCount(ETH_NUM_SENDS);
     Ethernet.setRetransmissionTimeout(ETH_RETRANSMISSION_DELAY_MS);
-    server.begin();
+    manualServer.begin();
     startTime = millis();
+
+    
 }
 
 
 
 void loop() {
-    readEthernet();
+    readAllNewMessages();
+
+    
     rc_missing();
     if(rc_present_state){
       evaluate_ch_1();
@@ -122,8 +194,8 @@ void loop() {
     delay(50);
 }
 
-void readEthernet(){ 
-  EthernetClient client = server.available();    // if there is a new message form client create client object, otherwise new client object, if evaluated, is false
+void readAllNewMessages(){ 
+  EthernetClient client = manualServer.available();    // if there is a new message form client create client object, otherwise new client object, if evaluated, is false
   if (client) {
     String data = RJNet::readData(client);  // if i get string from RJNet buffer ($speed_value;)
     client.remoteIP();
@@ -139,49 +211,39 @@ void readEthernet(){
       }
     }
   }
+
+  
   if(millis() - startTime >= 500){   // now manual board is acting as a client
-    Serial.println("");
-    //Dont' spam server with messages
-    if (!nuc.connected()) {
-      nuc.connect(otherIP, PORT);
-    }
-    else{
-      if (otherBoard.remoteIP() == manualIP){
-        RJNet::sendData(driveBoard, String(value_ch_2)); // sending a velocity to the drivebrake board
-      } else if (otherBoard.remoteIP() == manualIP){
-        RJNet::sendData(otherBoard, String(value_ch_1)); // sending an angle to steering board
+      Serial.println("");
+      //Dont' spam server with messages
+      if (!nuc.connected()) {
+        nuc.connect(nucIP, PORT);
       }
-        /*Serial.print("Sending data to ");
-        Serial.print(otherBoard.remoteIP());
-        Serial.print(":");
-        Serial.println(otherBoard.remotePort());*/
-    }
+      else
+      {
+         // TODO put nuc info send
+      }
+
+      if (!steeringBoard.connected()) {
+        steeringBoard.connect(steeringIP, PORT);
+      }
+      else
+      {
+        RJNet::sendData(steeringBoard, String(value_ch_1)); // sending an angle to steering board
+      }
+    
+      if (!driveBoard.connected()) {
+        driveBoard.connect(driveIP, PORT);
+      }
+      else
+      {
+        RJNet::sendData(driveBoard, String(value_ch_2)); // sending a velocity to the drivebrake board
+      }
+     
+   }
     startTime = millis();
-  }
 }
 
-void pin_assign(){
-    pinMode(RC_IN, INPUT);
-  
-//    pinMode(THROTTLE, INPUT);
-//    pinMode(SWITCH, INPUT);
-  
-    pinMode(LED_1, OUTPUT);
-    pinMode(LED_2, OUTPUT);
-
-    pinMode(CH_1, INPUT);
-    pinMode(CH_2, INPUT);
-    pinMode(CH_3, INPUT);
-
-    // Ethernet pins
-    pinMode(ETH_INT_PIN, INPUT);
-    pinMode(ETH_RST_PIN, INPUT);
-    pinMode(ETH_CS_PIN, INPUT);
-
-    attachInterrupt(digitalPinToInterrupt(CH_1), isr_rising_ch_1, RISING);
-    attachInterrupt(digitalPinToInterrupt(CH_2), isr_rising_ch_2, RISING);
-    attachInterrupt(digitalPinToInterrupt(CH_3), isr_rising_ch_3, RISING);
-}
 
 // Set status LEDs
 void set_led_1(bool on){
@@ -220,37 +282,6 @@ void rc_missing(){
     rc_prev_state = rc_present_state;
 }
 
-// Interrupt stuff
-void isr_rising_ch_1() {
-  attachInterrupt(digitalPinToInterrupt(CH_1), isr_falling_ch_1, FALLING);
-  prev_time_ch_1 = micros();
-}
- 
-void isr_falling_ch_1() {
-  attachInterrupt(digitalPinToInterrupt(CH_1), isr_rising_ch_1, RISING);
-  pwm_value_ch_1 = micros()-prev_time_ch_1;
-}
-
-void isr_rising_ch_2() {
-  attachInterrupt(digitalPinToInterrupt(CH_2), isr_falling_ch_2, FALLING);
-  prev_time_ch_2 = micros();
-}
- 
-void isr_falling_ch_2() {
-  attachInterrupt(digitalPinToInterrupt(CH_2), isr_rising_ch_2, RISING);
-  pwm_value_ch_2 = micros()-prev_time_ch_2;
-}
-
-void isr_rising_ch_3() {
-  attachInterrupt(digitalPinToInterrupt(CH_3), isr_falling_ch_3, FALLING);
-  prev_time_ch_3 = micros();
-}
- 
-void isr_falling_ch_3() {
-  attachInterrupt(digitalPinToInterrupt(CH_3), isr_rising_ch_3, RISING);
-  pwm_value_ch_3 = micros()-prev_time_ch_3;
-}
-
 void evaluate_ch_1() {
   value_ch_1 = map(pwm_value_ch_1, ch_1_lower, ch_1_upper, 0, 100) / 100.0;
   value_ch_1 = value_ch_1 * (abs(value_ch_1) > 0.02); // dead zone of 2%, becomes zero if false
@@ -275,10 +306,11 @@ void evaluate_throttle() {
   value_throttle = map(analogRead(THROTTLE), 0, 1023, 0, 100) / 100.0;
 }*/
 
-void resetEthernet(void){
-    //Resets the Ethernet shield
-    digitalWrite(ETH_RST_PIN, LOW);
-    delay(1);
-    digitalWrite(ETH_RST_PIN, HIGH);
-    delay(501);
-}
+// TODO ETH Not resetable in current board version
+//void resetEthernet(void){
+//    //Resets the Ethernet shield
+//    digitalWrite(ETH_RST_PIN, LOW);
+//    delay(1);
+//    digitalWrite(ETH_RST_PIN, HIGH);
+//    delay(501);
+//}
