@@ -82,40 +82,40 @@ const static String manualSteeringStringHeader = "S=";
 
 // Interrupt stuff
 void isr_rising_ch_1() {
-  attachInterrupt(digitalPinToInterrupt(CH_1), isr_falling_ch_1, FALLING);
   prev_time_ch_1 = micros();
+  attachInterrupt(digitalPinToInterrupt(CH_1), isr_falling_ch_1, FALLING);
 }
  
 void isr_falling_ch_1() {
-  attachInterrupt(digitalPinToInterrupt(CH_1), isr_rising_ch_1, RISING);
   pwm_value_ch_1 = micros()-prev_time_ch_1;
+  attachInterrupt(digitalPinToInterrupt(CH_1), isr_rising_ch_1, RISING);
 }
 
 void isr_rising_ch_2() {
-  attachInterrupt(digitalPinToInterrupt(CH_2), isr_falling_ch_2, FALLING);
   prev_time_ch_2 = micros();
+  attachInterrupt(digitalPinToInterrupt(CH_2), isr_falling_ch_2, FALLING);
 }
  
 void isr_falling_ch_2() {
-  attachInterrupt(digitalPinToInterrupt(CH_2), isr_rising_ch_2, RISING);
   pwm_value_ch_2 = micros()-prev_time_ch_2;
+  attachInterrupt(digitalPinToInterrupt(CH_2), isr_rising_ch_2, RISING);
 }
 
 void isr_rising_ch_3() {
-  attachInterrupt(digitalPinToInterrupt(CH_3), isr_falling_ch_3, FALLING);
   prev_time_ch_3 = micros();
+  attachInterrupt(digitalPinToInterrupt(CH_3), isr_falling_ch_3, FALLING);
 }
  
 void isr_falling_ch_3() {
-  attachInterrupt(digitalPinToInterrupt(CH_3), isr_rising_ch_3, RISING);
   pwm_value_ch_3 = micros()-prev_time_ch_3;
+  attachInterrupt(digitalPinToInterrupt(CH_3), isr_rising_ch_3, RISING);
 }
 
 void pin_assign(){
     pinMode(RC_IN, INPUT);
   
-//    pinMode(THROTTLE, INPUT); TODO NOT USED
-//    pinMode(SWITCH, INPUT); TODO NOT USED
+//    pinMode(THROTTLE, INPUT); NOT USED
+//    pinMode(SWITCH, INPUT);   NOT USED
   
     pinMode(LED_1, OUTPUT);
     pinMode(LED_2, OUTPUT);
@@ -126,7 +126,7 @@ void pin_assign(){
 
     // Ethernet pins
     pinMode(ETH_INT_PIN, INPUT);
-    //pinMode(ETH_RST_PIN, INPUT); TODO Not connected in current version
+    //pinMode(ETH_RST_PIN, INPUT);  NOT POSSIBLE Not connected in current version
     pinMode(ETH_CS_PIN, OUTPUT);
 
     attachInterrupt(digitalPinToInterrupt(CH_1), isr_rising_ch_1, RISING);
@@ -147,7 +147,8 @@ void setup(){
     startTime = 0;
 
     /* Initialization for ethernet*/
-    //resetEthernet();
+    // NOT POSSIBLE - Reset for ethernet is not broken out on microcontroller
+    // resetEthernet();
     Ethernet.init(ETH_CS_PIN);  // SCLK pin from eth header
     Ethernet.begin(mac, manualIP); // initialize ethernet device
 
@@ -194,6 +195,8 @@ void loop() {
     delay(50);
 }
 
+// TODO Verify with desired functionality 
+// TODO Velocity, Steering from RC or NUC
 void readAllNewMessages(){ 
   EthernetClient client = manualServer.available();    // if there is a new message form client create client object, otherwise new client object, if evaluated, is false
   if (client) {
@@ -254,7 +257,7 @@ void set_led_2(bool on){
     digitalWrite(LED_2, on);
 }
 
-/* Manual state not used in this version
+/*  NOT POSSIBLE Manual state not used in this version
 void evaluate_manual_switch(){
     manual_state = digitalRead(SWITCH);
 } */
@@ -282,11 +285,13 @@ void rc_missing(){
     rc_prev_state = rc_present_state;
 }
 
+// TODO Review
 void evaluate_ch_1() {
   value_ch_1 = map(pwm_value_ch_1, ch_1_lower, ch_1_upper, 0, 100) / 100.0;
   value_ch_1 = value_ch_1 * (abs(value_ch_1) > 0.02); // dead zone of 2%, becomes zero if false
 }
 
+// TODO Review
 void evaluate_ch_2() {
   value_ch_2 = map(pwm_value_ch_2, ch_2_lower, ch_2_upper, 0, 100) / 100.0;
   value_ch_2 = value_ch_2 * (abs(value_ch_2) > 0.02);
@@ -301,12 +306,12 @@ void evaluate_ch_3() {
   value_ch_3 = pwm_value_ch_3 > ch_3_mid;
 }
 
-/*For manual drive, not used in current version
+/*  NOT POSSIBLE For manual drive, not used in current version
 void evaluate_throttle() {
   value_throttle = map(analogRead(THROTTLE), 0, 1023, 0, 100) / 100.0;
 }*/
 
-// TODO ETH Not resetable in current board version
+//  NOT POSSIBLE ETH Not resetable in current board version
 //void resetEthernet(void){
 //    //Resets the Ethernet shield
 //    digitalWrite(ETH_RST_PIN, LOW);
