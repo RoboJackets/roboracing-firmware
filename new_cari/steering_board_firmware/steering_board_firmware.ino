@@ -86,7 +86,7 @@ void loop() {
 }
 
 void readEthernet(){ 
-  EthernetClient client = server.available();    // if there is a new message form client create client object, otherwise new client object null
+  EthernetClient client = server.available();    // if there is a new message from client create client object, otherwise new client object null
   if (client) {
     String data = RJNet::readData(client);  // if i get string from RJNet buffer ($speed_value;)
     client.remoteIP();
@@ -148,12 +148,23 @@ ISR(TIMER1_COMPA_vect){//timer0 interrupt 2kHz toggles pin 8
 
 /* For setting direction of stepper motor */
 void assignDirection(){       
-  currentAngle = getPositionSPI();       // read current position from encoder
-  if (desiredAngle < currentAngle){      // set dirPIN to CW or CCW
-    digitalWrite(dirPin, LOW);
-  } else {
-    digitalWrite(dirPin, HIGH);
+  currentAngle = getPositionSPI();         // read current position from encoder
+  if (desiredAngle != currentAngle) {      // checks if motor needs to turn
+    if (desiredAngle < currentAngle){      // set dirPIN to CW or CCW
+      digitalWrite(dirPin, LOW);
+      pulse();
+    } else {
+      digitalWrite(dirPin, HIGH);
+      pulse();
+    }
   }
+}
+
+void pulse() {                           // turns stepper motor one step in the currently set direction
+  digitalWrite(pulsePin, HIGH);
+  delayMicroseconds(20);
+  digitalWrite(pulsePin, LOW);
+  delayMicroseconds(20);
 }
 
 void setCSLine (uint8_t csLine)   // enable or disable encoder
@@ -162,8 +173,7 @@ void setCSLine (uint8_t csLine)   // enable or disable encoder
 }
 
 
-uint8_t spiWriteRead(uint8_t sendByte, uint8_t releaseLine)
-{
+uint8_t spiWriteRead(uint8_t sendByte, uint8_t releaseLine) {
   uint8_t data;
 
   //set cs low, cs may already be low but there's no issue calling it again except for extra time
@@ -180,8 +190,7 @@ uint8_t spiWriteRead(uint8_t sendByte, uint8_t releaseLine)
   return data;
 }
 
-void setZeroSPI()
-{
+void setZeroSPI() {
   spiWriteRead(NOP, false); // NOP needs to be first byte before extended command can be set
 
   //this is the time required between bytes as specified in the datasheet.
@@ -191,8 +200,7 @@ void setZeroSPI()
   delay(250); //250 second delay to allow the encoder to reset
 }
 
-void resetAMT22()
-{
+void resetAMT22() {
   spiWriteRead(NOP, false); // NOP needs to be first byte before extended command can be set
 
   //this is the time required between bytes as specified in the datasheet.
@@ -203,8 +211,7 @@ void resetAMT22()
   delay(250); //250 second delay to allow the encoder to start back up
 }
 
-uint16_t getPositionSPI()
-{
+uint16_t getPositionSPI() {
   uint16_t currentPosition;       //16-bit response from encoder
   bool binaryArray[16];           //after receiving the position we will populate this array and use it for calculating the checksum
 
