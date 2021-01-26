@@ -1,7 +1,6 @@
 #include "pins.h"
 #include "Ethernet.h"
 #include "RJNet.h"
-// Important note 3/8/20: voltage and angle variables need to be created. These variables will be converted to strings and sent to the Drive-brake and steering boards, respectively, in ethernet communication function. 
 
 // Interrupt stuff
 volatile unsigned long pwm_value_ch_1 = 0;
@@ -35,11 +34,14 @@ bool led_2_state = false;
 bool rc_present_state = false;
 bool rc_prev_state = true;
 
-bool manual_state = true;
+bool manual_state = true; // true if RC controlled, false if NUC controlled
 
 float value_ch_1;
 float value_ch_2;
 bool value_ch_3;
+
+float nucSpeed;
+float nucSteering;
 
 // float value_throttle; For manual throttle, not implemented in this version
 
@@ -175,6 +177,13 @@ void setup(){
 void loop() {
     readAllNewMessages();
 
+    if(millis() - startTime >= 500){
+      sendNewMessages();
+    }
+    startTime = millis();
+
+    // TODO evaluate if in manual state or not
+
     
     rc_missing();
     if(rc_present_state){
@@ -196,55 +205,75 @@ void loop() {
 }
 
 // TODO Verify with desired functionality 
-// TODO Velocity, Steering from RC or NUC
 void readAllNewMessages(){ 
-  EthernetClient client = manualServer.available();    // if there is a new message form client create client object, otherwise new client object, if evaluated, is false
-  if (client) {
-    String data = RJNet::readData(client);  // if i get string from RJNet buffer ($speed_value;)
-    client.remoteIP();
+  EthernetClient client = manualServer.available();    // if there is a new message from client create client object, otherwise new client object, if evaluated, is false
+  while (client) {
+    String data = RJNet::readData(client);  // if i get string from RJNet buffer (v= $float a=$float)
+    IPAddress clientIP = client.remoteIP();
     if (data.length() != 0) {   // if data exists
-      if (data[0] == "M"){    // if client is giving us new angle
-        String reply;
-        if (rc_present_state){         // if in manual mode
-          reply = "M";
-        } else {                       // if in autonomous mode
-          reply = "A";
-        }
+      client.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);   //Set connection delay so we don't hang
+      if (manualDriveStringHeader.equals(data.substring(0,2))){    // if client is giving us new angle
+        String reply = "R";
+//        if (rc_present_state){         // if in manual mode
+//          reply = "M";
+//        } else {                       // if in autonomous mode
+//          reply = "A";
+//        }
         RJNet::sendData(client, reply);
-      }
-    }
-  }
-
-  
-  if(millis() - startTime >= 500){   // now manual board is acting as a client
-      Serial.println("");
-      //Dont' spam server with messages
-      if (!nuc.connected()) {
-        nuc.connect(nucIP, PORT);
+        // TODO parse data message   
+             
       }
       else
       {
-         // TODO put nuc info send
+        Serial.print("Invalid message received from ");
+        Serial.println(clientIP);
       }
+    }
+    else {
+      Serial.print("Empty message received from ");
+      Serial.println(clientIP); 
+    }
+    client = manualServer.available();  //Go to next message
+  }
+}
+
+void sendNewMessages() { // now manual board is acting as a client
+      if (!nuc.connected()) {
+        nuc.connect(nucIP, PORT);
+        Serial.println("Lost connection with nuc");
+      }
+//      else if (value_ch_3) // in manual mode
+//      {
+//        RJNet::sendData(steeringBoard, "S=" + String(value_ch_1)); // sending RC angle to nuc
+//        RJNet::sendData(driveBoard, "v=" + String(value_ch_2)); // sending RC velocity to nuc
+//      }
 
       if (!steeringBoard.connected()) {
         steeringBoard.connect(steeringIP, PORT);
+        Serial.println("Lost connection with steering");
+      }
+      else if (manual_state)
+      {
+        RJNet::sendData(steeringBoard, "S=" + String(value_ch_1)); // sending an angle to steering board
       }
       else
       {
-        RJNet::sendData(steeringBoard, String(value_ch_1)); // sending an angle to steering board
+        RJNet::sendData(steeringBoard, "S=" + String(nucSteering)); // sending an angle to steering board
       }
     
       if (!driveBoard.connected()) {
         driveBoard.connect(driveIP, PORT);
+        Serial.println("Lost connection with drive");
+      }
+      else if (manual_state)
+      {
+        RJNet::sendData(driveBoard, "v=" + String(value_ch_2)); // sending a velocity to the drivebrake board
       }
       else
       {
-        RJNet::sendData(driveBoard, String(value_ch_2)); // sending a velocity to the drivebrake board
+        RJNet::sendData(driveBoard, "v=" + String(nucSpeed)); // sending a velocity to the drivebrake board
       }
-     
-   }
-    startTime = millis();
+      
 }
 
 
