@@ -195,7 +195,7 @@ void loop() {
 
     evaluate_state();
 
-    if(millis() - startTime >= 500){
+    if(millis() - startTime >= 100){ // Spec calls for sending at 10 Hz
       sendNewMessages();
     }
     startTime = millis();
@@ -214,13 +214,13 @@ void readAllNewMessages(){
       if (clientIP == nucIP) {
         if (nucDriveStringHeader.equals(data.substring(0,2))){    // if client is giving us new angle
           String reply = ackMsg;
-          RJNet::sendData(client, reply); 
+          RJNet::sendData(client, reply); // Reply "R"
           
           nuc_speed = parseSpeedMessage(data); 
           }
         else if (nuc_angleStringHeader.equals(data.substring(0,2))){    // if client is giving us new steering
           String reply = ackMsg;
-          RJNet::sendData(client, reply); 
+          RJNet::sendData(client, reply); // Reply "R"
           
           nuc_angle = parseSpeedMessage(data); 
           }
@@ -259,11 +259,11 @@ void sendNewMessages() { // now manual board is acting as a client
       }
       else if (manual_state)
       {
-        RJNet::sendData(steeringBoard, manualSteeringStringHeader + String(rc_angle)); // sending an angle to steering board
+        RJNet::sendData(steeringBoard, manualSteeringStringHeader + String(rc_angle)); // sending an angle to steering board from rc
       }
       else
       {
-        RJNet::sendData(steeringBoard, manualSteeringStringHeader + String(nuc_angle)); // sending an angle to steering board
+        RJNet::sendData(steeringBoard, manualSteeringStringHeader + String(nuc_angle)); // sending an angle to steering board from nuc
       }
     
       if (!driveBoard.connected()) {
@@ -272,11 +272,11 @@ void sendNewMessages() { // now manual board is acting as a client
       }
       else if (manual_state)
       {
-        RJNet::sendData(driveBoard, manualDriveStringHeader + String(rc_speed)); // sending a velocity to the drivebrake board
+        RJNet::sendData(driveBoard, manualDriveStringHeader + String(rc_speed)); // sending a velocity to the drivebrake board from rc
       }
       else
       {
-        RJNet::sendData(driveBoard, manualDriveStringHeader + String(nuc_speed)); // sending a velocity to the drivebrake board
+        RJNet::sendData(driveBoard, manualDriveStringHeader + String(nuc_speed)); // sending a velocity to the drivebrake board from nuc
       }
       
 }
@@ -319,8 +319,8 @@ void rc_missing(){
     rc_prev_state = rc_present_state;
 }
 
-void evaluate_state(){
-    if(rc_present_state && rc_control){
+void evaluate_state(){ // Determines if RC-controlled or NUC-controlled
+    if(rc_present_state && rc_control){ // TODO should there be anything else here??
       manual_state = true;
       }
     else{
