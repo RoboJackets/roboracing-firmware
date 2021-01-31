@@ -3,9 +3,9 @@
 #include "RJNet.h"
 
 // Interrupt stuff
-volatile unsigned long pwm_value_ch_1 = 0;
-volatile unsigned long pwm_value_ch_2 = 0;
-volatile unsigned long pwm_value_ch_3 = 0;
+volatile unsigned long pwm_rc_angle = 0;
+volatile unsigned long pwm_rc_speed = 0;
+volatile unsigned long pwm_rc_control = 0;
 
 volatile unsigned long prev_time_ch_1 = 0;
 volatile unsigned long prev_time_ch_2 = 0;
@@ -36,12 +36,12 @@ bool rc_prev_state = true;
 
 bool manual_state = false; // true if RC controlled, false if NUC controlled
 
-float value_ch_1;
-float value_ch_2;
-bool value_ch_3;
+float rc_angle = 0;
+float rc_speed = 0;
+bool rc_control;
 
-float nucSpeed = 0;
-float nucSteering = 0;
+float nuc_speed = 0;
+float nuc_angle = 0;
 
 // float value_throttle; For manual throttle, not implemented in this version
 
@@ -73,7 +73,7 @@ const static String ackMsg = "R";
 const static String nucDriveStringHeader = "v=";
 
 //NUC commanded steering header
-const static String nucSteeringStringHeader = " a=";
+const static String nuc_angleStringHeader = " a=";
 
 /****************Messages to clients****************/
 //Manual RC speed command header
@@ -89,7 +89,7 @@ void isr_rising_ch_1() {
 }
  
 void isr_falling_ch_1() {
-  pwm_value_ch_1 = micros()-prev_time_ch_1;
+  pwm_rc_angle = micros()-prev_time_ch_1;
   attachInterrupt(digitalPinToInterrupt(CH_1), isr_rising_ch_1, RISING);
 }
 
@@ -99,7 +99,7 @@ void isr_rising_ch_2() {
 }
  
 void isr_falling_ch_2() {
-  pwm_value_ch_2 = micros()-prev_time_ch_2;
+  pwm_rc_speed = micros()-prev_time_ch_2;
   attachInterrupt(digitalPinToInterrupt(CH_2), isr_rising_ch_2, RISING);
 }
 
@@ -109,7 +109,7 @@ void isr_rising_ch_3() {
 }
  
 void isr_falling_ch_3() {
-  pwm_value_ch_3 = micros()-prev_time_ch_3;
+  pwm_rc_control = micros()-prev_time_ch_3;
   attachInterrupt(digitalPinToInterrupt(CH_3), isr_rising_ch_3, RISING);
 }
 
@@ -182,11 +182,11 @@ void loop() {
       evaluate_ch_2();
       evaluate_ch_3();
       Serial.print(" CH_1 ");
-      Serial.println(value_ch_1);
+      Serial.println(rc_angle);
       Serial.print(" CH_2 ");
-      Serial.println(value_ch_2);
+      Serial.println(rc_speed);
       Serial.print(" CH_3 ");
-      Serial.println(value_ch_3);
+      Serial.println(rc_control);
       led_1_state = !led_1_state;
       led_2_state = !led_2_state;
       set_led_1(led_1_state);
@@ -216,13 +216,13 @@ void readAllNewMessages(){
           String reply = ackMsg;
           RJNet::sendData(client, reply); 
           
-          nucSpeed = parseSpeedMessage(data); 
+          nuc_speed = parseSpeedMessage(data); 
           }
-        else if (nucSteeringStringHeader.equals(data.substring(0,2))){    // if client is giving us new steering
+        else if (nuc_angleStringHeader.equals(data.substring(0,2))){    // if client is giving us new steering
           String reply = ackMsg;
           RJNet::sendData(client, reply); 
           
-          nucSteering = parseSpeedMessage(data); 
+          nuc_angle = parseSpeedMessage(data); 
           }
         else {
           Serial.print("Invalid message received from nuc");  
@@ -247,10 +247,10 @@ void sendNewMessages() { // now manual board is acting as a client
         nuc.connect(nucIP, PORT);
         Serial.println("Lost connection with nuc");
       }
-//      else if (value_ch_3) // in manual mode
+//      else if (rc_control) // in manual mode
 //      {
-//        RJNet::sendData(steeringBoard, manualSteeringStringHeader + String(value_ch_1)); // sending RC angle to nuc
-//        RJNet::sendData(driveBoard, manualDriveStringHeader + String(value_ch_2)); // sending RC velocity to nuc
+//        RJNet::sendData(steeringBoard, manualSteeringStringHeader + String(rc_angle)); // sending RC angle to nuc
+//        RJNet::sendData(driveBoard, manualDriveStringHeader + String(rc_speed)); // sending RC velocity to nuc
 //      }
 
       if (!steeringBoard.connected()) {
@@ -259,11 +259,11 @@ void sendNewMessages() { // now manual board is acting as a client
       }
       else if (manual_state)
       {
-        RJNet::sendData(steeringBoard, manualSteeringStringHeader + String(value_ch_1)); // sending an angle to steering board
+        RJNet::sendData(steeringBoard, manualSteeringStringHeader + String(rc_angle)); // sending an angle to steering board
       }
       else
       {
-        RJNet::sendData(steeringBoard, manualSteeringStringHeader + String(nucSteering)); // sending an angle to steering board
+        RJNet::sendData(steeringBoard, manualSteeringStringHeader + String(nuc_angle)); // sending an angle to steering board
       }
     
       if (!driveBoard.connected()) {
@@ -272,11 +272,11 @@ void sendNewMessages() { // now manual board is acting as a client
       }
       else if (manual_state)
       {
-        RJNet::sendData(driveBoard, manualDriveStringHeader + String(value_ch_2)); // sending a velocity to the drivebrake board
+        RJNet::sendData(driveBoard, manualDriveStringHeader + String(rc_speed)); // sending a velocity to the drivebrake board
       }
       else
       {
-        RJNet::sendData(driveBoard, manualDriveStringHeader + String(nucSpeed)); // sending a velocity to the drivebrake board
+        RJNet::sendData(driveBoard, manualDriveStringHeader + String(nuc_speed)); // sending a velocity to the drivebrake board
       }
       
 }
@@ -300,9 +300,9 @@ void rc_missing(){
     rc_present_state = digitalRead(RC_IN);
     if(!rc_present_state){
         Serial.println("RC Reciever Missing");
-        pwm_value_ch_1 = 0;
-        pwm_value_ch_2 = 0;
-        pwm_value_ch_3 = 0;
+        pwm_rc_angle = 0;
+        pwm_rc_speed = 0;
+        pwm_rc_control = 0;
         prev_time_ch_1 = 0;
         prev_time_ch_2 = 0;
         prev_time_ch_3 = 0;
@@ -320,7 +320,7 @@ void rc_missing(){
 }
 
 void evaluate_state(){
-    if(rc_present_state && value_ch_3){
+    if(rc_present_state && rc_control){
       manual_state = true;
       }
     else{
@@ -330,23 +330,23 @@ void evaluate_state(){
 
 // TODO Review
 void evaluate_ch_1() {
-  value_ch_1 = map(pwm_value_ch_1, ch_1_lower, ch_1_upper, 0, 100) / 100.0;
-  value_ch_1 = value_ch_1 * (abs(value_ch_1) > 0.02); // dead zone of 2%, becomes zero if false
+  rc_angle = map(pwm_rc_angle, ch_1_lower, ch_1_upper, 0, 100) / 100.0;
+  rc_angle = rc_angle * (abs(rc_angle) > 0.02); // dead zone of 2%, becomes zero if false
 }
 
 // TODO Review
 void evaluate_ch_2() {
-  value_ch_2 = map(pwm_value_ch_2, ch_2_lower, ch_2_upper, 0, 100) / 100.0;
-  value_ch_2 = value_ch_2 * (abs(value_ch_2) > 0.02);
-  if (value_ch_2 < 0) {
-    value_ch_2 = value_ch_2 * 10;
+  rc_speed = map(pwm_rc_speed, ch_2_lower, ch_2_upper, 0, 100) / 100.0;
+  rc_speed = rc_speed * (abs(rc_speed) > 0.02);
+  if (rc_speed < 0) {
+    rc_speed = rc_speed * 10;
   } else {
-    value_ch_2 = value_ch_2 * 40;
+    rc_speed = rc_speed * 40;
   }
 }
 
 void evaluate_ch_3() {
-  value_ch_3 = pwm_value_ch_3 > ch_3_mid;
+  rc_control = pwm_rc_control > ch_3_mid;
 }
 
 float parseSpeedMessage(const String speedMessage){
