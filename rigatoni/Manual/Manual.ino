@@ -34,14 +34,14 @@ bool led_2_state = false;
 bool rc_present_state = false;
 bool rc_prev_state = true;
 
-bool manual_state = true; // true if RC controlled, false if NUC controlled
+bool manual_state = false; // true if RC controlled, false if NUC controlled
 
 float value_ch_1;
 float value_ch_2;
 bool value_ch_3;
 
-float nucSpeed;
-float nucSteering;
+float nucSpeed = 0;
+float nucSteering = 0;
 
 // float value_throttle; For manual throttle, not implemented in this version
 
@@ -137,6 +137,7 @@ void pin_assign(){
 }
 
 void rc_missing();
+void evaluate_manual();
 void evaluate_ch_1();
 void evaluate_ch_2();
 void evaluate_ch_3();
@@ -176,14 +177,6 @@ void setup(){
 
 void loop() {
     readAllNewMessages();
-
-    if(millis() - startTime >= 500){
-      sendNewMessages();
-    }
-    startTime = millis();
-
-    // TODO evaluate if in manual state or not
-
     
     rc_missing();
     if(rc_present_state){
@@ -201,6 +194,14 @@ void loop() {
       set_led_1(led_1_state);
       set_led_2(led_2_state);
     }
+
+    evaluate_manual();
+
+    if(millis() - startTime >= 500){
+      sendNewMessages();
+    }
+    startTime = millis();
+    
     delay(50);
 }
 
@@ -212,16 +213,21 @@ void readAllNewMessages(){
     IPAddress clientIP = client.remoteIP();
     if (data.length() != 0) {   // if data exists
       client.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);   //Set connection delay so we don't hang
-      if (manualDriveStringHeader.equals(data.substring(0,2))){    // if client is giving us new angle
-        String reply = "R";
-//        if (rc_present_state){         // if in manual mode
-//          reply = "M";
-//        } else {                       // if in autonomous mode
-//          reply = "A";
-//        }
-        RJNet::sendData(client, reply);
-        // TODO parse data message   
-             
+      if (clientIP == nucIP) {
+        if (manualDriveStringHeader.equals(data.substring(0,2))){    // if client is giving us new angle
+          String reply = ackMsg;
+  //        if (rc_present_state){         // if in manual mode
+  //          reply = "M";
+  //        } else {                       // if in autonomous mode
+  //          reply = "A";
+  //        }
+          RJNet::sendData(client, reply);
+          // TODO parse data message   
+               
+        }
+        else {
+          Serial.print("Invalid message received from nuc");  
+        }
       }
       else
       {
@@ -244,8 +250,8 @@ void sendNewMessages() { // now manual board is acting as a client
       }
 //      else if (value_ch_3) // in manual mode
 //      {
-//        RJNet::sendData(steeringBoard, "S=" + String(value_ch_1)); // sending RC angle to nuc
-//        RJNet::sendData(driveBoard, "v=" + String(value_ch_2)); // sending RC velocity to nuc
+//        RJNet::sendData(steeringBoard, manualSteeringStringHeader + String(value_ch_1)); // sending RC angle to nuc
+//        RJNet::sendData(driveBoard, manualDriveStringHeader + String(value_ch_2)); // sending RC velocity to nuc
 //      }
 
       if (!steeringBoard.connected()) {
@@ -254,11 +260,11 @@ void sendNewMessages() { // now manual board is acting as a client
       }
       else if (manual_state)
       {
-        RJNet::sendData(steeringBoard, "S=" + String(value_ch_1)); // sending an angle to steering board
+        RJNet::sendData(steeringBoard, manualSteeringStringHeader + String(value_ch_1)); // sending an angle to steering board
       }
       else
       {
-        RJNet::sendData(steeringBoard, "S=" + String(nucSteering)); // sending an angle to steering board
+        RJNet::sendData(steeringBoard, manualSteeringStringHeader + String(nucSteering)); // sending an angle to steering board
       }
     
       if (!driveBoard.connected()) {
@@ -267,11 +273,11 @@ void sendNewMessages() { // now manual board is acting as a client
       }
       else if (manual_state)
       {
-        RJNet::sendData(driveBoard, "v=" + String(value_ch_2)); // sending a velocity to the drivebrake board
+        RJNet::sendData(driveBoard, manualDriveStringHeader + String(value_ch_2)); // sending a velocity to the drivebrake board
       }
       else
       {
-        RJNet::sendData(driveBoard, "v=" + String(nucSpeed)); // sending a velocity to the drivebrake board
+        RJNet::sendData(driveBoard, manualDriveStringHeader + String(nucSpeed)); // sending a velocity to the drivebrake board
       }
       
 }
@@ -312,6 +318,15 @@ void rc_missing(){
         attachInterrupt(digitalPinToInterrupt(CH_3), isr_rising_ch_3, RISING);
     }
     rc_prev_state = rc_present_state;
+}
+
+void evaluate_manual(){
+    if(rc_present_state && value_ch_3){
+      manual_state = true;
+      }
+    else{
+      manual_state = false;
+      }
 }
 
 // TODO Review
