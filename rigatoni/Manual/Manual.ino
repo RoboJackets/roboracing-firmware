@@ -173,8 +173,6 @@ void setup(){
     
 }
 
-
-
 void loop() {
     readAllNewMessages();
     
@@ -195,7 +193,7 @@ void loop() {
       set_led_2(led_2_state);
     }
 
-    evaluate_manual();
+    evaluate_state();
 
     if(millis() - startTime >= 500){
       sendNewMessages();
@@ -214,17 +212,18 @@ void readAllNewMessages(){
     if (data.length() != 0) {   // if data exists
       client.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);   //Set connection delay so we don't hang
       if (clientIP == nucIP) {
-        if (manualDriveStringHeader.equals(data.substring(0,2))){    // if client is giving us new angle
+        if (nucDriveStringHeader.equals(data.substring(0,2))){    // if client is giving us new angle
           String reply = ackMsg;
-  //        if (rc_present_state){         // if in manual mode
-  //          reply = "M";
-  //        } else {                       // if in autonomous mode
-  //          reply = "A";
-  //        }
-          RJNet::sendData(client, reply);
-          // TODO parse data message   
-               
-        }
+          RJNet::sendData(client, reply); 
+          
+          nucSpeed = parseSpeedMessage(data); 
+          }
+        else if (nucSteeringStringHeader.equals(data.substring(0,2))){    // if client is giving us new steering
+          String reply = ackMsg;
+          RJNet::sendData(client, reply); 
+          
+          nucSteering = parseSpeedMessage(data); 
+          }
         else {
           Serial.print("Invalid message received from nuc");  
         }
@@ -320,7 +319,7 @@ void rc_missing(){
     rc_prev_state = rc_present_state;
 }
 
-void evaluate_manual(){
+void evaluate_state(){
     if(rc_present_state && value_ch_3){
       manual_state = true;
       }
@@ -348,6 +347,16 @@ void evaluate_ch_2() {
 
 void evaluate_ch_3() {
   value_ch_3 = pwm_value_ch_3 > ch_3_mid;
+}
+
+float parseSpeedMessage(const String speedMessage){
+    //takes in message from manual and converts it to a float desired speed.
+    return speedMessage.substring(2).toFloat();
+}
+
+float parseAngleMessage(const String AngleMessage){
+    //takes in message from manual and converts it to a float desired speed.
+    return AngleMessage.substring(2).toFloat();
 }
 
 /*  NOT POSSIBLE For manual drive, not used in current version
