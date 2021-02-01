@@ -197,8 +197,8 @@ void loop() {
 
     if(millis() - startTime >= 100){ // Spec calls for sending at 10 Hz
       sendNewMessages();
+      startTime = millis();
     }
-    startTime = millis();
     
     delay(50);
 }
