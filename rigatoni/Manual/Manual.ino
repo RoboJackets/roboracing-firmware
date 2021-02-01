@@ -73,7 +73,7 @@ const static String ackMsg = "R";
 const static String nucDriveStringHeader = "v=";
 
 //NUC commanded steering header
-const static String nuc_angleStringHeader = " a=";
+const static String nucAngleStringHeader = " a=";
 
 /****************Messages to clients****************/
 //Manual RC speed command header
@@ -188,7 +188,7 @@ void loop() {
       Serial.print(" CH_3 ");
       Serial.println(rc_control);
       led_1_state = !led_1_state;
-      led_2_state = !led_2_state;
+      led_2_state = !led_2_state; // TODO can we use one of these leds for manual_state?
       set_led_1(led_1_state);
       set_led_2(led_2_state);
     }
@@ -200,14 +200,14 @@ void loop() {
       startTime = millis();
     }
     
-    delay(50);
+    delay(50); // TODO should this be decreased?
 }
 
 // TODO Verify with desired functionality 
 void readAllNewMessages(){ 
   EthernetClient client = manualServer.available();    // if there is a new message from client create client object, otherwise new client object, if evaluated, is false
   while (client) {
-    String data = RJNet::readData(client);  // if i get string from RJNet buffer (v= $float a=$float)
+    String data = RJNet::readData(client);  // if i get string from RJNet buffer (v= $float or a=$float)
     IPAddress clientIP = client.remoteIP();
     if (data.length() != 0) {   // if data exists
       client.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);   //Set connection delay so we don't hang
@@ -218,7 +218,7 @@ void readAllNewMessages(){
           
           nuc_speed = parseSpeedMessage(data); 
           }
-        else if (nuc_angleStringHeader.equals(data.substring(0,2))){    // if client is giving us new steering
+        else if (nucAngleStringHeader.equals(data.substring(0,2))){    // if client is giving us new steering
           String reply = ackMsg;
           RJNet::sendData(client, reply); // Reply "R"
           
@@ -350,12 +350,12 @@ void evaluate_ch_3() {
 }
 
 float parseSpeedMessage(const String speedMessage){
-    //takes in message from manual and converts it to a float desired speed.
+    //takes in message from nuc and converts it to a float desired speed.
     return speedMessage.substring(2).toFloat();
 }
 
 float parseAngleMessage(const String AngleMessage){
-    //takes in message from manual and converts it to a float desired speed.
+    //takes in message from nuc and converts it to a float desired speed.
     return AngleMessage.substring(2).toFloat();
 }
 
