@@ -188,17 +188,19 @@ void loop() {
       Serial.print(" CH_3 ");
       Serial.println(rc_control);
       led_1_state = !led_1_state;
-      led_2_state = !led_2_state; // TODO can we use one of these leds for manual_state?
+      // led_2_state = !led_2_state; // TODO can we use one of these leds for manual_state?
       set_led_1(led_1_state);
-      set_led_2(led_2_state);
+      //set_led_2(led_2_state);
     }
 
     evaluate_state();
+    set_led_2(manual_state);
 
     if(millis() - startTime >= 100){ // Spec calls for sending at 10 Hz
       sendNewMessages();
       startTime = millis();
     }
+    
     
     delay(50); // TODO should this be decreased?
 }
@@ -222,7 +224,7 @@ void readAllNewMessages(){
           String reply = ackMsg;
           RJNet::sendData(client, reply); // Reply "R"
           
-          nuc_angle = parseSpeedMessage(data); 
+          nuc_angle = parseAngleMessage(data); 
           }
         else {
           Serial.print("Invalid message received from nuc");  
