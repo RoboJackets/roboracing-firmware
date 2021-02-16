@@ -43,14 +43,14 @@ void setup() {
   pinMode(dirPin, OUTPUT);
   pinMode(pulsePin, OUTPUT);
   pinMode(commandInterruptPin, INPUT_PULLUP);
-  digitalWrite(dirPin, LOW); 
+  digitalWrite(pulsePin, HIGH); 
   delayMicroseconds(30);
 
 
   /* Initialization for timer interrupt for stepper motor */
   cli();//stop interrupts
 
-  //set timer0 interrupt at 2kHz
+//  set timer0 interrupt at 2kHz
   TCCR0A = 0;// set entire TCCR0A register to 0
   TCCR0B = 0;// same for TCCR0B
   TCNT0  = 0;//initialize counter value to 0
@@ -63,26 +63,27 @@ void setup() {
   // enable timer compare interrupt
   TIMSK0 |= (1 << OCIE0A);
 
-  //set timer1 interrupt at 1Hz
-  TCCR1A = 0;// set entire TCCR1A register to 0
-  TCCR1B = 0;// same for TCCR1B
-  TCNT1  = 0;//initialize counter value to 0
-  // set compare match register for 1hz increments
-  OCR1A = 15624;// = (16*10^6) / (1*1024) - 1 (must be <65536)
-  // turn on CTC mode
-  TCCR1B |= (1 << WGM12);
-  // Set CS12 and CS10 bits for 1024 prescaler
-  TCCR1B |= (1 << CS12) | (1 << CS10);  
-  // enable timer compare interrupt
-  TIMSK1 |= (1 << OCIE1A);
-  
-  sei();//allow interrupts
+//  //set timer1 interrupt at 1Hz
+//  TCCR1A = 0;// set entire TCCR1A register to 0
+//  TCCR1B = 0;// same for TCCR1B
+//  TCNT1  = 0;//initialize counter value to 0
+//  // set compare match register for 1hz increments
+//  OCR1A = 15624;// = (16*10^6) / (1*1024) - 1 (must be <65536)
+//  // turn on CTC mode
+//  TCCR1B |= (1 << WGM12);
+//  // Set CS12 and CS10 bits for 1024 prescaler
+//  TCCR1B |= (1 << CS12) | (1 << CS10);  
+//  // enable timer compare interrupt
+//  TIMSK1 |= (1 << OCIE1A);
+//  
+//  sei();//allow interrupts
 }
  
 void loop() {
   Serial.print(toggle1);
   readEthernet();  // check for new angle from ethernet
   assignDirection(); 
+  pulse();
 }
 
 void readEthernet(){ 
@@ -138,15 +139,12 @@ ISR(TIMER1_COMPA_vect){//timer0 interrupt 2kHz toggles pin 8
     toggle1 = 1;
   }
   if (prevtoggle!=toggle1 && currentAngle != desiredAngle){
-    digitalWrite(pulsePin, HIGH);
-    delayMicroseconds(20);
-    digitalWrite(pulsePin, LOW);
-    delayMicroseconds(20);
+    pulse();
   }
   prevtoggle = toggle1;
 }
 
-/* For setting direction of stepper motor */
+///* For setting direction of stepper motor */
 void assignDirection(){       
   currentAngle = getPositionSPI();         // read current position from encoder
   if (desiredAngle != currentAngle){      // checks if motor needs to turn
@@ -162,9 +160,9 @@ void assignDirection(){
 
 void pulse(){                           // rotates stepper motor one step in the currently set direction
   digitalWrite(pulsePin, HIGH);
-  delayMicroseconds(20);
+  delayMicroseconds(30);
   digitalWrite(pulsePin, LOW);
-  delayMicroseconds(20);
+  delayMicroseconds(30);
 }
 
 void setCSLine (uint8_t csLine){   // enable or disable encoder
