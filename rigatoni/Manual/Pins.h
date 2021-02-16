@@ -20,4 +20,4 @@
 // Ethernet 
 
 const int ETH_INT_PIN = 21; 
-const int ETH_CS_PIN = 17;
+const int ETH_CS_PIN = 4;

@@ -46,7 +46,7 @@ float nuc_angle = 0;
 // float value_throttle; For manual throttle, not implemented in this version
 
 /* Ethernet */
-const static byte mac[] = {0xDE, 0xAD, 0xBE, 0xEF, 6}; // manual board's mac address
+const static byte mac[] = {0xDE, 0xAD, 0xBE, 0xEF, 0x06}; // manual board's mac address
 const static IPAddress manualIP(192, 168, 0, 6); // manual board's IP address
 EthernetServer manualServer(PORT);
 
