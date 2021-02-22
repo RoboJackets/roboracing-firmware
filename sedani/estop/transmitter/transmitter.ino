@@ -104,21 +104,43 @@ RFM69 radio(RF69_SPI_CS, 3);
 
 #endif
 
+/***************PINS***************/
+//LEDS on the controller
+#define BLUE_LED 13
+#define GREEN_LED 5
+#define YELLOW_LED 10
+#define RED_LED 9
 
+//Buttons on the controller
+#define GO_BUTTON 6
+#define LIMITED_BUTTON 8
+#define STOP_BUTTON 12
 
+//Radio reset pin
 #define RADIO_RESET A5 //Not needed for UNO, but doesn't hurt anything
 
 void resetRadio();
+void setUpRemoteIOPins();
+void showStateOnLEDs(uint8_t);
+void writeToRemoteLEDs(bool, bool, bool);
 
 void setup() {
     delay(1);
-    Serial.begin(SERIAL_BAUD);
     
     // Setting LED ouput pin and turning LEDs off
     LED4_SETUP();
     LED3_OFF();
     LED4_OFF();
     
+    setUpRemoteIOPins();
+    
+    //Light ALL LEDS to indicate setup
+    digitalWrite(BLUE_LED, HIGH);
+    digitalWrite(GREEN_LED, HIGH);
+    digitalWrite(YELLOW_LED, HIGH);
+    digitalWrite(RED_LED, HIGH);
+    
+    Serial.begin(SERIAL_BAUD);
     
     pinMode(RADIO_RESET, OUTPUT);
     resetRadio();
@@ -131,7 +153,6 @@ void setup() {
     radio.writeReg(REG_BITRATEMSB, RF_BITRATEMSB_19200);
     radio.writeReg(REG_BITRATELSB, RF_BITRATELSB_19200);
     
-    LED4_SETUP();
     //radio.setFrequency(919000000); //set frequency to some custom frequency
     LED4_ON();
 
@@ -143,6 +164,12 @@ void setup() {
     radio.enableAutoPower(ATC_RSSI);
     Serial.println("RFM69_ATC Enabled (Auto Transmission Control)\n");
 #endif
+    LED4_ON();
+    digitalWrite(BLUE_LED, LOW);
+    digitalWrite(GREEN_LED, LOW);
+    digitalWrite(YELLOW_LED, LOW);
+    digitalWrite(RED_LED, LOW);
+
     wdt_reset();
     wdt_enable(WDTO_500MS);
 }
@@ -154,19 +181,12 @@ void loop() {
     wdt_reset();
     int delayTime = 0;
     
+    //Get state from push-buttons
+    state = readStateFromButtons(state);
+    showStateOnLEDs(state);
+    
     //Create the payload
-    if (state == dieCode){  //Copy dieCode into payload
-         payload[0] = dieCode;
-    }
-    else if (state == goCode){  //Copy goCode into payload
-        payload[0] = goCode;
-    }
-    else if (state == limitedCode){
-        payload[0] = limitedCode;
-    }
-    else{  //E_STOPPED: copy the e-stop code into payload
-        payload[0] = eStopCode;
-    }
+    payload[0] = state;
     
     //Print what we are sending
     Serial.print("Sending: ");
@@ -192,22 +212,10 @@ void loop() {
     }
     
     
-    if((millis()/497) % 3 == 0) {
-        LED4_ON();
-        state = goCode;
-    }
-    else if((millis()/497) % 3 == 1) {
-        LED4_ON();
-        state = limitedCode;
-    }
-    else {
-        state = eStopCode;
-        LED4_OFF();
-    }
-    
     lastSendSuccessful ? LED3_ON() : LED3_OFF();
-    delay(delayTime);
+    digitalWrite(BLUE_LED, lastSendSuccessful ? HIGH : LOW);
     
+    delay(delayTime);   
 }
 
 void resetRadio(){
@@ -220,3 +228,73 @@ void resetRadio(){
     digitalWrite(RADIO_RESET, LOW);
     delayMicroseconds(5100);
 }
+
+void setUpRemoteIOPins(){
+    pinMode(BLUE_LED, OUTPUT);
+    pinMode(GREEN_LED, OUTPUT);
+    pinMode(YELLOW_LED, OUTPUT);
+    pinMode(RED_LED, OUTPUT);
+    
+    pinMode(GO_BUTTON, INPUT_PULLUP);
+    pinMode(LIMITED_BUTTON, INPUT_PULLUP);
+    pinMode(STOP_BUTTON, INPUT_PULLUP);
+}
+
+bool buttonsStillPressedSinceDie = false;
+
+uint8_t readStateFromButtons(uint8_t curr_state){
+    //Buttons are LOW when pushed
+    bool go_button = !digitalRead(GO_BUTTON);
+    bool limited_button = !digitalRead(LIMITED_BUTTON);
+    bool stop_button = !digitalRead(STOP_BUTTON);
+    
+    //This is true from the time when the DIE code was pressed until all buttons are released
+    buttonsStillPressedSinceDie = buttonsStillPressedSinceDie && (go_button || limited_button || stop_button);
+    
+    if(curr_state == dieCode && buttonsStillPressedSinceDie){
+        //Commanded to die and all remote buttons have not yet been released
+        return dieCode;
+    }
+    else if (stop_button && limited_button){
+        buttonsStillPressedSinceDie = true;
+        return dieCode;
+    }
+    else if (stop_button){
+        return eStopCode;
+    }
+    else if (limited_button){
+        return limitedCode;
+    }
+    else if (go_button){
+        return goCode;
+    }
+    return curr_state;
+}
+
+void showStateOnLEDs(uint8_t curr_state){
+    if (curr_state == dieCode){
+        writeToRemoteLEDs(false, true, true);
+    }
+    else if (curr_state == eStopCode){
+        writeToRemoteLEDs(false, false, true);
+    }
+    else if (curr_state == limitedCode){
+        writeToRemoteLEDs(false, true, false);
+    }
+    else if (curr_state == goCode){
+        writeToRemoteLEDs(true, false, false);
+    }
+    else {
+        //Internal code fault
+        Serial.print("WARNING: INVALID STATE");
+        Serial.println(curr_state);
+        writeToRemoteLEDs(true, true, true);
+    }
+}
+
+void writeToRemoteLEDs(bool green, bool yellow, bool red){
+    digitalWrite(GREEN_LED, green);
+    digitalWrite(YELLOW_LED, yellow);
+    digitalWrite(RED_LED, red);
+}
+    
