@@ -51,7 +51,7 @@
 
 //How many ms before we decide the connection is lost
 //And shut down the motor
-#define E_STOP_TIMEOUT 500
+#define E_STOP_TIMEOUT 1000
 
 /*
 MAKE SURE TO KEEP THESE CODES THE SAME AS RECIEVER
