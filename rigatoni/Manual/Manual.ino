@@ -181,16 +181,14 @@ void loop() {
       evaluate_ch_1();
       evaluate_ch_2();
       evaluate_ch_3();
-      Serial.print(" CH_1 ");
-      Serial.println(rc_angle);
-      Serial.print(" CH_2 ");
-      Serial.println(rc_speed);
-      Serial.print(" CH_3 ");
-      Serial.println(rc_control);
+//      Serial.print(" CH_1 ");
+//      Serial.println(rc_angle);
+//      Serial.print(" CH_2 ");
+//      Serial.println(rc_speed);
+//      Serial.print(" CH_3 ");
+//      Serial.println(rc_control);
       led_1_state = !led_1_state;
-      // led_2_state = !led_2_state; // TODO can we use one of these leds for manual_state?
       set_led_1(led_1_state);
-      //set_led_2(led_2_state);
     }
 
     evaluate_state();
@@ -202,7 +200,7 @@ void loop() {
     }
     
     
-    delay(50); // TODO should this be decreased?
+    // delay(5);
 }
 
 // TODO Verify with desired functionality 
@@ -242,13 +240,19 @@ void readAllNewMessages(){
     }
     client = manualServer.available();  //Go to next message
   }
+  while (steeringBoard.available()){ // Check for messages from steering client
+    // TODO
+    }
+  while (driveBoard.available()){ // Check for messages from steering client
+    // TODO
+    }    
 }
 
 void sendNewMessages() { // now manual board is acting as a client
-      if (!nuc.connected()) {
-        nuc.connect(nucIP, PORT);
-        Serial.println("Lost connection with nuc");
-      }
+//      if (!nuc.connected()) {
+//        nuc.connect(nucIP, PORT);
+//        Serial.println("Lost connection with nuc");
+//      }
 //      else if (rc_control) // in manual mode
 //      {
 //        RJNet::sendData(steeringBoard, manualSteeringStringHeader + String(rc_angle)); // sending RC angle to nuc
