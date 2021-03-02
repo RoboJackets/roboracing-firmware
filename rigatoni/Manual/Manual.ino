@@ -241,10 +241,10 @@ void readAllNewMessages(){
     client = manualServer.available();  //Go to next message
   }
   while (steeringBoard.available()){ // Check for messages from steering client
-    // TODO
+    String data = RJNet::readData(steeringBoard);
     }
   while (driveBoard.available()){ // Check for messages from steering client
-    // TODO
+    String data = RJNet::readData(driveBoard);
     }    
 }
 
