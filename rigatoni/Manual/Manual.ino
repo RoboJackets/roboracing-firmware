@@ -167,6 +167,10 @@ void setup(){
 
     Ethernet.setRetransmissionCount(ETH_NUM_SENDS);
     Ethernet.setRetransmissionTimeout(ETH_RETRANSMISSION_DELAY_MS);
+
+    steeringBoard.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);
+    driveBoard.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);
+    
     manualServer.begin();
     startTime = millis();
 
