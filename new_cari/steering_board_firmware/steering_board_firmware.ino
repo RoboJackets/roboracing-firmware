@@ -2,6 +2,10 @@
 #include "RJNet.h"
 #include <Ethernet.h>
 #include <SPI.h>
+<<<<<<< Updated upstream
+=======
+#include <avr/wdt.h>
+>>>>>>> Stashed changes
 
 // Notes:
 // Need to connect VDC GND and dir- to common GND
@@ -43,8 +47,12 @@ void setup() {
   pinMode(dirPin, OUTPUT);
   pinMode(pulsePin, OUTPUT);
   pinMode(commandInterruptPin, INPUT_PULLUP);
+<<<<<<< Updated upstream
   digitalWrite(pulsePin, HIGH); 
   delayMicroseconds(30);
+=======
+  digitalWrite(pulsePin, HIGH);
+>>>>>>> Stashed changes
 
 
   /* Initialization for timer interrupt for stepper motor */
@@ -77,16 +85,28 @@ void setup() {
   TIMSK1 |= (1 << OCIE1A);
   
   sei();//allow interrupts
+<<<<<<< Updated upstream
+=======
+
+  delay(2000);
+  wdt_enable(WDTO_1S);
+>>>>>>> Stashed changes
 }
  
 void loop() {
   Serial.print(toggle1);
   readEthernet();  // check for new angle from ethernet
+<<<<<<< Updated upstream
   assignDirection(); 
+=======
+  assignDirection();
+  wdt_reset();
+>>>>>>> Stashed changes
 }
 
 void readEthernet(){ 
   EthernetClient client = server.available();    // if there is a new message from client create client object, otherwise new client object null
+<<<<<<< Updated upstream
   if (client) {
     String data = RJNet::readData(client);  // if i get string from RJNet buffer ($speed_value;)
     client.remoteIP();
@@ -99,6 +119,27 @@ void readEthernet(){
         } else if (client.remoteIP() == manualIP){
           String reply = "R=" + String(currentAngle);   // reply with R= currentAngle
           RJNet::sendData(client, reply);
+=======
+  while (client) {
+    String data = RJNet::readData(client);  // if i get string from RJNet buffer ($speed_value;)
+    client.remoteIP();
+    if (client.remoteIP() == manualIP){
+      if (data.length() != 0) {   // if data exists
+        if (data.substring(0,1) == "S"){    // if client is giving us new angle in the form of S=$float
+          if (data.substring(2).toFloat() > maxAngle){    // checks if the new angle is too large
+            desiredAngle = maxAngle;
+            String reply = "R=" + String(currentAngle);   // reply with R= currentAngle
+            RJNet::sendData(client, reply);
+          } else if (data.substring(2).toFloat() < minAngle) {  //checks if the new angle is too small
+            desiredAngle = minAngle;
+            String reply = "R=" + String(currentAngle);   // reply with R= currentAngle
+            RJNet::sendData(client, reply);
+          } else {
+            desiredAngle = (data.substring(2)).toFloat(); // set new angle, convert from str to float
+            String reply = "R=" + String(currentAngle);   // reply with R= currentAngle
+            RJNet::sendData(client, reply);
+          }
+>>>>>>> Stashed changes
         }
       } else if (data.substring(0,1) == "A"){  // otherwise if client just asking for angle
         String reply = "A=" + String(currentAngle);  // reply with A=currentAngle
@@ -106,7 +147,33 @@ void readEthernet(){
       }
     }
   }
+<<<<<<< Updated upstream
   if(millis() - startTime >= 500){
+=======
+//  if(millis() - startTime >= 500){
+//    Serial.println("");
+//    //Dont' spam server with messages
+//    startTime = millis();
+//    if (!otherBoard.connected()) {
+//      otherBoard.connect(otherIP, PORT);
+//      /*Serial.print("Trying to connect to ");
+//      Serial.print(otherIP);
+//      Serial.print(":");
+//      Serial.println(PORT);*/ 
+//    }
+//    else{
+//      RJNet::sendData(otherBoard, "State?");
+//      /*Serial.print("Sending data to ");
+//      Serial.print(otherBoard.remoteIP());
+//      Serial.print(":");
+//      Serial.println(otherBoard.remotePort());*/
+//    }
+//  }
+}
+
+void checkEStop() {
+  if(millis() - startTime >= 200){
+>>>>>>> Stashed changes
     Serial.println("");
     //Dont' spam server with messages
     startTime = millis();

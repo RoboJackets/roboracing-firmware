@@ -1,10 +1,19 @@
 byte dirPin = 0;   // atmega pin 20, digital pin 0/RX; direction of stepper, HIGH: clockwise, LOW: counter clockwise
 byte pulsePin = 1; // atmega pin 21, digital pin 1/TX; provides pwm signal to motor
 byte commandInterruptPin = 2;
+<<<<<<< Updated upstream
 float desiredAngle;
 float currentAngle;
 boolean toggle1 = 0;
 boolean prevtoggle = 0;
+=======
+float maxAngle = PI/2;
+float minAngle = -PI/2;
+float desiredAngle = 0;
+float currentAngle = 0;
+bool toggle1 = false;
+bool prevtoggle = false;
+>>>>>>> Stashed changes
 unsigned long startTime = 0;
 
 const static int PORT = 7; // port RJnet uses
