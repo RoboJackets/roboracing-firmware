@@ -2,10 +2,7 @@
 #include "RJNet.h"
 #include <Ethernet.h>
 #include <SPI.h>
-<<<<<<< Updated upstream
-=======
 #include <avr/wdt.h>
->>>>>>> Stashed changes
 
 // Notes:
 // Need to connect VDC GND and dir- to common GND
@@ -47,12 +44,7 @@ void setup() {
   pinMode(dirPin, OUTPUT);
   pinMode(pulsePin, OUTPUT);
   pinMode(commandInterruptPin, INPUT_PULLUP);
-<<<<<<< Updated upstream
-  digitalWrite(pulsePin, HIGH); 
-  delayMicroseconds(30);
-=======
   digitalWrite(pulsePin, HIGH);
->>>>>>> Stashed changes
 
 
   /* Initialization for timer interrupt for stepper motor */
@@ -72,54 +64,33 @@ void setup() {
   TIMSK0 |= (1 << OCIE0A);
 
   //set timer1 interrupt at 1Hz
-  TCCR1A = 0;// set entire TCCR1A register to 0
-  TCCR1B = 0;// same for TCCR1B
-  TCNT1  = 0;//initialize counter value to 0
-  // set compare match register for 1hz increments
-  OCR1A = 15624;// = (16*10^6) / (1*1024) - 1 (must be <65536)
-  // turn on CTC mode
-  TCCR1B |= (1 << WGM12);
-  // Set CS12 and CS10 bits for 1024 prescaler
-  TCCR1B |= (1 << CS12) | (1 << CS10);  
-  // enable timer compare interrupt
-  TIMSK1 |= (1 << OCIE1A);
+//  TCCR1A = 0;// set entire TCCR1A register to 0
+//  TCCR1B = 0;// same for TCCR1B
+//  TCNT1  = 0;//initialize counter value to 0
+//  // set compare match register for 1hz increments
+//  OCR1A = 15624;// = (16*10^6) / (1*1024) - 1 (must be <65536)
+//  // turn on CTC mode
+//  TCCR1B |= (1 << WGM12);
+//  // Set CS12 and CS10 bits for 1024 prescaler
+//  TCCR1B |= (1 << CS12) | (1 << CS10);  
+//  // enable timer compare interrupt
+//  TIMSK1 |= (1 << OCIE1A);
   
   sei();//allow interrupts
-<<<<<<< Updated upstream
-=======
 
   delay(2000);
   wdt_enable(WDTO_1S);
->>>>>>> Stashed changes
 }
  
 void loop() {
   Serial.print(toggle1);
   readEthernet();  // check for new angle from ethernet
-<<<<<<< Updated upstream
-  assignDirection(); 
-=======
   assignDirection();
   wdt_reset();
->>>>>>> Stashed changes
 }
 
 void readEthernet(){ 
   EthernetClient client = server.available();    // if there is a new message from client create client object, otherwise new client object null
-<<<<<<< Updated upstream
-  if (client) {
-    String data = RJNet::readData(client);  // if i get string from RJNet buffer ($speed_value;)
-    client.remoteIP();
-    if (data.length() != 0) {   // if data exists
-      if (data.substring(0,1) == "S"){    // if client is giving us new angle
-        desiredAngle = (data.substring(2)).toFloat(); // set new angle, convert from str to float
-        if (client.remoteIP() == NUCIP){ // if NUC is client
-          String reply = "R A=" + String(currentAngle); // reply with R A=currentAngle
-          RJNet::sendData(client, reply);
-        } else if (client.remoteIP() == manualIP){
-          String reply = "R=" + String(currentAngle);   // reply with R= currentAngle
-          RJNet::sendData(client, reply);
-=======
   while (client) {
     String data = RJNet::readData(client);  // if i get string from RJNet buffer ($speed_value;)
     client.remoteIP();
@@ -139,7 +110,6 @@ void readEthernet(){
             String reply = "R=" + String(currentAngle);   // reply with R= currentAngle
             RJNet::sendData(client, reply);
           }
->>>>>>> Stashed changes
         }
       } else if (data.substring(0,1) == "A"){  // otherwise if client just asking for angle
         String reply = "A=" + String(currentAngle);  // reply with A=currentAngle
@@ -147,9 +117,6 @@ void readEthernet(){
       }
     }
   }
-<<<<<<< Updated upstream
-  if(millis() - startTime >= 500){
-=======
 //  if(millis() - startTime >= 500){
 //    Serial.println("");
 //    //Dont' spam server with messages
@@ -171,28 +138,27 @@ void readEthernet(){
 //  }
 }
 
-void checkEStop() {
-  if(millis() - startTime >= 200){
->>>>>>> Stashed changes
-    Serial.println("");
-    //Dont' spam server with messages
-    startTime = millis();
-    if (!otherBoard.connected()) {
-      otherBoard.connect(otherIP, PORT);
-      /*Serial.print("Trying to connect to ");
-      Serial.print(otherIP);
-      Serial.print(":");
-      Serial.println(PORT);*/ 
-    }
-    else{
-      RJNet::sendData(otherBoard, "State?");
-      /*Serial.print("Sending data to ");
-      Serial.print(otherBoard.remoteIP());
-      Serial.print(":");
-      Serial.println(otherBoard.remotePort());*/
-    }
-  }
-}
+//void checkEStop() {
+//  if(millis() - startTime >= 200){
+//    Serial.println("");
+//    //Dont' spam server with messages
+//    startTime = millis();
+//    if (!otherBoard.connected()) {
+//      otherBoard.connect(otherIP, PORT);
+//      /*Serial.print("Trying to connect to ");
+//      Serial.print(otherIP);
+//      Serial.print(":");
+//      Serial.println(PORT);*/ 
+//    }
+//    else{
+//      RJNet::sendData(otherBoard, "State?");
+//      /*Serial.print("Sending data to ");
+//      Serial.print(otherBoard.remoteIP());
+//      Serial.print(":");
+//      Serial.println(otherBoard.remotePort());*/
+//    }
+//  }
+//}
 
 ISR(TIMER1_COMPA_vect){//timer0 interrupt 2kHz toggles pin 8
 //generates pulse wave of frequency 2kHz/2 = 1kHz (takes two cycles for full wave- toggle high then toggle low)
