@@ -138,27 +138,27 @@ void readEthernet(){
 //  }
 }
 
-//void checkEStop() {
-//  if(millis() - startTime >= 200){
-//    Serial.println("");
-//    //Dont' spam server with messages
-//    startTime = millis();
-//    if (!otherBoard.connected()) {
-//      otherBoard.connect(otherIP, PORT);
-//      /*Serial.print("Trying to connect to ");
-//      Serial.print(otherIP);
-//      Serial.print(":");
-//      Serial.println(PORT);*/ 
-//    }
-//    else{
-//      RJNet::sendData(otherBoard, "State?");
-//      /*Serial.print("Sending data to ");
-//      Serial.print(otherBoard.remoteIP());
-//      Serial.print(":");
-//      Serial.println(otherBoard.remotePort());*/
-//    }
-//  }
-//}
+void checkEStop() {
+  if(millis() - startTime >= 200){
+    Serial.println("");
+    //Dont' spam server with messages
+    startTime = millis();
+    if (!otherBoard.connected()) {
+      otherBoard.connect(otherIP, PORT);
+      /*Serial.print("Trying to connect to ");
+      Serial.print(otherIP);
+      Serial.print(":");
+      Serial.println(PORT);*/ 
+    }
+    else{
+      RJNet::sendData(otherBoard, "State?");
+      /*Serial.print("Sending data to ");
+      Serial.print(otherBoard.remoteIP());
+      Serial.print(":");
+      Serial.println(otherBoard.remotePort());*/
+    }
+  }
+}
 
 ISR(TIMER1_COMPA_vect){//timer0 interrupt 2kHz toggles pin 8
 //generates pulse wave of frequency 2kHz/2 = 1kHz (takes two cycles for full wave- toggle high then toggle low)
