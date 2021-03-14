@@ -1,3 +1,4 @@
+#include <avr/wdt.h>
 #include "pins.h"
 #include "Ethernet.h"
 #include "RJNet.h"
@@ -174,10 +175,14 @@ void setup(){
     manualServer.begin();
     startTime = millis();
 
+    // WATCHDOG TIMER
+    wdt_reset();
+    wdt_enable(WDTO_500MS);
     
 }
 
 void loop() {
+    wdt_reset();
     readAllNewMessages();
     
     rc_missing();
