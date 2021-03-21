@@ -26,12 +26,12 @@ IPAddress manualIP(192, 168, 0, MANUAL);
 
 void setup() {
   /* Initialization for encoder*/
-  pinMode(SPI_SCLK, OUTPUT);
-  pinMode(SPI_MOSI, OUTPUT);
-  pinMode(SPI_MISO, INPUT);
-  pinMode(ENC, OUTPUT);
-  digitalWrite(ENC, HIGH); // disable encoder on setup
-  SPI.begin();
+//  pinMode(SPI_SCLK, OUTPUT);
+//  pinMode(SPI_MOSI, OUTPUT);
+//  pinMode(SPI_MISO, INPUT);
+//  pinMode(ENC, OUTPUT);
+//  digitalWrite(ENC, HIGH); // disable encoder on setup
+//  SPI.begin();
 
   /* Initialization for ethernet*/
   pinMode(INT_ETH, OUTPUT);
@@ -45,23 +45,25 @@ void setup() {
   pinMode(pulsePin, OUTPUT);
   pinMode(commandInterruptPin, INPUT_PULLUP);
   digitalWrite(pulsePin, HIGH);
+  while (!Serial);
+  Serial.println("W");
 
 
   /* Initialization for timer interrupt for stepper motor */
   cli();//stop interrupts
 
 //  set timer0 interrupt at 2kHz
-  TCCR0A = 0;// set entire TCCR0A register to 0
-  TCCR0B = 0;// same for TCCR0B
-  TCNT0  = 0;//initialize counter value to 0
-  // set compare match register for 2khz increments
-  OCR0A = 124;// = (16*10^6) / (2000*64) - 1 (must be <256)
-  // turn on CTC mode
-  TCCR0A |= (1 << WGM01);
-  // Set CS01 and CS00 bits for 64 prescaler
-  TCCR0B |= (1 << CS01) | (1 << CS00);   
-  // enable timer compare interrupt
-  TIMSK0 |= (1 << OCIE0A);
+//  TCCR0A = 0;// set entire TCCR0A register to 0
+//  TCCR0B = 0;// same for TCCR0B
+//  TCNT0  = 0;//initialize counter value to 0
+//  // set compare match register for 2khz increments
+//  OCR0A = 124;// = (16*10^6) / (2000*64) - 1 (must be <256)
+//  // turn on CTC mode
+//  TCCR0A |= (1 << WGM01);
+//  // Set CS01 and CS00 bits for 64 prescaler
+//  TCCR0B |= (1 << CS01) | (1 << CS00);   
+//  // enable timer compare interrupt
+//  TIMSK0 |= (1 << OCIE0A);
 
   //set timer1 interrupt at 1Hz
 //  TCCR1A = 0;// set entire TCCR1A register to 0
@@ -78,15 +80,15 @@ void setup() {
   
   sei();//allow interrupts
 
-  delay(2000);
-  wdt_enable(WDTO_1S);
+//  delay(2000);
+//  wdt_enable(WDTO_1S);
 }
  
 void loop() {
-  Serial.print(toggle1);
+//  Serial.println(toggle1);
   readEthernet();  // check for new angle from ethernet
-  assignDirection();
-  wdt_reset();
+//  assignDirection();
+//  wdt_reset();
 }
 
 void readEthernet(){ 
@@ -101,14 +103,17 @@ void readEthernet(){
             desiredAngle = maxAngle;
             String reply = "R=" + String(currentAngle);   // reply with R= currentAngle
             RJNet::sendData(client, reply);
+            Serial.println("R");
           } else if (data.substring(2).toFloat() < minAngle) {  //checks if the new angle is too small
             desiredAngle = minAngle;
             String reply = "R=" + String(currentAngle);   // reply with R= currentAngle
             RJNet::sendData(client, reply);
+            Serial.println("R");
           } else {
             desiredAngle = (data.substring(2)).toFloat(); // set new angle, convert from str to float
             String reply = "R=" + String(currentAngle);   // reply with R= currentAngle
             RJNet::sendData(client, reply);
+            Serial.println("R");
           }
         }
       } else if (data.substring(0,1) == "A"){  // otherwise if client just asking for angle
