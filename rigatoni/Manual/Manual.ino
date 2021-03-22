@@ -59,7 +59,7 @@ EthernetClient nuc;  // client
 const static IPAddress steeringIP(192, 168, 0, 5); //set the IP of the steering board
 EthernetClient steeringBoard; // client
 
-const static IPAddress driveIP(192, 168, 0, 7); //set the IP of the drive board
+const static IPAddress driveIP(192, 168, 0, 4); //set the IP of the drive board
 EthernetClient driveBoard; // client
 
 //TCP Connection status to brake and estop
