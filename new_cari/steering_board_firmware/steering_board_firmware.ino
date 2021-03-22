@@ -46,7 +46,6 @@ void setup() {
   pinMode(commandInterruptPin, INPUT_PULLUP);
   digitalWrite(pulsePin, HIGH);
   while (!Serial);
-  Serial.println("W");
 
 
   /* Initialization for timer interrupt for stepper motor */
