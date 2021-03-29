@@ -10,7 +10,7 @@ float minAngle = -PI/2;
 unsigned long startTime = 0;
 
 const static int PORT = 7; // port RJnet uses
-const int INT_ETH=2;  // atmega pin 19, digital pin 2/SDA
+const int CS_ETH = 12;  // atmega pin 26, digital pin 12
 
 #define BAUDRATE        115200
 

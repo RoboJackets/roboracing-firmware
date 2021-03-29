@@ -34,13 +34,23 @@ void setup() {
 //  SPI.begin();
 
   /* Initialization for ethernet*/
-  pinMode(INT_ETH, OUTPUT);
-  Ethernet.init(INT_ETH);  // SCLK pin from eth header
+  pinMode(CS_ETH, OUTPUT);
+  Ethernet.init(CS_ETH);  // SCLK pin from eth header
   Ethernet.begin(mac, ip); // initialize ethernet device
   server.begin();
+  Serial.begin(BAUDRATE);
+  
+  while (Ethernet.hardwareStatus() == EthernetNoHardware) {
+         Serial.println("Ethernet shield was not found.");
+         delay(50);
+  }
+  while(Ethernet.linkStatus() == LinkOFF) {
+         Serial.println("Ethernet cable is not connected."); // do something with this
+         delay(50);    // TURN down delay to check/startup faster
+  }
 
   /* Initialization for stepper*/
-  Serial.begin(BAUDRATE);
+  
   pinMode(dirPin, OUTPUT);
   pinMode(pulsePin, OUTPUT);
   pinMode(commandInterruptPin, INPUT_PULLUP);
