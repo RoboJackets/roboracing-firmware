@@ -30,14 +30,16 @@ void setup() {
 //  pinMode(SPI_MOSI, OUTPUT);
 //  pinMode(SPI_MISO, INPUT);
 //  pinMode(ENC, OUTPUT);
+  pinMode(RST_ETH, OUTPUT);
 //  digitalWrite(ENC, HIGH); // disable encoder on setup
 //  SPI.begin();
 
   /* Initialization for ethernet*/
   pinMode(CS_ETH, OUTPUT);
+  resetEthernet();
   Ethernet.init(CS_ETH);  // SCLK pin from eth header
   Ethernet.begin(mac, ip); // initialize ethernet device
-  server.begin();
+  
   Serial.begin(BAUDRATE);
   
   while (Ethernet.hardwareStatus() == EthernetNoHardware) {
@@ -49,6 +51,10 @@ void setup() {
          delay(50);    // TURN down delay to check/startup faster
   }
 
+  server.begin();
+  Serial.print("Our address: ");
+  Serial.println(Ethernet.localIP());
+  
   /* Initialization for stepper*/
   
   pinMode(dirPin, OUTPUT);
@@ -95,6 +101,7 @@ void setup() {
  
 void loop() {
 //  Serial.println(toggle1);
+  delay(200);
   readEthernet();  // check for new angle from ethernet
 //  assignDirection();
 //  wdt_reset();
@@ -102,9 +109,11 @@ void loop() {
 
 void readEthernet(){ 
   EthernetClient client = server.available();    // if there is a new message from client create client object, otherwise new client object null
+  Serial.println(client);
   while (client) {
     String data = RJNet::readData(client);  // if i get string from RJNet buffer ($speed_value;)
-    client.remoteIP();
+    Serial.println(client.remoteIP());
+    Serial.println(data);
     if (client.remoteIP() == manualIP){
       if (data.length() != 0) {   // if data exists
         if (data.substring(0,1) == "S"){    // if client is giving us new angle in the form of S=$float
@@ -124,12 +133,18 @@ void readEthernet(){
             RJNet::sendData(client, reply);
             Serial.println("R");
           }
+        } else if (data == "A"){  // otherwise if client just asking for angle
+          String reply = "A=" + String(currentAngle);  // reply with A=currentAngle
+          Serial.println("entered condition");
+          RJNet::sendData(client, reply);
+        } else {
+          Serial.println("No message sent");
         }
-      } else if (data.substring(0,1) == "A"){  // otherwise if client just asking for angle
-        String reply = "A=" + String(currentAngle);  // reply with A=currentAngle
-        RJNet::sendData(client, reply);
+      } else {
+        Serial.println("data with 0 length");
       }
     }
+    client = server.available();
   }
 //  if(millis() - startTime >= 500){
 //    Serial.println("");
@@ -150,6 +165,14 @@ void readEthernet(){
 //      Serial.println(otherBoard.remotePort());*/
 //    }
 //  }
+}
+
+void resetEthernet() {
+  //Resets Ethernet shield
+  digitalWrite(RST_ETH, LOW);
+  delay(1);
+  digitalWrite(RST_ETH, HIGH);
+  delay(501);
 }
 
 void checkEStop() {
