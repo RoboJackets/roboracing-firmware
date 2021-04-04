@@ -11,7 +11,11 @@ except the state from the radio board. It provides the current state to anything
 const static String stopMsg = "D";
 const static String testingMsg = "L";
 const static String goMsg = "G";
-  
+
+//If we receive this, indicates a hardware failure and we should permanently stop
+const static String hardwareFailure = "FAIL";
+
+bool isPermanentlyStopped = false;
 byte currentState = STOP;  // default state is STOP
 
 byte sensor1;             // input from sensor 1
@@ -85,7 +89,12 @@ void sendStateToClient() {
     EthernetClient client = server.available();
     if (client) {
         String data = RJNet::readData(client);
-        if (data.length() != 0) {\
+        if (data.length() != 0) {
+            if(hardwareFailure.equals(data){
+                isPermanentlyStopped = true;
+                currentState = STOP;
+                Serial.print("HARDWARE FAULT: MESSAGE: ");
+            }
             
             Serial.print(data); //show us what we read 
             Serial.print(" From client ");
@@ -172,23 +181,26 @@ void setup() {
 
 
 void loop() {
-  wdt_reset();
-  
-  sensor1 = digitalRead(SENSOR_1);
-  sensor2 = digitalRead(SENSOR_2);
-  steeringIn = digitalRead(STEERING_IN);
-  driveIn = digitalRead(DRIVE_IN);
+    wdt_reset();
 
-  if(steeringIn && driveIn) {
-    currentState = GO; // everything Enabled
-  } else if(!driveIn) { // includes steering enabled and disabled
-    currentState = STOP;  // everything Disabled
-  } else {
-    currentState = TESTING; // steering enabled, drive disabled (Limited)
-  }
-  
-  digitalWrite(LED1, (millis()/1000)%2);
-  
-  writeOutCurrentState();
-  sendStateToClient();
+    sensor1 = digitalRead(SENSOR_1);
+    sensor2 = digitalRead(SENSOR_2);
+    steeringIn = digitalRead(STEERING_IN);
+    driveIn = digitalRead(DRIVE_IN);
+
+    if (isPermanentlyStopped){
+        //hardware fault. Permanently stopped.
+        currentState = STOP;
+    } else if(steeringIn && driveIn) {
+        currentState = GO; // everything Enabled
+    } else if(!driveIn) { // includes steering enabled and disabled
+        currentState = STOP;  // everything Disabled
+    } else {
+        currentState = TESTING; // steering enabled, drive disabled (Limited)
+    }
+
+    digitalWrite(LED1, (millis()/1000)%2);
+
+    writeOutCurrentState();
+    sendStateToClient();
 }
