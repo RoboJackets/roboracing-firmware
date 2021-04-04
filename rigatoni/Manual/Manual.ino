@@ -12,7 +12,8 @@ volatile unsigned long prev_time_ch_1 = 0;
 volatile unsigned long prev_time_ch_2 = 0;
 volatile unsigned long prev_time_ch_3 = 0;
 
-unsigned long startTime;
+unsigned long sendTime;
+unsigned long failTime;
 
 // PWM limits from RC
 #define ch_1_lower 1536
@@ -148,7 +149,7 @@ void set_led_2(bool);
 void setup(){
     pin_assign();
     Serial.begin(115200);
-    startTime = 0;
+    sendTime = 0;
 
     /* Initialization for ethernet*/
     // NOT POSSIBLE - Reset for ethernet is not broken out on microcontroller
@@ -173,7 +174,8 @@ void setup(){
     driveBoard.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);
     
     manualServer.begin();
-    startTime = millis();
+    sendTime = millis();
+    failTime = millis();
 
     // WATCHDOG TIMER
     wdt_reset();
@@ -203,16 +205,16 @@ void loop() {
     evaluate_state();
     set_led_2(manual_state);
 
-    if(millis() - startTime >= 100){ // Spec calls for sending at 10 Hz
+    if(millis() - sendTime >= 100){ // Spec calls for sending at 10 Hz
       sendNewMessages();
-      startTime = millis();
+      sendTime = millis();
     }
     
     
     // delay(5);
 }
 
-// TODO Verify with desired functionality 
+// TODO Implement fail condition timer
 void readAllNewMessages(){ 
   EthernetClient client = manualServer.available();    // if there is a new message from client create client object, otherwise new client object, if evaluated, is false
   while (client) {
@@ -226,12 +228,14 @@ void readAllNewMessages(){
           RJNet::sendData(client, reply); // Reply "R"
           
           nuc_speed = parseSpeedMessage(data); 
+          failTime = millis(); // Reset fail condition timer
           }
         else if (nucAngleStringHeader.equals(data.substring(0,2))){    // if client is giving us new steering
           String reply = ackMsg;
           RJNet::sendData(client, reply); // Reply "R"
           
           nuc_angle = parseAngleMessage(data); 
+          failTime = millis(); // Reset fail condition timer
           }
         else {
           Serial.print("Invalid message received from nuc");  
@@ -254,7 +258,11 @@ void readAllNewMessages(){
     }
   while (driveBoard.available()){ // Check for messages from steering client
     String data = RJNet::readData(driveBoard);
-    }    
+    } 
+  if(millis() - failTime >= 1000){ // Check fail condition timer
+    nuc_speed = 0;
+    nuc_angle = 0;
+  }
 }
 
 void sendNewMessages() { // now manual board is acting as a client
@@ -335,7 +343,7 @@ void rc_missing(){
 }
 
 void evaluate_state(){ // Determines if RC-controlled or NUC-controlled
-    if(rc_present_state && rc_control){ // TODO should there be anything else here??
+    if(rc_present_state && rc_control){ 
       manual_state = true;
       }
     else{
@@ -361,7 +369,7 @@ void evaluate_ch_2() {
 }
 
 void evaluate_ch_3() {
-  rc_control = pwm_rc_control > ch_3_mid;
+  rc_control = pwm_rc_control > ch_3_mid; // TODO check for initial condition
 }
 
 float parseSpeedMessage(const String speedMessage){
