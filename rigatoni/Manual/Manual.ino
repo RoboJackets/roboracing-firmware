@@ -214,7 +214,6 @@ void loop() {
     // delay(5);
 }
 
-// TODO Implement fail condition timer
 void readAllNewMessages(){ 
   EthernetClient client = manualServer.available();    // if there is a new message from client create client object, otherwise new client object, if evaluated, is false
   while (client) {
@@ -235,7 +234,7 @@ void readAllNewMessages(){
           RJNet::sendData(client, reply); // Reply "R"
           
           nuc_angle = parseAngleMessage(data); 
-          failTime = millis(); // Reset fail condition timer
+          failTime = millis(); // Reset fail condition timer // TODO should these be seperate or is one timer okay?
           }
         else {
           Serial.print("Invalid message received from nuc");  
@@ -369,7 +368,7 @@ void evaluate_ch_2() {
 }
 
 void evaluate_ch_3() {
-  rc_control = pwm_rc_control > ch_3_mid; // TODO check for initial condition
+  rc_control = pwm_rc_control < ch_3_mid; // manual mode in power-on state
 }
 
 float parseSpeedMessage(const String speedMessage){
