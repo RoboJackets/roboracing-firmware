@@ -37,6 +37,14 @@ void setup() {
   pinMode(INT_ETH, OUTPUT);
   Ethernet.init(INT_ETH);  // SCLK pin from eth header
   Ethernet.begin(mac, ip); // initialize ethernet device
+  while(Ethernet.hardwareStatus() == EthernetNoHardware) {
+    Serial.println("Ethernet shield was not found.");
+    delay(50);
+  }
+  while(Ethernet.linkStatus() == LinkOFF) {
+    Serial.println("Ethernet cable is not connected.");
+    delay(50);
+  }
   server.begin();
 
   /* Initialization for stepper*/
