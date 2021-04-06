@@ -90,7 +90,7 @@ void sendStateToClient() {
     if (client) {
         String data = RJNet::readData(client);
         if (data.length() != 0) {
-            if(hardwareFailure.equals(data){
+            if(hardwareFailure.equals(data)){
                 isPermanentlyStopped = true;
                 currentState = STOP;
                 Serial.print("HARDWARE FAULT: MESSAGE: ");
@@ -145,6 +145,8 @@ void setup() {
     pinMode(STACK_R, OUTPUT);
     pinMode(LED1, OUTPUT);
     pinMode(ETH_RST, OUTPUT);
+    //pinMode(ETH_CS_PIN, OUTPUT);
+    //pinMode(17, OUTPUT);   //Default SS pin as output
     digitalWrite(DRIVE_EN, LOW);  // Initially start E-stopped
     digitalWrite(BRAKE_EN, LOW);  //
     digitalWrite(STACK_G, HIGH); // change these light settings
@@ -158,7 +160,7 @@ void setup() {
     // In case your RJ board wires the chip in an odd config,
     // otherwise, leave commented out
     // You can use Ethernet.init(pin) to configure the CS pin
-    Ethernet.init(11);
+    Ethernet.init(ETH_CS_PIN);
     Ethernet.begin(mac, ip);
     while(Ethernet.hardwareStatus() == EthernetNoHardware) {
         Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");

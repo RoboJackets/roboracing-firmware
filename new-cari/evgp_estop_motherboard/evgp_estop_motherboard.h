@@ -11,11 +11,12 @@
 #define SENSOR_2 12 
 
 #define STACK_G A1 //Br
-#define STACK_Y A0 //B
+#define STACK_Y A0 //Bs
 #define STACK_R A2 //W
 
 #define INT 7
 #define ETH_RST 13
+#define ETH_CS_PIN 11
 
 #define LED1 4
 
