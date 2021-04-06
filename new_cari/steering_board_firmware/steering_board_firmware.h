@@ -29,7 +29,3 @@ const int RST_ETH = 3;  // atmega pin 18, digital pin 3
 #define SPI_MOSI        MOSI
 #define SPI_MISO        MISO
 #define SPI_SCLK        SCK
-
-/* IP and MAC addresses */
-#define NUC     2
-#define MANUAL  6

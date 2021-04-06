@@ -19,10 +19,10 @@ IPAddress otherIP(192, 168, 0, 175); //set the IP to find us at
 EthernetClient otherBoard;
 
 // NUC IP address
-IPAddress NUCIP(192, 168, 0, NUC);
+IPAddress NUCIP(192, 168, 0, 2);
 
 //Manual IP address
-IPAddress manualIP(192, 168, 0, MANUAL);
+IPAddress manualIP(192, 168, 0, 6);
 
 void setup() {
   /* Initialization for encoder*/
@@ -109,11 +109,12 @@ void loop() {
 
 void readEthernet(){ 
   EthernetClient client = server.available();    // if there is a new message from client create client object, otherwise new client object null
-  Serial.println(client);
   while (client) {
     String data = RJNet::readData(client);  // if i get string from RJNet buffer ($speed_value;)
+    Serial.print("Message: ");
+    Serial.print(data);
+    Serial.print(" From: ");
     Serial.println(client.remoteIP());
-    Serial.println(data);
     if (client.remoteIP() == manualIP){
       if (data.length() != 0) {   // if data exists
         if (data.substring(0,1) == "S"){    // if client is giving us new angle in the form of S=$float
