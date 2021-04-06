@@ -10,7 +10,7 @@
 // make sure encoder switch is set to run mode
 
 /* Ethernet */
-byte mac[] = {0xDE, 0xAD, 0xBE, 0xEF, 7}; // brake board's mac address
+byte mac[] = {0x73, 0x8f, 0xfe, 0x7c, 0x43}; // brake board's mac address
 IPAddress ip(192, 168, 0, 7); // brake board's IP address
 EthernetServer server(PORT);
 
