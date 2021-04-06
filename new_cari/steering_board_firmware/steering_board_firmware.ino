@@ -10,7 +10,7 @@
 // make sure encoder switch is set to run mode
 
 /* Ethernet */
-byte mac[] = {0xDE, 0xAD, 0xBE, 0xEF, 5}; // steering board's mac address
+byte mac[] = {0x2c, 0x1b, 0xa, 0x0, 0x5c}; // steering board's mac address
 IPAddress ip(192, 168, 0, 5); // steering board's IP address
 EthernetServer server(PORT);
 
