@@ -150,6 +150,7 @@ void setup(){
             Serial.println("Connecting to Brake");
             brakeConnected = brakeBoard.connect(brakeIP, PORT) > 0;
         }
+        delay(100);
     }
 
     attachInterrupt(digitalPinToInterrupt(ENCODER_A_PIN), HallEncoderInterrupt, FALLING);
