@@ -105,6 +105,7 @@ void loop() {
   readEthernet();  // check for new angle from ethernet
 //  assignDirection();
 //  wdt_reset();
+  Serial.println("Cycling");
 }
 
 void readEthernet(){ 
