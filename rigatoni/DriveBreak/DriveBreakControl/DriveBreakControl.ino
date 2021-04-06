@@ -26,7 +26,7 @@ const static IPAddress driveIP(192, 168, 0, 4); //set the IP to find us at
 EthernetServer server(PORT);
 
 // Our two clients: 
-const static IPAddress brakeIP(192, 168, 0, 5); //set the IP of the brake
+const static IPAddress brakeIP(192, 168, 0, 7); //set the IP of the brake
 EthernetClient brakeBoard;  // client 
 
 const static IPAddress estopIP(192, 168, 0, 3); //set the IP of the estop
