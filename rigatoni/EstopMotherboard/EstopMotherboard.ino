@@ -1,6 +1,6 @@
 #include <avr/wdt.h>
 #include <Ethernet.h>
-#include "evgp_estop_motherboard.h"
+#include "EstopMotherboard.h"
 #include "RJNet.h"
 
 /*
