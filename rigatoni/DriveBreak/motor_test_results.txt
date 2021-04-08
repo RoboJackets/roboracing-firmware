@@ -1,0 +1,6 @@
+Motor controller needs inductive load to work correctly.
+
+When relay coil was connected in place of motor and power supply placed in parallel with motor driver, power supply able to boost relay voltage above measured voltage.
+Power supply did not report much current.
+
+4-wire test: 60-85mV, 1.828A
