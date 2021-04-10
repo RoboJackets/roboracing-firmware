@@ -8,9 +8,6 @@
 #define NUM_MAGNETS 24
 const static float US_PER_SEC = 1000000.0;
 
-#define ETH_NUM_SENDS 2
-#define ETH_RETRANSMISSION_DELAY_MS 50  //Time before TCP tries to resend the packet
-#define ETH_TCP_INITIATION_DELAY 50     //How long we wait before .connected() or .connect() fails.
 
 #define REPLY_TIMEOUT_MS 4000   //We have to receive a reply from Estop and Brake within this many MS of our message or we are timed out. NOT TCP timeout. Have to 
 #define MIN_MESSAGE_SPACING 100 //Send messages to Brake and request state from e-stop at 10 Hz
@@ -19,21 +16,13 @@ const static float US_PER_SEC = 1000000.0;
 // See https://docs.google.com/document/d/10klaJG9QIRAsYD0eMPjk0ImYSaIPZpM_lFxHCxdVRNs/edit#
 ////
 
-// Enter a MAC address and IP address for your board below
 
 
-//const static IPAddress driveIP(192, 168, 0, 4); //set the IP to find us at
 EthernetServer server(PORT);
 
-// Our two clients: 
-//const static IPAddress brakeIP(192, 168, 0, 7); //set the IP of the brake
-EthernetClient brakeBoard;  // client 
-
-//const static IPAddress estopIP(192, 168, 0, 3); //set the IP of the estop
-EthernetClient estopBoard;  // client
-
-//Manual board, which is not a client:
-//const static IPAddress manualIP(192, 168, 0, 144); //set the IP of the estop
+// Drive connects to Brake and Estop as a client (Brake and Estop are servers): 
+EthernetClient brakeBoard; 
+EthernetClient estopBoard;
 
 /****************Messages from clients****************/
 //Universal acknowledge message
@@ -62,6 +51,19 @@ unsigned long brakeCommandSent = 0;
 bool estopConnected = false;
 bool brakeConnected = false;
 
+/****************Current Sensing****************/
+// Current Sensing
+const static float currentSensorMidpoint = 500.0;
+const static int adcResolution = 1024;
+const static float adcMaxVoltage = 5.0;
+const static float currentSensorAmpsPerVolt = 200.0;
+const static float ampsPerBit = currentSensorAmpsPerVolt*adcMaxVoltage/adcResolution;
+float motorCurrent = 0;                 //Current passing through the motor (can be + or -, depending on direction)
+
+//Printing timing
+const static int printDelayMs = 1000;
+unsigned long lastPrintTime = 0;
+
 /*
 State Machine
 
@@ -84,7 +86,6 @@ bool motorEnabled = false;
 
 unsigned long lastControllerRunTime = 0;    //Last time the controller and speed estimator was executed
 
-float motorCurrent = 0;                 //Current passing through the motor (can be + or -, depending on direction)
 float desired_braking_force = 0;        //Desired braking force in N (should be >=0)
 float softwareDesiredVelocity = 0;      //What Software is commanding us
 
@@ -104,6 +105,8 @@ void setup(){
   
     // LED Pins
 	pinMode(REVERSE_LED_PIN, OUTPUT);
+    //pinMode(USER_LED_PIN, OUTPUT); TODO doesn't work on v1.0 of board
+
 
     // Motor Pins
 	pinMode(MOTOR_CNTRL_PIN, OUTPUT);
@@ -124,47 +127,33 @@ void setup(){
     
 	while (Ethernet.hardwareStatus() == EthernetNoHardware) {
 		Serial.println("Ethernet shield was not found.");
+        // digitalWrite(USER_LED_PIN, !digitalRead(USER_LED_PIN)); TODO doesn't work on v1.0 of board
 		delay(100);
 	}
 
 	while(Ethernet.linkStatus() == LinkOFF) {
 		Serial.println("Ethernet cable is not connected.");	// do something with this
-		delay(100);	 	// TURN down delay to check/startup faster
+		// digitalWrite(USER_LED_PIN, !digitalRead(USER_LED_PIN)); TODO doesn't work on v1.0 of board
+        delay(100);	 	// TURN down delay to check/startup faster
 	}
     
     Ethernet.setRetransmissionCount(ETH_NUM_SENDS); //Set number resends before failure
     Ethernet.setRetransmissionTimeout(ETH_RETRANSMISSION_DELAY_MS);  //Set timeout delay before failure
     
     server.begin();	// launches OUR server
-    Serial.println("Server started");
+    Serial.print("Our address: ");
     Serial.println(Ethernet.localIP());
-
 
     //Make sure we are connected to clients before proceeding.
     estopBoard.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);
     brakeBoard.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);
     
-    while(!estopConnected || !brakeConnected){
-        if(!estopConnected){
-            Serial.println("Connecting to Estop");
-            estopConnected = estopBoard.connect(estopIP, PORT) > 0;
-        }
-        if(!brakeConnected){
-            Serial.println("Connecting to Brake");
-            brakeConnected = brakeBoard.connect(brakeIP, PORT) > 0;
-        }
-        delay(100);
-    }
-
     attachInterrupt(digitalPinToInterrupt(ENCODER_A_PIN), HallEncoderInterrupt, FALLING);
     
     // WATCHDOG TIMER
     wdt_reset();
     wdt_enable(WDTO_500MS);
 }
-
-const static int printDelayMs = 1000;
-unsigned long lastPrintTime = 0;
 
 void loop() {
     wdt_reset();
@@ -178,7 +167,7 @@ void loop() {
     lastControllerRunTime = currTime;
     
     //Calculate current speed
-    motorCurrent = GetMotorCurrent();
+    motorCurrent = getMotorCurrent();
     estimate_vel(loopTimeStep, motorCurrent, desired_braking_force);
 
     executeStateMachine(loopTimeStep);
@@ -206,7 +195,7 @@ bool parseEstopMessage(const String msg){
     Parse a message from the estop board and determine if the drive motor is enabled or disabled.
     If state is GO, motor enabled; in all other cases, motor is disabled.
     */
-    return estopGoMsg.equals(msg);
+    return msg.equals(estopGoMsg);
 }
 
 float parseSpeedMessage(const String speedMessage){
@@ -231,22 +220,22 @@ void handleSingleClientMessage(EthernetClient otherBoard){
     if(data.length() != 0){  //Got valid data - string will be empty if message not valid
         otherBoard.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);   //Set connection delay so we don't hang
         
-        if(speedRequestMsg.equals(data)){  //Somebody's asking for our speed
+        if(data.equals(speedRequestMsg)){  //Somebody's asking for our speed
             //Send back our current speed
-            RJNet::sendData(otherBoard, "v=" + String(get_speed()) + " I=" + String(motorCurrent));
-            Serial.print("Speed request from");
+            RJNet::sendData(otherBoard, "v=" + String(get_speed()) + ",I=" + String(motorCurrent));
+            Serial.print("Speed request from: ");
             Serial.println(otherIP);
         }
-        else if(estopIP == otherIP){
+        else if(otherIP == estopIP){
             //Message from Estop board
             motorEnabled = parseEstopMessage(data);
             lastEstopReply = millis();
             Serial.print("Estop: motor enabled? ");
             Serial.println(motorEnabled);
         }
-        else if(brakeIP == otherIP){
+        else if(otherIP == brakeIP){
             //Message from brake board, should be acknoweldge
-            if(ackMsg.equals(data)){
+            if(data.equals(ackMsg)){
                 lastBrakeReply = millis();
             }
             else{
@@ -254,10 +243,10 @@ void handleSingleClientMessage(EthernetClient otherBoard){
                 Serial.println(data);
             }
         }
-        else if(manualIP == otherIP){
+        else if(otherIP == manualIP){
             //Message from manual board, should be speed command
             if(data.length() > 2){
-                if(manualStringHeader.equals(data.substring(0,2))){
+                if(data.substring(0,2).equals(manualStringHeader)){
                     softwareDesiredVelocity = parseSpeedMessage(data);
                     lastManualCommand = millis();
                     
@@ -279,7 +268,7 @@ void handleSingleClientMessage(EthernetClient otherBoard){
         }
     }
     else{
-        Serial.print("Empty/invalid message received from ");
+        Serial.print("Empty/invalid message received from: ");
         Serial.println(otherIP);
     }
 }
@@ -288,12 +277,14 @@ void readAllNewMessages(){
     /*
     Checks the server, brake, and Estop for new messages and deals with them
     */
-    EthernetClient client = server.available();  //if there is a new message form client create client object, otherwise new client object null
+    EthernetClient client = server.available();  //if there is a new message from client create client object, otherwise new client object null
+    // These look for clients
     while(client){
         handleSingleClientMessage(client);
         client = server.available();  //Go to next message
     }
-    
+
+    // These look for message bytes
     while(brakeBoard.available()){
         handleSingleClientMessage(brakeBoard);
     }
@@ -358,31 +349,31 @@ void executeStateMachine(float timeSinceLastLoop){
     }
     
     //Check if we are connected to all boards
-    bool connected_to_all_board = true;
+    bool connectedToAllBoards = true;
     if(!brakeConnected){
         Serial.println("Lost brake TCP connection");
-        connected_to_all_board = false;
+        connectedToAllBoards = false;
     }
     else if(currTime > lastBrakeReply + REPLY_TIMEOUT_MS){
         Serial.println("Brake timed out");
-        connected_to_all_board = false;
+        connectedToAllBoards = false;
     }
     else if(!estopConnected){
         Serial.println("Lost estop TCP connection");
-        connected_to_all_board = false;
+        connectedToAllBoards = false;
     }
     else if(currTime > lastEstopReply + REPLY_TIMEOUT_MS){
         Serial.println("Estop timed out");
-        connected_to_all_board = false;
+        connectedToAllBoards = false;
     }
     else if(currTime > lastManualCommand + REPLY_TIMEOUT_MS){
         Serial.println("Manual timed out");
-        connected_to_all_board = false;
+        connectedToAllBoards = false;
     }
     
     //State transitions. See .gv file.
     if(currentState == STATE_DRIVING_FORWARD){
-        if(!motorEnabled || !connected_to_all_board){
+        if(!motorEnabled || !connectedToAllBoards){
             currentState = STATE_DISABLED_FORWARD;
         }
         else if(softwareDesiredVelocity < 0 && get_speed() < switch_direction_max_speed){
@@ -390,23 +381,26 @@ void executeStateMachine(float timeSinceLastLoop){
         }
     }
     else if(currentState == STATE_DRIVING_REVERSE){
-        if(!motorEnabled || !connected_to_all_board){
+        if(!motorEnabled || !connectedToAllBoards){
             currentState = STATE_DISABLED_REVERSE;
         }
-        else if(softwareDesiredVelocity > 0 && get_speed() < switch_direction_max_speed){
+        else if(softwareDesiredVelocity >= 0 && get_speed() < switch_direction_max_speed){
             currentState = STATE_DRIVING_FORWARD;
         }
     }
     else if(currentState == STATE_DISABLED_REVERSE){
-        if(motorEnabled && connected_to_all_board){
+        if(motorEnabled && connectedToAllBoards){
             currentState = STATE_DRIVING_REVERSE;
         }
     }
-    else{
-        //State is STATE_DISABLED_FORWARD
-        if(motorEnabled && connected_to_all_board){
+    else if(currentState == STATE_DISABLED_FORWARD){
+        if(motorEnabled && connectedToAllBoards){
             currentState = STATE_DRIVING_FORWARD;
         }
+    }
+    else
+    {
+        Serial.println("INVALID STATE!")
     }
     
     //Now execute that state
@@ -507,13 +501,7 @@ void writeVoltageToMotor(float voltage){
 // CURRENT SENSE FUNCTIONS
 ////
 
-const static float currentSensorMidpoint = 500.0;
-const static int adcResolution = 1024;
-const static float adcMaxVoltage = 5.0;
-const static float currentSensorAmpsPerVolt = 200.0;
-const static float ampsPerBit = currentSensorAmpsPerVolt*adcMaxVoltage/adcResolution;
-
-float GetMotorCurrent(){
+float getMotorCurrent(){
     unsigned int rawCurrentBits = analogRead(CURR_DATA_PIN);
     return (ampsPerBit*rawCurrentBits) - currentSensorMidpoint; // 200A/V * current voltage -> gives A
 }

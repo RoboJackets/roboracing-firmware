@@ -106,6 +106,7 @@ void respondToClient() {
     if (client) {
         String data = RJNet::readData(client);
         if (data.length() != 0) {
+            client.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);   //Set connection delay so we don't hang
             Serial.print(data); //show us what we read 
             Serial.print(" From client ");
             Serial.print(client.remoteIP());
@@ -136,16 +137,6 @@ void respondToClient() {
                     }
                 }
             }
-            else if(client.remoteIP() == nucIP && data.equals(nucResponseGo))
-            {
-                nucState = GO;
-                lastNUCReply = millis();
-            }
-            else if(client.remoteIP() == nucIP && data.equals(nucResponseHalt))
-            {
-                nucState = STOP;
-                lastNUCReply = millis();
-            }
             else
             {
                 Serial.println("Invalid message recieved.");
@@ -158,8 +149,31 @@ void respondToClient() {
     }
 }
 
-void requestNUCState() {
+void respondToNUC() {
+    if(NUC.available())
+    {
+        String data = RJNet::readData(NUC);
+        if (data.length() != 0) {
+            if(data.equals(nucResponseGo))
+            {
+                nucState = GO;
+                lastNUCReply = millis();
+            }
+            else if(data.equals(nucResponseHalt))
+            {
+                nucState = STOP;
+                lastNUCReply = millis();
+            }
+            else
+            {
+                Serial.println("INVALID NUC MESSAGE!");
+            }
+        }
+    }
 
+}
+
+void requestNUCState() {
     nucConnected = NUC.connected();
     if(!nucConnected){
         //Lost TCP connection with the NUC. Takes 10 seconds for TCP connection to fail after disconnect.
@@ -322,4 +336,5 @@ void loop() {
     writeOutCurrentState();
     respondToClient();
     requestNUCState();
+    respondToNUC();
 }
