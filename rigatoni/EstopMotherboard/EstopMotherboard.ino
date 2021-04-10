@@ -1,3 +1,4 @@
+#include "RigatoniNetwork.h"
 #include <avr/wdt.h>
 #include <Ethernet.h>
 #include "EstopMotherboard.h"
@@ -8,9 +9,17 @@ A simplified sketch for the estop motherboard. It does not attempt to display an
 except the state from the radio board. It provides the current state to anything that requests it via ethernet.
 */
 
+
 const static String stopMsg = "D";
-const static String testingMsg = "L";
+const static String limitedMsg = "L";
 const static String goMsg = "G";
+const static String nucRequestStateMsg = "S?";
+
+const static String nucResponseGo = "G";
+const static String nucResponseHalt = "H";
+
+
+const static String genRequestStateMsg = "S?";
 
 //If we receive this, indicates a hardware failure and we should permanently stop
 const static String hardwareFailure = "FAIL";
@@ -18,15 +27,23 @@ const static String hardwareFailure = "FAIL";
 bool isPermanentlyStopped = false;
 byte currentState = STOP;  // default state is STOP
 
-byte sensor1;             // input from sensor 1
-byte sensor2;             // input from sensor 2
+//byte sensor1;           // input from sensor 1 TODO Not implemented on current version
+//byte sensor2;           // input from sensor 2 TODO Not implemented on current version
 byte steeringIn;          // steering input from radio board
 byte driveIn;             // drive input from radio board
+byte remoteState = STOP;  
 
-const static byte PORT = 7; //port RJNet uses
-byte mac[] = {0xDE, 0xAD, 0xBE, 0xEF, 0x03};
-IPAddress ip(192, 168, 0, 3); //set the IP to find us at
+
 EthernetServer server(PORT);
+
+// NUC 
+EthernetClient NUC;
+// Time variables to throttle message sends
+unsigned long lastNUCReply = 0;
+unsigned long nucRequestSent = 0;
+bool nucConnected = false;
+
+byte nucState = GO; // Default state GO to operate without NUC connected 
 
 
 void stackLights(byte green, byte yellow, byte red) {
@@ -59,7 +76,6 @@ void stackLights(byte green, byte yellow, byte red) {
     }
 }
 
-
 void steerDriveBrake(byte steer, byte drive, byte brake_release) {
     digitalWrite(STEERING_EN, steer);
     digitalWrite(DRIVE_EN, drive);
@@ -77,7 +93,7 @@ void writeOutCurrentState() {  // CHANGE, STATUS NEEDS TO GO THROUGH NUC FIRST
         steerDriveBrake(LOW, LOW, LOW);
         stackLights(OFF, OFF, ON);
         break;
-    case TESTING:    // steering enabled, drive disabled
+    case LIMITED:    // steering enabled, drive disabled
         steerDriveBrake(HIGH, LOW, HIGH);
         stackLights(OFF, ON, OFF);
         break;
@@ -85,39 +101,81 @@ void writeOutCurrentState() {  // CHANGE, STATUS NEEDS TO GO THROUGH NUC FIRST
 }
 
 
-void sendStateToClient() {
+void respondToClient() {
     EthernetClient client = server.available();
     if (client) {
         String data = RJNet::readData(client);
         if (data.length() != 0) {
-            if(hardwareFailure.equals(data)){
-                isPermanentlyStopped = true;
-                currentState = STOP;
-                Serial.print("HARDWARE FAULT: MESSAGE: ");
-            }
-            
             Serial.print(data); //show us what we read 
             Serial.print(" From client ");
             Serial.print(client.remoteIP());
             Serial.print(":");
             Serial.println(client.remotePort());
-            
-            
-            //Doesn't matter what they send us, we'll just send the state
-            switch(currentState) {
-            case GO:    // everything enabled
-                RJNet::sendData(client, goMsg); 
-                break; 
-            case STOP:    // everything disabled
-                RJNet::sendData(client, stopMsg);
-                break;
-            case TESTING:    // steering enabled, drive disabled
-                RJNet::sendData(client, testingMsg);
-                break;
+
+            if(data.equals(hardwareFailure))
+            {
+                isPermanentlyStopped = true;
+                currentState = STOP;
+                Serial.print("HARDWARE FAULT: MESSAGE: ");
+            }
+            else if(data.equals(genRequestStateMsg))
+            {
+                //Doesn't matter what they send us, we'll just send the state
+                if(client.connected())
+                {
+                    switch(currentState) {
+                        case GO:    // everything enabled
+                            RJNet::sendData(client, goMsg); 
+                            break; 
+                        case STOP:    // everything disabled
+                            RJNet::sendData(client, stopMsg);
+                            break;
+                        case LIMITED:    // steering enabled, drive disabled
+                            RJNet::sendData(client, limitedMsg);
+                            break;
+                    }
+                }
+            }
+            else if(client.remoteIP() == nucIP && data.equals(nucResponseGo))
+            {
+                nucState = GO;
+                lastNUCReply = millis();
+            }
+            else if(client.remoteIP() == nucIP && data.equals(nucResponseHalt))
+            {
+                nucState = STOP;
+                lastNUCReply = millis();
+            }
+            else
+            {
+                Serial.println("Invalid message recieved.");
             }
         }
-        else Serial.println("Empty message recieved.");
+        else
+        {
+            Serial.println("Empty message recieved.");
+        }
     }
+}
+
+void requestNUCState() {
+
+    nucConnected = NUC.connected();
+    if(!nucConnected){
+        //Lost TCP connection with the NUC. Takes 10 seconds for TCP connection to fail after disconnect.
+        //Takes a very long time to time out
+        NUC.connect(nucIP, PORT);
+        Serial.println("Lost connection with NUC");
+    }
+    else
+    {
+        // Checks to make sure messages are not sent too fast
+        if(millis() > lastNUCReply + MIN_MESSAGE_SPACING && millis() > nucRequestSent + MIN_MESSAGE_SPACING){
+            RJNet::sendData(NUC, nucRequestStateMsg);
+            nucRequestSent = millis();
+        } 
+    }
+
 }
 
 void resetEthernet(void){
@@ -126,6 +184,68 @@ void resetEthernet(void){
     delay(1);
     digitalWrite(ETH_RST, HIGH);
     delay(501);
+}
+
+void evaluateState(void){
+
+    //sensor1 = digitalRead(SENSOR_1); TODO Not implemented on current version
+    //sensor2 = digitalRead(SENSOR_2); TODO Not implemented on current version
+    steeringIn = digitalRead(STEERING_IN);
+    driveIn = digitalRead(DRIVE_IN);
+
+    // Check remote state
+    if(steeringIn && driveIn)
+    {
+        remoteState = GO; // everything Enabled
+    }
+    else if(steeringIn && !driveIn)
+    {
+        remoteState = LIMITED; // steering enabled, drive disabled (Limited)
+    }
+    else if(!steeringIn && !driveIn)
+    { 
+        remoteState = STOP;  // everything Disabled
+    }
+    else
+    {
+        remoteState = STOP; 
+        Serial.println("INVALID REMOTE STATE!");
+    }
+
+    // Evaluate remote and nuc states
+    if (isPermanentlyStopped)
+    {
+        //hardware fault. Permanently stopped.
+        currentState = STOP;
+        Serial.println("HARDWARE FAULT!");
+    }
+    else
+    {
+        // Written out more explicitly for clarity of state machine
+        if(remoteState == STOP)  // Remote stop takes precedence over NUC no matter what
+        {
+            currentState = STOP;
+        }
+        else if((remoteState == GO || remoteState == LIMITED) && nucState == STOP) // If NUC is on and connected to say STOP, stop. NOTE: nucState default GO on start up
+        {
+            currentState = STOP;
+        }
+        else if(remoteState == LIMITED && nucState == GO)
+        {
+            currentState = LIMITED;
+        }
+        else if(remoteState == GO && nucState == GO) // If both Go, GO!
+        {
+            currentState = GO;
+        }
+        else
+        {
+            currentState = STOP;
+            Serial.println("UNEXPECTED STATE!");
+        }
+
+    } 
+
 }
 
 
@@ -147,6 +267,7 @@ void setup() {
     pinMode(ETH_RST, OUTPUT);
     //pinMode(ETH_CS_PIN, OUTPUT);
     //pinMode(17, OUTPUT);   //Default SS pin as output
+    digitalWrite(STEERING_EN, LOW);  // Initially start E-stopped
     digitalWrite(DRIVE_EN, LOW);  // Initially start E-stopped
     digitalWrite(BRAKE_EN, LOW);  //
     digitalWrite(STACK_G, HIGH); // change these light settings
@@ -155,26 +276,35 @@ void setup() {
     
     Serial.begin(115200);
 
-    // ETHERNET STUFF
+	//********** Ethernet Initialization *************//
     resetEthernet();
     // In case your RJ board wires the chip in an odd config,
     // otherwise, leave commented out
     // You can use Ethernet.init(pin) to configure the CS pin
+
     Ethernet.init(ETH_CS_PIN);
-    Ethernet.begin(mac, ip);
+    Ethernet.begin(estopMAC, estopIP);
+
     while(Ethernet.hardwareStatus() == EthernetNoHardware) {
         Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
         digitalWrite(LED1, !digitalRead(LED1));
-        delay(500);
+        delay(100);
     }
+
     while(Ethernet.linkStatus() == LinkOFF) {
         Serial.println("Ethernet cable is not connected.");
         digitalWrite(LED1, !digitalRead(LED1));
         delay(100);
     }
+
+    Ethernet.setRetransmissionCount(ETH_NUM_SENDS); //Set number resends before failure
+    Ethernet.setRetransmissionTimeout(ETH_RETRANSMISSION_DELAY_MS);  //Set timeout delay before failure
+
     server.begin();
     Serial.print("Our address: ");
     Serial.println(Ethernet.localIP());
+
+    NUC.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);
 
     // WATCHDOG TIMER
     wdt_reset();
@@ -184,25 +314,12 @@ void setup() {
 
 void loop() {
     wdt_reset();
-
-    sensor1 = digitalRead(SENSOR_1);
-    sensor2 = digitalRead(SENSOR_2);
-    steeringIn = digitalRead(STEERING_IN);
-    driveIn = digitalRead(DRIVE_IN);
-
-    if (isPermanentlyStopped){
-        //hardware fault. Permanently stopped.
-        currentState = STOP;
-    } else if(steeringIn && driveIn) {
-        currentState = GO; // everything Enabled
-    } else if(!driveIn) { // includes steering enabled and disabled
-        currentState = STOP;  // everything Disabled
-    } else {
-        currentState = TESTING; // steering enabled, drive disabled (Limited)
-    }
+    
+    evaluateState();
 
     digitalWrite(LED1, (millis()/1000)%2);
 
     writeOutCurrentState();
-    sendStateToClient();
+    respondToClient();
+    requestNUCState();
 }

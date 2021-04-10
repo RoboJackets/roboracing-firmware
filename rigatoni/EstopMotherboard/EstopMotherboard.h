@@ -23,7 +23,7 @@
 //States for state machine
 #define GO 0
 #define STOP 1
-#define TESTING 2
+#define LIMITED 2
 
 //Easy names for light states
 #define OFF 0

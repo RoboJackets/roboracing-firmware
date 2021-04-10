@@ -1,3 +1,4 @@
+#include "RigatoniNetwork.h"
 #include <avr/wdt.h>
 #include "DriveControl.h"
 #include "RJNet.h"
@@ -19,21 +20,20 @@ const static float US_PER_SEC = 1000000.0;
 ////
 
 // Enter a MAC address and IP address for your board below
-const static byte driveMAC[] = {0x11, 0xAD, 0xBA, 0xEF, 0xFE, 0xEE};
-const static int PORT = 7;  //port RJNet uses
 
-const static IPAddress driveIP(192, 168, 0, 4); //set the IP to find us at
+
+//const static IPAddress driveIP(192, 168, 0, 4); //set the IP to find us at
 EthernetServer server(PORT);
 
 // Our two clients: 
-const static IPAddress brakeIP(192, 168, 0, 7); //set the IP of the brake
+//const static IPAddress brakeIP(192, 168, 0, 7); //set the IP of the brake
 EthernetClient brakeBoard;  // client 
 
-const static IPAddress estopIP(192, 168, 0, 3); //set the IP of the estop
+//const static IPAddress estopIP(192, 168, 0, 3); //set the IP of the estop
 EthernetClient estopBoard;  // client
 
 //Manual board, which is not a client:
-const static IPAddress manualIP(192, 168, 0, 144); //set the IP of the estop
+//const static IPAddress manualIP(192, 168, 0, 144); //set the IP of the estop
 
 /****************Messages from clients****************/
 //Universal acknowledge message
@@ -124,11 +124,12 @@ void setup(){
     
 	while (Ethernet.hardwareStatus() == EthernetNoHardware) {
 		Serial.println("Ethernet shield was not found.");
-		delay(50);
+		delay(100);
 	}
+
 	while(Ethernet.linkStatus() == LinkOFF) {
 		Serial.println("Ethernet cable is not connected.");	// do something with this
-		delay(50);	 	// TURN down delay to check/startup faster
+		delay(100);	 	// TURN down delay to check/startup faster
 	}
     
     Ethernet.setRetransmissionCount(ETH_NUM_SENDS); //Set number resends before failure
@@ -136,7 +137,9 @@ void setup(){
     
     server.begin();	// launches OUR server
     Serial.println("Server started");
-    
+    Serial.println(Ethernet.localIP());
+
+
     //Make sure we are connected to clients before proceeding.
     estopBoard.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);
     brakeBoard.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);
