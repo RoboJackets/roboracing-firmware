@@ -53,7 +53,6 @@ void setup() {
   pinMode(pulsePin, OUTPUT);
   pinMode(commandInterruptPin, INPUT_PULLUP);
   digitalWrite(pulsePin, HIGH);
-  while (!Serial);
 
 
   /* Initialization for timer interrupt for stepper motor */
