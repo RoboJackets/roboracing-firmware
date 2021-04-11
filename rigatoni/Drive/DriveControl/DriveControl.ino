@@ -32,6 +32,7 @@ const static String ackMsg = "R";
 const static String estopStopMsg = "D";
 const static String estopLimitedMsg = "L";
 const static String estopGoMsg = "G";
+const static String estopRequestMsg = "S?";
 
 //Speed request message
 const static String speedRequestMsg = "S?";
@@ -148,6 +149,9 @@ void setup(){
     estopBoard.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);
     brakeBoard.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);
     
+    estopConnected = estopBoard.connect(estopIP, PORT) > 0;
+    brakeConnected = brakeBoard.connect(brakeIP, PORT) > 0;
+
     attachInterrupt(digitalPinToInterrupt(ENCODER_A_PIN), HallEncoderInterrupt, FALLING);
     
     // WATCHDOG TIMER
@@ -321,7 +325,7 @@ void sendToBrakeEstop(void){
     }
     else{
         if(millis() > lastEstopReply + MIN_MESSAGE_SPACING && millis() > estopRequestSent + MIN_MESSAGE_SPACING){
-            RJNet::sendData(estopBoard, "S?");
+            RJNet::sendData(estopBoard, estopRequestMsg);
             estopRequestSent = millis();
         }
     }

@@ -1,3 +1,4 @@
+#include "RigatoniNetwork.h"
 #include <avr/wdt.h>
 #include "pins.h"
 #include "Ethernet.h"
@@ -12,23 +13,27 @@ volatile unsigned long prev_time_ch_1 = 0;
 volatile unsigned long prev_time_ch_2 = 0;
 volatile unsigned long prev_time_ch_3 = 0;
 
-unsigned long sendTime;
-unsigned long failTime;
-
 // PWM limits from RC
-#define ch_1_lower 1536
-#define ch_1_upper 1852
-#define ch_2_lower 1494
-#define ch_2_upper 2020
-#define ch_3_mid 1494
+#define PWM_DEADBAND 10
 
-// RJNet ethernet port
-#define PORT 7
+#define PWM_CH_1_LOWER 1536
+#define PWM_CH_1_MID 1649
+#define PWM_CH_1_UPPER 1852
 
-// Ethernet stuffs
-#define ETH_NUM_SENDS 2
-#define ETH_RETRANSMISSION_DELAY_MS 50  //Time before TCP tries to resend the packet
-#define ETH_TCP_INITIATION_DELAY 50 //How long we wait before .connected() or .connect() fails.
+#define PWM_CH_2_LOWER 1494
+#define PWM_CH_2_MID 1757
+#define PWM_CH_2_UPPER 2020
+
+#define PWM_CH_3_MID 1494
+
+#define MAX_VELOCITY_FORWARD 10 // m/s
+#define MAX_VELOCITY_BACKWARD -2 // m/s
+
+#define MAX_ANGLE 0.52 // radians
+
+#define NUC_TIMEOUT_MS 1000
+#define STEERING_TIMEOUT_MS 1000
+#define DRIVE_TIMEOUT_MS 1000 
 
 bool led_1_state = true;
 bool led_2_state = false;
@@ -36,7 +41,7 @@ bool led_2_state = false;
 bool rc_present_state = false;
 bool rc_prev_state = true;
 
-bool manual_state = false; // true if RC controlled, false if NUC controlled
+bool manual_state = true; // true if RC controlled, false if NUC controlled
 
 float rc_angle = 0;
 float rc_speed = 0;
@@ -45,25 +50,27 @@ bool rc_control;
 float nuc_speed = 0;
 float nuc_angle = 0;
 
+unsigned long lastNUCCommand = 0;
+unsigned long lastDriveReply = 0;
+unsigned long lastSteeringReply = 0;
+
+unsigned long lastDriveCommand = 0;
+unsigned long lastSteeringCommand = 0;
+
 // float value_throttle; For manual throttle, not implemented in this version
 
 /* Ethernet */
-const static byte mac[] = {0xDE, 0xAD, 0xBE, 0xEF, 0x06}; // manual board's mac address
-const static IPAddress manualIP(192, 168, 0, 6); // manual board's IP address
 EthernetServer manualServer(PORT);
 
 // Enter a IP address for nuc below, nuc client to manual
-const static IPAddress nucIP(192, 168, 0, 2); //set the IP of the NUC
 EthernetClient nuc;  // client 
 
 // Enter a IP address for steering below, manual client to steering and drive
-const static IPAddress steeringIP(192, 168, 0, 5); //set the IP of the steering board
-EthernetClient steeringBoard; // client
+EthernetClient steeringBoard; // manual is client to steering
 
-const static IPAddress driveIP(192, 168, 0, 4); //set the IP of the drive board
-EthernetClient driveBoard; // client
+EthernetClient driveBoard; // manual is client to drive
 
-//TCP Connection status to brake and estop
+//TCP Connection status to drive and steering
 bool driveConnected = false;
 bool steeringConnected = false;
 
@@ -75,7 +82,12 @@ const static String ackMsg = "R";
 const static String nucDriveStringHeader = "v=";
 
 //NUC commanded steering header
-const static String nucAngleStringHeader = " a=";
+const static String nucAngleStringHeader = "a=";
+
+//NUC requested mode
+const static String nucModeRequest = "S?";
+const static String nucAutoMode = "A";
+const static String nucManualMode = "M";
 
 /****************Messages to clients****************/
 //Manual RC speed command header
@@ -148,34 +160,38 @@ void set_led_2(bool);
 
 void setup(){
     pin_assign();
+
     Serial.begin(115200);
-    sendTime = 0;
 
     /* Initialization for ethernet*/
     // NOT POSSIBLE - Reset for ethernet is not broken out on microcontroller
     // resetEthernet();
     Ethernet.init(ETH_CS_PIN);  // SCLK pin from eth header
-    Ethernet.begin(mac, manualIP); // initialize ethernet device
+    Ethernet.begin(manualMAC, manualIP); // initialize ethernet device
 
     
     while (Ethernet.hardwareStatus() == EthernetNoHardware) {
-         Serial.println("Ethernet shield was not found.");
-         delay(50);
+        Serial.println("Ethernet shield was not found.");
+        digitalWrite(LED_1, !digitalRead(LED_1));
+        delay(100);
     }
+
     while(Ethernet.linkStatus() == LinkOFF) {
-         Serial.println("Ethernet cable is not connected."); // do something with this
-         delay(50);    // TURN down delay to check/startup faster
+        Serial.println("Ethernet cable is not connected."); // do something with this
+        digitalWrite(LED_1, !digitalRead(LED_1));
+        delay(100);    // TURN down delay to check/startup faster
     }
 
     Ethernet.setRetransmissionCount(ETH_NUM_SENDS);
     Ethernet.setRetransmissionTimeout(ETH_RETRANSMISSION_DELAY_MS);
 
+    manualServer.begin();
+
     steeringBoard.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);
     driveBoard.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);
-    
-    manualServer.begin();
-    sendTime = millis();
-    failTime = millis();
+
+    steeringConnected = steeringBoard.connect(steeringIP, PORT) > 0;
+    driveConnected = driveBoard.connect(steeringIP, PORT) > 0;
 
     // WATCHDOG TIMER
     wdt_reset();
@@ -205,104 +221,146 @@ void loop() {
     evaluate_state();
     set_led_2(manual_state);
 
-    if(millis() - sendTime >= 100){ // Spec calls for sending at 10 Hz
-      sendNewMessages();
-      sendTime = millis();
+    if(millis() - lastNUCCommand > NUC_TIMEOUT_MS){ // Check fail condition timer
+        nuc_speed = 0;
+        nuc_angle = 0;
     }
     
-    
-    // delay(5);
 }
 
 void readAllNewMessages(){ 
-  EthernetClient client = manualServer.available();    // if there is a new message from client create client object, otherwise new client object, if evaluated, is false
-  while (client) {
-    String data = RJNet::readData(client);  // if i get string from RJNet buffer (v= $float or a=$float)
-    IPAddress clientIP = client.remoteIP();
-    if (data.length() != 0) {   // if data exists
-      client.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);   //Set connection delay so we don't hang
-      if (clientIP == nucIP) {
-        if (nucDriveStringHeader.equals(data.substring(0,2))){    // if client is giving us new angle
-          String reply = ackMsg;
-          RJNet::sendData(client, reply); // Reply "R"
-          
-          nuc_speed = parseSpeedMessage(data); 
-          failTime = millis(); // Reset fail condition timer
-          }
-        else if (nucAngleStringHeader.equals(data.substring(0,2))){    // if client is giving us new steering
-          String reply = ackMsg;
-          RJNet::sendData(client, reply); // Reply "R"
-          
-          nuc_angle = parseAngleMessage(data); 
-          failTime = millis(); // Reset fail condition timer // TODO should these be seperate or is one timer okay?
-          }
-        else {
-          Serial.print("Invalid message received from nuc");  
+    EthernetClient client = manualServer.available();    // if there is a new message from client create client object, otherwise new client object, if evaluated, is false
+    while (client) {
+        String data = RJNet::readData(client);  // if i get string from RJNet buffer (v= $float or a=$float)
+        IPAddress clientIP = client.remoteIP();
+        if (data.length() != 0) {   // if data exists
+            client.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);   //Set connection delay so we don't hang
+            if (clientIP == nucIP)
+            {
+                if (data.substring(0,2).equals(nucDriveStringHeader))  // if client is giving us new angle
+                {  
+                    RJNet::sendData(client, ackMsg); // Reply "R"
+                    nuc_speed = parseSpeedMessage(data); 
+                    lastNUCCommand = millis(); // Reset fail condition timer
+                }
+                else if (data.substring(0,2).equals(nucAngleStringHeader))  // if client is giving us new steering
+                {
+                    RJNet::sendData(client, ackMsg); // Reply "R"
+                    nuc_angle = parseAngleMessage(data); 
+                    lastNUCCommand = millis(); // Reset fail condition timer // TODO should these be seperate or is one timer okay?
+                }
+                else if (data.substring(0,2).equals(nucModeRequest))
+                {
+                    String fullReply = "v="+String(rc_speed)+",a="+String(rc_angle)+",m=";
+                    if(manual_state)
+                    {
+                        fullReply = fullReply + nucManualMode;
+                    }
+                    else
+                    {
+                        fullReply = fullReply + nucAutoMode;
+                    }
+
+                    RJNet::sendData(client, fullReply);
+                    lastNUCCommand = millis();
+                }
+                else
+                {
+                    Serial.print("Invalid message received from NUC");  
+                }
+            }
+            else
+            {
+                Serial.print("Invalid message received from ");
+                Serial.println(clientIP);
+            }     
         }
-      }
-      else
-      {
-        Serial.print("Invalid message received from ");
-        Serial.println(clientIP);
-      }
+        else
+        {
+            Serial.print("Empty message received from ");
+            Serial.println(clientIP); 
+        }
+        client = manualServer.available();  //Go to next client for a message
     }
-    else {
-      Serial.print("Empty message received from ");
-      Serial.println(clientIP); 
+
+    while (driveBoard.available())  // Check for messages from drive client
+    {
+        String data = RJNet::readData(driveBoard);
+        if (data.length() == 0 || data.substring(0,1) != ackMsg)
+        {
+            Serial.println("INVALID MESSAGE FROM DRIVE")
+        }
+        else
+        {
+            lastDriveReply = micros();
+        }
     }
-    client = manualServer.available();  //Go to next message
-  }
-  while (steeringBoard.available()){ // Check for messages from steering client
-    String data = RJNet::readData(steeringBoard);
+
+    while (steeringBoard.available())  // Check for messages from steering client
+    {
+        String data = RJNet::readData(steeringBoard);
+        if (data.length() == 0 || data.substring(0,1) != ackMsg)
+        {
+            Serial.println("INVALID MESSAGE FROM STEERING")
+        }
+        else
+        {
+            lastSteeringReply = micros();
+        }
     }
-  while (driveBoard.available()){ // Check for messages from steering client
-    String data = RJNet::readData(driveBoard);
-    } 
-  if(millis() - failTime >= 1000){ // Check fail condition timer
-    nuc_speed = 0;
-    nuc_angle = 0;
-  }
+
 }
 
-void sendNewMessages() { // now manual board is acting as a client
-//      if (!nuc.connected()) {
-//        nuc.connect(nucIP, PORT);
-//        Serial.println("Lost connection with nuc");
-//      }
-//      else if (rc_control) // in manual mode
-//      {
-//        RJNet::sendData(steeringBoard, manualSteeringStringHeader + String(rc_angle)); // sending RC angle to nuc
-//        RJNet::sendData(driveBoard, manualDriveStringHeader + String(rc_speed)); // sending RC velocity to nuc
-//      }
+void sendNewMessages() {
 
-      if (!steeringBoard.connected()) {
+    // Steering message send
+    steeringConnected = steeringBoard.connected();
+    if (!steeringConnected)
+    {
         steeringBoard.connect(steeringIP, PORT);
         Serial.println("Lost connection with steering");
-      }
-      else if (manual_state)
-      {
-        RJNet::sendData(steeringBoard, manualSteeringStringHeader + String(rc_angle)); // sending an angle to steering board from rc
-      }
-      else
-      {
-        RJNet::sendData(steeringBoard, manualSteeringStringHeader + String(nuc_angle)); // sending an angle to steering board from nuc
-      }
+    }
+    else if (manual_state)
+    {
+        if(millis() > lastSteeringReply + MIN_MESSAGE_SPACING && millis() > lastSteeringCommand + MIN_MESSAGE_SPACING)
+        {
+            RJNet::sendData(steeringBoard, manualSteeringStringHeader + String(rc_angle)); // sending an angle to steering board from rc
+            lastSteeringCommand = millis();
+        }
+    }
+    else
+    {
+        if(millis() > lastSteeringReply + MIN_MESSAGE_SPACING && millis() > lastSteeringCommand + MIN_MESSAGE_SPACING)
+        {
+            RJNet::sendData(steeringBoard, manualSteeringStringHeader + String(nuc_angle)); // sending an angle to steering board from nuc
+            lastSteeringCommand = millis();
+        }
+    }
     
-      if (!driveBoard.connected()) {
+    // Drive message send
+    driveConnected = driveBoard.connected();
+    if (!driveConnected)
+    {
         driveBoard.connect(driveIP, PORT);
         Serial.println("Lost connection with drive");
-      }
-      else if (manual_state)
-      {
-        RJNet::sendData(driveBoard, manualDriveStringHeader + String(rc_speed)); // sending a velocity to the drivebrake board from rc
-      }
-      else
-      {
-        RJNet::sendData(driveBoard, manualDriveStringHeader + String(nuc_speed)); // sending a velocity to the drivebrake board from nuc
-      }
-      
+    }
+    else if (manual_state)
+    {
+        if(millis() > lastDriveReply + MIN_MESSAGE_SPACING && millis() > lastDriveCommand + MIN_MESSAGE_SPACING)
+        {
+            RJNet::sendData(driveBoard, manualDriveStringHeader + String(rc_speed)); // sending a velocity to the drivebrake board from rc
+            lastDriveCommand = millis();
+        }
+    }
+    else
+    {
+        if(millis() > lastDriveReply + MIN_MESSAGE_SPACING && millis() > lastDriveCommand + MIN_MESSAGE_SPACING)
+        {
+            RJNet::sendData(driveBoard, manualDriveStringHeader + String(nuc_speed)); // sending a velocity to the drivebrake board from nuc
+            lastDriveCommand = millis();
+        }
+    }   
 }
-
 
 // Set status LEDs
 void set_led_1(bool on){
@@ -343,32 +401,65 @@ void rc_missing(){
 
 void evaluate_state(){ // Determines if RC-controlled or NUC-controlled
     if(rc_present_state && rc_control){ 
-      manual_state = true;
-      }
+        manual_state = true;
+    }
     else{
-      manual_state = false;
-      }
+        manual_state = false;
+    }
 }
 
 // TODO Review
 void evaluate_ch_1() {
-  rc_angle = map(pwm_rc_angle, ch_1_lower, ch_1_upper, 0, 100) / 100.0;
-  rc_angle = rc_angle * (abs(rc_angle) > 0.02); // dead zone of 2%, becomes zero if false
+    // Scales from PWM to m/s
+    if(pwm_rc_angle < PWM_CH_1_LOWER || pwm_rc_angle > PWM_CH_1_UPPER)
+    {   //checks if invalid PWM
+        rc_angle = 0;
+    }
+    else if(abs(pwm_rc_angle-PWM_CH_1_MID) < PWM_DEADBAND)
+    {   //deadband to prevent PWM jitter from changing speed
+        rc_angle = 0;
+    }
+    else if(pwm_rc_angle > PWM_CH_1_MID)
+    {   //counter clockwise mapping
+        rc_angle = map(pwm_rc_angle, PWM_CH_1_MID, PWM_CH_1_UPPER, 0, MAX_ANGLE);
+    }
+    else if(pwm_rc_angle < PWM_CH_1_MID)
+    {   //clockwise mapping
+        rc_angle = map(pwm_rc_angle, PWM_CH_1_MID, PWM_CH_1_LOWER, 0, -MAX_ANGLE);
+    }
+    else
+    {
+        Serial.println("INVALID CH1!")
+    }
 }
 
 // TODO Review
 void evaluate_ch_2() {
-  rc_speed = map(pwm_rc_speed, ch_2_lower, ch_2_upper, 0, 100) / 100.0;
-  rc_speed = rc_speed * (abs(rc_speed) > 0.02);
-  if (rc_speed < 0) {
-    rc_speed = rc_speed * 10;
-  } else {
-    rc_speed = rc_speed * 40;
-  }
+    // Scales from PWM to m/s
+    if(pwm_rc_speed < PWM_CH_2_LOWER || pwm_rc_speed > PWM_CH_2_UPPER)
+    {   //checks if invalid PWM
+        rc_speed = 0;
+    }
+    else if(abs(pwm_rc_speed-PWM_CH_2_MID) < PWM_DEADBAND)
+    {   //deadband to prevent PWM jitter from changing speed
+        rc_speed = 0;
+    }
+    else if(pwm_rc_speed > PWM_CH_2_MID)
+    {   //forward mapping
+        rc_speed = map(pwm_rc_speed, PWM_CH_2_MID, PWM_CH_2_UPPER, 0, MAX_VELOCITY_FORWARD);
+    }
+    else if(pwm_rc_speed < PWM_CH_2_MID)
+    {   //backward mapping
+        rc_speed = map(pwm_rc_speed, PWM_CH_2_MID, PWM_CH_2_LOWER, 0, MAX_VELOCITY_BACKWARD);
+    }
+    else
+    {
+        Serial.println("INVALID CH2!")
+    }
 }
 
 void evaluate_ch_3() {
-  rc_control = pwm_rc_control < ch_3_mid; // manual mode in power-on state
+    rc_control = pwm_rc_control < PWM_CH_3_MID; // manual mode in power-on state
 }
 
 float parseSpeedMessage(const String speedMessage){
@@ -376,9 +467,9 @@ float parseSpeedMessage(const String speedMessage){
     return speedMessage.substring(2).toFloat();
 }
 
-float parseAngleMessage(const String AngleMessage){
+float parseAngleMessage(const String angleMessage){
     //takes in message from nuc and converts it to a float desired speed.
-    return AngleMessage.substring(2).toFloat();
+    return angleMessage.substring(2).toFloat();
 }
 
 /*  NOT POSSIBLE For manual drive, not used in current version
