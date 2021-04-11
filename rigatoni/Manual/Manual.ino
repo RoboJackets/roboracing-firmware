@@ -292,7 +292,7 @@ void readAllNewMessages(){
         }
         else
         {
-            lastDriveReply = micros();
+            lastDriveReply = millis();
         }
     }
 
@@ -305,7 +305,7 @@ void readAllNewMessages(){
         }
         else
         {
-            lastSteeringReply = micros();
+            lastSteeringReply = millis();
         }
     }
 
