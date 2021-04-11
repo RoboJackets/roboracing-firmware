@@ -264,8 +264,6 @@ float getCurrentAngle(){
 
 
 uint16_t getPositionSPI(){
-    digitalWrite(CS_ETH, HIGH); // disable any ethernet
-
     uint16_t currentPosition;       //16-bit response from encoder
     bool binaryArray[16];           //after receiving the position we will populate this array and use it for calculating the checksum
 
@@ -292,8 +290,6 @@ uint16_t getPositionSPI(){
     {
         currentPosition = 0xFFFF; //bad position
     }
-
-    digitalWrite(CS_ETH, LOW); // re-enable any ethernet
 
     return currentPosition;
 }

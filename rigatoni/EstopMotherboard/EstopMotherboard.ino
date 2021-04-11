@@ -103,7 +103,7 @@ void writeOutCurrentState() {  // CHANGE, STATUS NEEDS TO GO THROUGH NUC FIRST
 
 void respondToClient() {
     EthernetClient client = server.available();
-    if (client) {
+    while (client) {
         String data = RJNet::readData(client);
         if (data.length() != 0) {
             client.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);   //Set connection delay so we don't hang
