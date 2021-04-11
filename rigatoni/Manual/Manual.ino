@@ -421,11 +421,11 @@ void evaluate_ch_1() {
     }
     else if(pwm_rc_angle > PWM_CH_1_MID)
     {   //counter clockwise mapping
-        rc_angle = map(pwm_rc_angle, PWM_CH_1_MID, PWM_CH_1_LOWER, 0, MAX_ANGLE);
+        rc_angle = map(pwm_rc_angle, PWM_CH_1_MID, PWM_CH_1_LOWER, 0, MAX_ANGLE*1000)/1000.0;
     }
     else if(pwm_rc_angle < PWM_CH_1_MID)
     {   //clockwise mapping
-        rc_angle = map(pwm_rc_angle, PWM_CH_1_MID, PWM_CH_1_UPPER, 0, -MAX_ANGLE);
+        rc_angle = map(pwm_rc_angle, PWM_CH_1_MID, PWM_CH_1_UPPER, 0, -MAX_ANGLE*1000)/1000.0;
     }
     else
     {
@@ -446,11 +446,11 @@ void evaluate_ch_2() {
     }
     else if(pwm_rc_speed > PWM_CH_2_MID)
     {   //forward mapping
-        rc_speed = map(pwm_rc_speed, PWM_CH_2_MID, PWM_CH_2_UPPER, 0, MAX_VELOCITY_FORWARD);
+        rc_speed = map(pwm_rc_speed, PWM_CH_2_MID, PWM_CH_2_UPPER, 0, MAX_VELOCITY_FORWARD*100.0)/100.0;
     }
     else if(pwm_rc_speed < PWM_CH_2_MID)
     {   //backward mapping
-        rc_speed = map(pwm_rc_speed, PWM_CH_2_MID, PWM_CH_2_LOWER, 0, MAX_VELOCITY_BACKWARD);
+        rc_speed = map(pwm_rc_speed, PWM_CH_2_MID, PWM_CH_2_LOWER, 0, MAX_VELOCITY_BACKWARD*100.0)/100.0;
     }
     else
     {
