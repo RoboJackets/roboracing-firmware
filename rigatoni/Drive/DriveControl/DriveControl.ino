@@ -145,7 +145,6 @@ void setup(){
     Serial.print("Our address: ");
     Serial.println(Ethernet.localIP());
 
-    //Make sure we are connected to clients before proceeding.
     estopBoard.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);
     brakeBoard.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);
     
