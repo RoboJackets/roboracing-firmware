@@ -288,7 +288,7 @@ void readAllNewMessages(){
         String data = RJNet::readData(driveBoard);
         if (data.length() == 0 || data.substring(0,1) != ackMsg)
         {
-            Serial.println("INVALID MESSAGE FROM DRIVE")
+            Serial.println("INVALID MESSAGE FROM DRIVE");
         }
         else
         {
@@ -301,7 +301,7 @@ void readAllNewMessages(){
         String data = RJNet::readData(steeringBoard);
         if (data.length() == 0 || data.substring(0,1) != ackMsg)
         {
-            Serial.println("INVALID MESSAGE FROM STEERING")
+            Serial.println("INVALID MESSAGE FROM STEERING");
         }
         else
         {
@@ -429,7 +429,7 @@ void evaluate_ch_1() {
     }
     else
     {
-        Serial.println("INVALID CH1!")
+        Serial.println("INVALID CH1!");
     }
 }
 
@@ -454,7 +454,7 @@ void evaluate_ch_2() {
     }
     else
     {
-        Serial.println("INVALID CH2!")
+        Serial.println("INVALID CH2!");
     }
 }
 
