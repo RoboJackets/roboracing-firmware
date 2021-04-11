@@ -421,11 +421,11 @@ void evaluate_ch_1() {
     }
     else if(pwm_rc_angle > PWM_CH_1_MID)
     {   //counter clockwise mapping
-        rc_angle = map(pwm_rc_angle, PWM_CH_1_MID, PWM_CH_1_UPPER, 0, MAX_ANGLE);
+        rc_angle = map(pwm_rc_angle, PWM_CH_1_MID, PWM_CH_1_LOWER, 0, MAX_ANGLE);
     }
     else if(pwm_rc_angle < PWM_CH_1_MID)
     {   //clockwise mapping
-        rc_angle = map(pwm_rc_angle, PWM_CH_1_MID, PWM_CH_1_LOWER, 0, -MAX_ANGLE);
+        rc_angle = map(pwm_rc_angle, PWM_CH_1_MID, PWM_CH_1_UPPER, 0, -MAX_ANGLE);
     }
     else
     {
