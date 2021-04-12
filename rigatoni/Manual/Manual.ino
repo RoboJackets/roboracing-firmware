@@ -57,6 +57,8 @@ unsigned long lastSteeringReply = 0;
 unsigned long lastDriveCommand = 0;
 unsigned long lastSteeringCommand = 0;
 
+unsigned long lastPrintTime = 0;
+
 // float value_throttle; For manual throttle, not implemented in this version
 
 /* Ethernet */
@@ -202,6 +204,7 @@ void setup(){
 void loop() {
     wdt_reset();
     readAllNewMessages();
+    sendNewMessages();
     
     rc_missing();
     if(rc_present_state){
@@ -226,6 +229,23 @@ void loop() {
         nuc_angle = 0;
     }
     
+    if(millis() - 500 > lastPrintTime){
+        lastPrintTime = millis();
+        if(manual_state){
+            Serial.print("Manual mode. ");
+        }
+        else{
+            Serial.print("Autonomous mode. ");
+        }
+        Serial.print(" RC speed: ");
+        Serial.print(rc_speed);
+        Serial.print(" NUC speed: ");
+        Serial.print(nuc_speed);
+        Serial.print(" RC angle: ");
+        Serial.print(rc_angle);
+        Serial.print(" NUC angle: ");
+        Serial.println(nuc_angle);
+    }
 }
 
 void readAllNewMessages(){ 
@@ -233,8 +253,8 @@ void readAllNewMessages(){
     while (client) {
         String data = RJNet::readData(client);  // if i get string from RJNet buffer (v= $float or a=$float)
         IPAddress clientIP = client.remoteIP();
+        client.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);   //Set connection delay so we don't hang
         if (data.length() != 0) {   // if data exists
-            client.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);   //Set connection delay so we don't hang
             if (clientIP == nucIP)
             {
                 if (data.substring(0,2).equals(nucDriveStringHeader))  // if client is giving us new angle
@@ -315,50 +335,24 @@ void sendNewMessages() {
 
     // Steering message send
     steeringConnected = steeringBoard.connected();
-    if (!steeringConnected)
-    {
+    if (!steeringConnected){
         steeringBoard.connect(steeringIP, PORT);
         Serial.println("Lost connection with steering");
     }
-    else if (manual_state)
-    {
-        if(millis() > lastSteeringReply + MIN_MESSAGE_SPACING && millis() > lastSteeringCommand + MIN_MESSAGE_SPACING)
-        {
-            RJNet::sendData(steeringBoard, manualSteeringStringHeader + String(rc_angle)); // sending an angle to steering board from rc
-            lastSteeringCommand = millis();
-        }
-    }
-    else
-    {
-        if(millis() > lastSteeringReply + MIN_MESSAGE_SPACING && millis() > lastSteeringCommand + MIN_MESSAGE_SPACING)
-        {
-            RJNet::sendData(steeringBoard, manualSteeringStringHeader + String(nuc_angle)); // sending an angle to steering board from nuc
-            lastSteeringCommand = millis();
-        }
+    else if (millis() > lastSteeringReply + MIN_MESSAGE_SPACING && millis() > lastSteeringCommand + MIN_MESSAGE_SPACING){
+        lastSteeringCommand = millis();
+        RJNet::sendData(steeringBoard, manualSteeringStringHeader + String(manual_state ? rc_angle : nuc_angle));
     }
     
     // Drive message send
     driveConnected = driveBoard.connected();
-    if (!driveConnected)
-    {
+    if (!driveConnected){
         driveBoard.connect(driveIP, PORT);
         Serial.println("Lost connection with drive");
     }
-    else if (manual_state)
-    {
-        if(millis() > lastDriveReply + MIN_MESSAGE_SPACING && millis() > lastDriveCommand + MIN_MESSAGE_SPACING)
-        {
-            RJNet::sendData(driveBoard, manualDriveStringHeader + String(rc_speed)); // sending a velocity to the drivebrake board from rc
-            lastDriveCommand = millis();
-        }
-    }
-    else
-    {
-        if(millis() > lastDriveReply + MIN_MESSAGE_SPACING && millis() > lastDriveCommand + MIN_MESSAGE_SPACING)
-        {
-            RJNet::sendData(driveBoard, manualDriveStringHeader + String(nuc_speed)); // sending a velocity to the drivebrake board from nuc
-            lastDriveCommand = millis();
-        }
+    else if (millis() > lastDriveReply + MIN_MESSAGE_SPACING && millis() > lastDriveCommand + MIN_MESSAGE_SPACING){
+        lastDriveCommand = millis();
+        RJNet::sendData(driveBoard, manualDriveStringHeader + String(manual_state ? rc_speed : nuc_speed)); // sending a velocity to the drivebrake board from rc
     }   
 }
 

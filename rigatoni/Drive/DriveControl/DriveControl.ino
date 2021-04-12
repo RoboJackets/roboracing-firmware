@@ -28,6 +28,9 @@ EthernetClient estopBoard;
 //Universal acknowledge message
 const static String ackMsg = "R";
 
+//Brake special acknowledge with current braking force
+const static String brakeAckHeader = "R=";
+
 //Possible messages from e-stop
 const static String estopStopMsg = "D";
 const static String estopLimitedMsg = "L";
@@ -217,11 +220,11 @@ void handleSingleClientMessage(EthernetClient otherBoard){
     or Brake acknowledging a command
     */
     String data = RJNet::readData(otherBoard);  //RJNet handles getting complete message
+    otherBoard.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);   //Set connection delay so we don't hang
     
     IPAddress otherIP = otherBoard.remoteIP();
         
     if(data.length() != 0){  //Got valid data - string will be empty if message not valid
-        otherBoard.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);   //Set connection delay so we don't hang
         
         if(data.equals(speedRequestMsg)){  //Somebody's asking for our speed
             //Send back our current speed
@@ -238,7 +241,8 @@ void handleSingleClientMessage(EthernetClient otherBoard){
         }
         else if(otherIP == brakeIP){
             //Message from brake board, should be acknoweldge
-            if(data.equals(ackMsg)){
+            //Is in form "R=$float", 
+            if(data.substring(0,2).equals(brakeAckHeader)){
                 lastBrakeReply = millis();
             }
             else{
@@ -347,10 +351,6 @@ void executeStateMachine(float timeSinceLastLoop){
     //We are disabled if the motor is disabled, or any of our clients has timed out 
     unsigned long currTime = millis();
     
-    if(!motorEnabled){
-        Serial.println("Motor disabled");
-    }
-    
     //Check if we are connected to all boards
     bool connectedToAllBoards = true;
     if(!brakeConnected){
@@ -403,7 +403,7 @@ void executeStateMachine(float timeSinceLastLoop){
     }
     else
     {
-        Serial.println("INVALID STATE!")
+        Serial.println("INVALID STATE!");
     }
     
     //Now execute that state

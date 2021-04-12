@@ -13,8 +13,10 @@
 /* Ethernet */
 EthernetServer server(PORT);
 
-// Enter a IP address for other board below
 EthernetClient estopBoard;
+
+bool estopIsResponding = false;
+unsigned long lastEstopMessageTime = 0;
 
 //True when the car is limited or disabled
 bool engageMaxBraking = true;
@@ -95,7 +97,7 @@ void loop() {
   updateEStopState();
   
   if (millis() - 500 > lastPrintTime){
-      lastPrintTime = millis();
+    lastPrintTime = millis();
     if(engageMaxBraking){
       Serial.println("Car stopped by estop, max braking");
     }
@@ -112,28 +114,30 @@ void readEthernet(){
   EthernetClient client = server.available();    // if there is a new message from client create client object, otherwise new client object null
   while (client) {
     String data = RJNet::readData(client);  // if i get string from RJNet buffer (brake_value=%int)
+    client.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);   //Set connection delay so we don't hang
     if (client.remoteIP() == driveIP){
       if (data.length() != 0) {   // if data exists
         if (data.substring(0,1) == "B"){    // if client is giving us new angle in the form of S=$float
-          if (data.substring(2).toInt() > maxInt){    // checks if the new angle is too large
+          desiredAngle = data.substring(2).toInt();
+          
+          if (desiredAngle > maxInt){    // checks if the new angle is too large
+            Serial.print("Desired angle too large: ");
+            Serial.println(desiredAngle);
             desiredAngle = maxInt;
-            String reply = "R=" + String(currentAngle);   // reply with R= currentAngle
-            RJNet::sendData(client, reply);
-            Serial.println("R");
-          } else if (data.substring(2).toInt() < minInt) {  //checks if the new angle is too small
+            
+          } else if (desiredAngle < minInt) {  //checks if the new angle is too small
+            Serial.print("Desired angle too small: ");
+            Serial.println(desiredAngle);
             desiredAngle = minInt;
-            String reply = "R=" + String(currentAngle);   // reply with R= currentAngle
-            RJNet::sendData(client, reply);
-            Serial.println("R");
-          } else {
-            desiredAngle = (data.substring(2)).toInt(); // set new angle, convert from str to float
-            String reply = "R=" + String(currentAngle);   // reply with R= currentAngle
-            RJNet::sendData(client, reply);
-            Serial.println("R");
           }
+          
+          //These should be changed to forces
+          String reply = "R=" + String(currentAngle);   // reply with R= currentAngle
+          RJNet::sendData(client, reply);
+          Serial.println("R");
         }
-      } else if (data.substring(0,1) == "A"){  // otherwise if client just asking for angle
-        String reply = "A=" + String(currentAngle);  // reply with A=currentAngle
+      } else if (data == "F?"){  // otherwise if client just asking for angle
+        String reply = "F=" + String(currentAngle);  // reply with A=currentAngle
         RJNet::sendData(client, reply);
       }
     }
@@ -164,13 +168,25 @@ void updateEStopState(){
   while (estopBoard.available()) {
     String data = RJNet::readData(estopBoard);  // if i get string from RJNet buffer (brake_value=%int)
     if (data.length() != 0) {   // if data exists
-      //Max braking unless we are going
+      //Max braking unless car state is going
       engageMaxBraking = !(data == goMsg);
       if(!((data == goMsg)||(data == limitedMsg)||(data == stopMsg))){
-        Serial.print("Illegal message from Brake: ");
+        Serial.print("Illegal message from Estop: ");
         Serial.println(data);
       }
+      else{
+        lastEstopMessageTime = millis();
+        Serial.println("New state from Estop.");
+      }
     }
+  }
+  if(millis() - estopTimeoutMS > lastEstopMessageTime){
+    //Estop is not responding. Max braking.
+    engageMaxBraking = true;
+    estopIsResponding = false;
+  }
+  else{
+    estopIsResponding = true;
   }
 }
 

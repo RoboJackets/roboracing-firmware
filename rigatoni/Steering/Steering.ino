@@ -118,6 +118,7 @@ void readEthernet(){
     while (client) {
         String data = RJNet::readData(client);  // if i get string from RJNet buffer
         IPAddress otherIP = client.remoteIP();
+        client.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);   //Set connection delay so we don't hang
 
         Serial.print("Message: ");
         Serial.print(data);

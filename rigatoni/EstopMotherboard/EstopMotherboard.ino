@@ -43,6 +43,8 @@ unsigned long lastNUCReply = 0;
 unsigned long nucRequestSent = 0;
 bool nucConnected = false;
 
+unsigned long lastTimePrintedNucConnFail = 0;
+
 byte nucState = GO; // Default state GO to operate without NUC connected 
 
 
@@ -104,9 +106,9 @@ void writeOutCurrentState() {  // CHANGE, STATUS NEEDS TO GO THROUGH NUC FIRST
 void respondToClient() {
     EthernetClient client = server.available();
     while (client) {
+        client.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);   //Set connection delay so we don't hang
         String data = RJNet::readData(client);
         if (data.length() != 0) {
-            client.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);   //Set connection delay so we don't hang
             Serial.print(data); //show us what we read 
             Serial.print(" From client ");
             Serial.print(client.remoteIP());
@@ -146,6 +148,7 @@ void respondToClient() {
         {
             Serial.println("Empty message recieved.");
         }
+        client = server.available();
     }
 }
 
@@ -179,7 +182,6 @@ void requestNUCState() {
         //Lost TCP connection with the NUC. Takes 10 seconds for TCP connection to fail after disconnect.
         //Takes a very long time to time out
         NUC.connect(nucIP, PORT);
-        Serial.println("Lost connection with NUC");
     }
     else
     {
@@ -337,4 +339,8 @@ void loop() {
     respondToClient();
     requestNUCState();
     respondToNUC();
+    
+    if(!nucConnected && (millis() - 500 > lastTimePrintedNucConnFail)){
+        Serial.println("No connection with NUC.");
+    }
 }

@@ -16,6 +16,9 @@ const static String stopMsg = "D";
 const static String limitedMsg = "L";
 const static String goMsg = "G";
 
+//Engage max braking if don't hear from estop in this long
+const int estopTimeoutMS = 500;
+
 #define BAUDRATE        115200
 
 /* SPI commands */
