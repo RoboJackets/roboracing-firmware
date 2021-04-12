@@ -34,8 +34,8 @@ void setup() {
 //  SPI.begin();
 
   /* Initialization for ethernet*/
-  pinMode(INT_ETH, OUTPUT);
-  Ethernet.init(INT_ETH);  // SCLK pin from eth header
+  pinMode(CS_ETH, OUTPUT);
+  Ethernet.init(CS_ETH);  // SCLK pin from eth header
   Ethernet.begin(mac, ip); // initialize ethernet device
   while(Ethernet.hardwareStatus() == EthernetNoHardware) {
     Serial.println("Ethernet shield was not found.");
