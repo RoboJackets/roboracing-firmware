@@ -17,7 +17,7 @@ EthernetServer server(PORT);
 EthernetClient estopBoard;
 
 //True when the car is limited or disabled
-bool engageMaxBraking = false;
+bool engageMaxBraking = true;
 
 
 void setup() {
