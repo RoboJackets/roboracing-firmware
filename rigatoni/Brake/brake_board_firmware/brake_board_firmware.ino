@@ -1,4 +1,5 @@
 #include "brake_board_firmware.h"
+#include "RigatoniNetwork.h"
 #include "RJNet.h"
 #include <Ethernet.h>
 #include <SPI.h>
@@ -10,19 +11,14 @@
 // make sure encoder switch is set to run mode
 
 /* Ethernet */
-byte mac[] = {0x73, 0x8f, 0xfe, 0x7c, 0x43}; // brake board's mac address
-IPAddress ip(192, 168, 0, 7); // brake board's IP address
 EthernetServer server(PORT);
 
 // Enter a IP address for other board below
-IPAddress otherIP(192, 168, 0, 175); //set the IP to find us at
-EthernetClient otherBoard;
+EthernetClient estopBoard;
 
-// NUC IP address
-IPAddress NUCIP(192, 168, 0, NUC);
+//True when the car is limited or disabled
+bool engageMaxBraking = false;
 
-//Manual IP address
-IPAddress driveIP(192, 168, 0, DRIVE);
 
 void setup() {
   /* Initialization for encoder*/
@@ -36,16 +32,18 @@ void setup() {
   /* Initialization for ethernet*/
   pinMode(CS_ETH, OUTPUT);
   Ethernet.init(CS_ETH);  // SCLK pin from eth header
-  Ethernet.begin(mac, ip); // initialize ethernet device
+  Ethernet.begin(brakeMAC, brakeIP); // initialize ethernet device
   while(Ethernet.hardwareStatus() == EthernetNoHardware) {
     Serial.println("Ethernet shield was not found.");
-    delay(50);
+    delay(100);
   }
   while(Ethernet.linkStatus() == LinkOFF) {
     Serial.println("Ethernet cable is not connected.");
-    delay(50);
+    delay(100);
   }
   server.begin();
+  
+  estopBoard.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);
 
   /* Initialization for stepper*/
   Serial.begin(BAUDRATE);
@@ -89,10 +87,23 @@ void setup() {
 //  delay(2000);
 //  wdt_enable(WDTO_1S);
 }
- 
+ unsigned long lastPrintTime = 0;
 void loop() {
 //  Serial.println(toggle1);
   readEthernet();  // check for new angle from ethernet
+  askEStop();
+  updateEStopState();
+  
+  if (millis() - 500 > lastPrintTime){
+      lastPrintTime = millis();
+    if(engageMaxBraking){
+      Serial.println("Car stopped by estop, max braking");
+    }
+    else{
+      Serial.println("Ordinary operation");
+    }
+  }
+  
 //  assignDirection();
 //  wdt_reset();
 }
@@ -101,7 +112,6 @@ void readEthernet(){
   EthernetClient client = server.available();    // if there is a new message from client create client object, otherwise new client object null
   while (client) {
     String data = RJNet::readData(client);  // if i get string from RJNet buffer (brake_value=%int)
-    client.remoteIP();
     if (client.remoteIP() == driveIP){
       if (data.length() != 0) {   // if data exists
         if (data.substring(0,1) == "B"){    // if client is giving us new angle in the form of S=$float
@@ -127,46 +137,39 @@ void readEthernet(){
         RJNet::sendData(client, reply);
       }
     }
+    client = server.available();
   }
-//  if(millis() - startTime >= 500){
-//    Serial.println("");
-//    //Dont' spam server with messages
-//    startTime = millis();
-//    if (!otherBoard.connected()) {
-//      otherBoard.connect(otherIP, PORT);
-//      /*Serial.print("Trying to connect to ");
-//      Serial.print(otherIP);
-//      Serial.print(":");
-//      Serial.println(PORT);*/ 
-//    }
-//    else{
-//      RJNet::sendData(otherBoard, "State?");
-//      /*Serial.print("Sending data to ");
-//      Serial.print(otherBoard.remoteIP());
-//      Serial.print(":");
-//      Serial.println(otherBoard.remotePort());*/
-//    }
-//  }
+
 }
 
-void checkEStop() {
+void askEStop() {
+    /* Sends a request to Estop for the current car state
+    */
   if(millis() - startTime >= 200){
-    Serial.println("");
     //Dont' spam server with messages
     startTime = millis();
-    if (!otherBoard.connected()) {
-      otherBoard.connect(otherIP, PORT);
-      /*Serial.print("Trying to connect to ");
-      Serial.print(otherIP);
-      Serial.print(":");
-      Serial.println(PORT);*/ 
+    if (!estopBoard.connected()) {
+      estopBoard.connect(estopIP, PORT);
+      Serial.print("Trying to connect to Estop at ");
+      Serial.println(estopIP);
     }
     else{
-      RJNet::sendData(otherBoard, "State?");
-      /*Serial.print("Sending data to ");
-      Serial.print(otherBoard.remoteIP());
-      Serial.print(":");
-      Serial.println(otherBoard.remotePort());*/
+      RJNet::sendData(estopBoard, "S?");
+      Serial.println("Asking state from Estop");
+    }
+  }
+}
+
+void updateEStopState(){
+  while (estopBoard.available()) {
+    String data = RJNet::readData(estopBoard);  // if i get string from RJNet buffer (brake_value=%int)
+    if (data.length() != 0) {   // if data exists
+      //Max braking unless we are going
+      engageMaxBraking = !(data == goMsg);
+      if(!((data == goMsg)||(data == limitedMsg)||(data == stopMsg))){
+        Serial.print("Illegal message from Brake: ");
+        Serial.println(data);
+      }
     }
   }
 }

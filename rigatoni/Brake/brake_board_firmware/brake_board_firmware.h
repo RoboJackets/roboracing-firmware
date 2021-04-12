@@ -9,9 +9,12 @@ float maxInt = 2;
 float minInt = 0;
 unsigned long startTime = 0;
 
-const static int PORT = 7; // port RJnet uses
 const int INT_ETH=2;  // atmega pin 19, digital pin 2/SDA
 const int CS_ETH = 12;  // atmega pin 26, digital pin 12
+
+const static String stopMsg = "D";
+const static String limitedMsg = "L";
+const static String goMsg = "G";
 
 #define BAUDRATE        115200
 
