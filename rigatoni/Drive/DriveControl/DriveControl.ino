@@ -108,7 +108,7 @@ void setup(){
 	pinMode(ENCODER_A_PIN, INPUT);
   
     // LED Pins
-	pinMode(REVERSE_LED_PIN, OUTPUT);
+	pinMode(LED2_PIN, OUTPUT);
     //pinMode(USER_LED_PIN, OUTPUT); TODO doesn't work on v1.0 of board
 
 
@@ -129,17 +129,18 @@ void setup(){
 	Ethernet.init(ETH_CS_PIN); 	// CS pin from eth header
 	Ethernet.begin(driveMAC, driveIP); 	// initialize the ethernet device
     
-	while (Ethernet.hardwareStatus() == EthernetNoHardware) {
-		Serial.println("Ethernet shield was not found.");
-        // digitalWrite(USER_LED_PIN, !digitalRead(USER_LED_PIN)); TODO doesn't work on v1.0 of board
-		delay(100);
-	}
+	unsigned long loopCounter = 0;
+    while(Ethernet.hardwareStatus() == EthernetNoHardware) {
+        digitalWrite(LED2_PIN, loopCounter++ % 4 == 0);
+        Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
+        delay(100);
+    }
 
-	while(Ethernet.linkStatus() == LinkOFF) {
-		Serial.println("Ethernet cable is not connected.");	// do something with this
-		// digitalWrite(USER_LED_PIN, !digitalRead(USER_LED_PIN)); TODO doesn't work on v1.0 of board
-        delay(100);	 	// TURN down delay to check/startup faster
-	}
+    while(Ethernet.linkStatus() == LinkOFF) {
+        digitalWrite(LED2_PIN, loopCounter++ % 4 > 0);
+        Serial.println("Ethernet cable is not connected.");
+        delay(100);
+    }
     
     Ethernet.setRetransmissionCount(ETH_NUM_SENDS); //Set number resends before failure
     Ethernet.setRetransmissionTimeout(ETH_RETRANSMISSION_DELAY_MS);  //Set timeout delay before failure
@@ -163,6 +164,7 @@ void setup(){
 
 void loop() {
     wdt_reset();
+    digitalWrite(LED2_PIN, !digitalRead(LED2_PIN));
     
 	// Read new messages from WizNet and make necessary replies
     readAllNewMessages();
@@ -361,7 +363,7 @@ void executeStateMachine(float timeSinceLastLoop){
         Serial.println("Brake timed out");
         connectedToAllBoards = false;
     }
-    else if(!estopConnected){
+    if(!estopConnected){
         Serial.println("Lost estop TCP connection");
         connectedToAllBoards = false;
     }
@@ -369,7 +371,7 @@ void executeStateMachine(float timeSinceLastLoop){
         Serial.println("Estop timed out");
         connectedToAllBoards = false;
     }
-    else if(currTime > lastManualCommand + REPLY_TIMEOUT_MS){
+    if(currTime > lastManualCommand + REPLY_TIMEOUT_MS){
         Serial.println("Manual timed out");
         connectedToAllBoards = false;
     }

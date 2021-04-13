@@ -36,7 +36,5 @@ const int estopTimeoutMS = 500;
 #define SPI_MISO        MISO
 #define SPI_SCLK        SCK
 
-/* IP and MAC addresses */
-#define NUC     2
-#define MANUAL  6
-#define DRIVE   4
+//LED
+#define LED A3

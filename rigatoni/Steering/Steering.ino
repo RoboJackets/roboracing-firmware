@@ -49,6 +49,8 @@ const static String estopGoMsg = "G";
 const static String estopRequestMsg = "S?";
 
 void setup() {
+    
+    pinMode(LED, OUTPUT);
 
     /* Initialization for stepper*/
   
@@ -77,15 +79,19 @@ void setup() {
     Ethernet.begin(steeringMAC, steeringIP); // initialize ethernet device
   
     Serial.begin(BAUDRATE);
-  
+
+    unsigned long loopCounter = 0;
     while (Ethernet.hardwareStatus() == EthernetNoHardware) {
+        digitalWrite(LED, loopCounter++ % 4 == 0);
         Serial.println("Ethernet shield was not found.");
         delay(100);
     }
     
     while(Ethernet.linkStatus() == LinkOFF) {
+        digitalWrite(LED, loopCounter++ % 4 > 0);
         Serial.println("Ethernet cable is not connected."); // do something with this
         delay(100);    // TURN down delay to check/startup faster
+        digitalWrite(LED, !digitalRead(LED));
     }
 
     server.begin();
@@ -102,6 +108,7 @@ void setup() {
  
 void loop() {
     wdt_reset();
+    digitalWrite(LED, !digitalRead(LED));
 
     readEthernet();  // check for new angle from ethernet
 
