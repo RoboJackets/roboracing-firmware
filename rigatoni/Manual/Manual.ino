@@ -64,9 +64,6 @@ unsigned long lastPrintTime = 0;
 /* Ethernet */
 EthernetServer manualServer(PORT);
 
-// Enter a IP address for nuc below, nuc client to manual
-EthernetClient nuc;  // client 
-
 // Enter a IP address for steering below, manual client to steering and drive
 EthernetClient steeringBoard; // manual is client to steering
 
@@ -172,16 +169,16 @@ void setup(){
     Ethernet.begin(manualMAC, manualIP); // initialize ethernet device
 
     unsigned long loopCounter = 0;
-    while (Ethernet.hardwareStatus() == EthernetNoHardware) {
-        Serial.println("Ethernet shield was not found.");
-        digitalWrite(LED_1, !digitalRead(LED_1));
+    while(Ethernet.hardwareStatus() == EthernetNoHardware) {
+        set_led_1(loopCounter++ % 4 == 0);
+        Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
         delay(100);
     }
 
     while(Ethernet.linkStatus() == LinkOFF) {
-        Serial.println("Ethernet cable is not connected."); // do something with this
-        digitalWrite(LED_1, !digitalRead(LED_1));
-        delay(100);    // TURN down delay to check/startup faster
+        set_led_1(loopCounter++ % 4 > 0);
+        Serial.println("Ethernet cable is not connected.");
+        delay(100);
     }
 
     Ethernet.setRetransmissionCount(ETH_NUM_SENDS);

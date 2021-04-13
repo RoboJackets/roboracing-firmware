@@ -301,15 +301,16 @@ void setup() {
     Ethernet.init(ETH_CS_PIN);
     Ethernet.begin(estopMAC, estopIP);
 
+    unsigned long loopCounter = 0;
     while(Ethernet.hardwareStatus() == EthernetNoHardware) {
+        digitalWrite(LED1, loopCounter++ % 4 == 0);
         Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
-        digitalWrite(LED1, !digitalRead(LED1));
         delay(100);
     }
 
     while(Ethernet.linkStatus() == LinkOFF) {
+        digitalWrite(LED1, loopCounter++ % 4 > 0);
         Serial.println("Ethernet cable is not connected.");
-        digitalWrite(LED1, !digitalRead(LED1));
         delay(100);
     }
 
@@ -333,7 +334,7 @@ void loop() {
     
     evaluateState();
 
-    digitalWrite(LED1, (millis()/1000)%2);
+    digitalWrite(LED1, !digitalRead(LED1));
 
     writeOutCurrentState();
     respondToClient();

@@ -94,9 +94,10 @@ void setup() {
 //  delay(2000);
 //  wdt_enable(WDTO_1S);
 }
- unsigned long lastPrintTime = 0;
+unsigned long lastPrintTime = 0;
 void loop() {
-//  Serial.println(toggle1);
+  digitalWrite(LED, !digitalRead(LED));
+
   readEthernet();  // check for new angle from ethernet
   askEStop();
   updateEStopState();

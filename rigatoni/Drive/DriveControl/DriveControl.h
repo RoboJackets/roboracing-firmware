@@ -5,7 +5,7 @@
 #define ETH_CS_PIN 8        // ATMEGA32u4 pin PB4, Leonardo pin IO8 *JUMPER WIRE TO THIS*
 #define ETH_INT_PIN 3       // ATMEGA32u4 pin PD0, Leonardo pin D3
 
-#define REVERSE_LED_PIN 6   // ATMEGA32u4 pin PD7, Leonardo pin D6
+#define LED2_PIN 6   // ATMEGA32u4 pin PD7, Leonardo pin D6
 
 #define MOTOR_CNTRL_PIN 9	  // ATMEGA32u4 pin PB5, Leonardo pin IO9
 #define REVERSE_OUT_PIN 19  // ATMEGA32u4 pin PF6, Leonardo pin A1
