@@ -16,7 +16,7 @@ bool steeringEnabled = false;
 static const uint8_t PULSE_DURATION = 10; // us 
 static const uint8_t DIR_DURATION = 20; // us 
 static const float STEPPER_DEADBAND = 0.035; // rads. Because stepper motor 1.8 deg per step -> slightly more
-static const unsigned long STEPPER_TIMEOUT = 5; // ms
+static const unsigned long STEPPER_TIMEOUT = 50; // ms
 
 // TODO need to set encoder zero
 static const uint16_t ENCODER_ZERO = 1000;
@@ -206,7 +206,7 @@ void stepperPulse(){ // rotates stepper motor one step in the currently set dire
 
 void goToPosition(){
     unsigned long startTime = millis();
-    while(abs(abs(desiredAngle) - abs(currentAngle)) > STEPPER_DEADBAND || millis() - startTime > STEPPER_TIMEOUT)
+    while(abs(abs(desiredAngle) - abs(currentAngle)) > STEPPER_DEADBAND && millis() - startTime < STEPPER_TIMEOUT)
     {
         assignDirection();
         stepperPulse();
