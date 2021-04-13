@@ -28,3 +28,6 @@ const int RST_ETH = 3;  // atmega pin 18, digital pin 3
 #define SPI_MOSI        MOSI
 #define SPI_MISO        MISO
 #define SPI_SCLK        SCK
+
+//LED
+#define LED A3

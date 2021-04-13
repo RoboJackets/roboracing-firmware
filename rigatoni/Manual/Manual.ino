@@ -171,7 +171,7 @@ void setup(){
     Ethernet.init(ETH_CS_PIN);  // SCLK pin from eth header
     Ethernet.begin(manualMAC, manualIP); // initialize ethernet device
 
-    
+    unsigned long loopCounter = 0;
     while (Ethernet.hardwareStatus() == EthernetNoHardware) {
         Serial.println("Ethernet shield was not found.");
         digitalWrite(LED_1, !digitalRead(LED_1));

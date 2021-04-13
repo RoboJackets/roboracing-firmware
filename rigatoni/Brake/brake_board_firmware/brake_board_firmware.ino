@@ -30,16 +30,21 @@ void setup() {
 //  pinMode(ENC, OUTPUT);
 //  digitalWrite(ENC, HIGH); // disable encoder on setup
 //  SPI.begin();
+  pinMode(LED, OUTPUT);
 
   /* Initialization for ethernet*/
   pinMode(CS_ETH, OUTPUT);
   Ethernet.init(CS_ETH);  // SCLK pin from eth header
   Ethernet.begin(brakeMAC, brakeIP); // initialize ethernet device
+  
+  unsigned long loopCounter = 0;
   while(Ethernet.hardwareStatus() == EthernetNoHardware) {
+    digitalWrite(LED, loopCounter++ % 4 == 0);
     Serial.println("Ethernet shield was not found.");
     delay(100);
   }
   while(Ethernet.linkStatus() == LinkOFF) {
+    digitalWrite(LED, loopCounter++ % 4 > 0);
     Serial.println("Ethernet cable is not connected.");
     delay(100);
   }
