@@ -4,11 +4,6 @@
 #include "EstopMotherboard.h"
 #include "RJNet.h"
 
-/*
-A simplified sketch for the estop motherboard. It does not attempt to display anthing on the stack light
-except the state from the radio board. It provides the current state to anything that requests it via ethernet.
-*/
-
 
 const static String stopMsg = "D";
 const static String limitedMsg = "L";
@@ -121,23 +116,19 @@ void respondToClient() {
                 currentState = STOP;
                 Serial.print("HARDWARE FAULT: MESSAGE: ");
             }
+            else if(data.equals(nucResponseGo)){
+                nucState = GO;
+                lastNUCReply = millis();
+                sendStateToClient(client);
+            }
+            else if(data.equals(nucResponseHalt)){
+                nucState = STOP;
+                lastNUCReply = millis();
+                sendStateToClient(client);
+            }
             else if(data.equals(genRequestStateMsg))
             {
-                //Doesn't matter what they send us, we'll just send the state
-                if(client.connected())
-                {
-                    switch(currentState) {
-                        case GO:    // everything enabled
-                            RJNet::sendData(client, goMsg); 
-                            break; 
-                        case STOP:    // everything disabled
-                            RJNet::sendData(client, stopMsg);
-                            break;
-                        case LIMITED:    // steering enabled, drive disabled
-                            RJNet::sendData(client, limitedMsg);
-                            break;
-                    }
-                }
+                sendStateToClient(client);
             }
             else
             {
@@ -149,6 +140,23 @@ void respondToClient() {
             Serial.println("Empty message recieved.");
         }
         client = server.available();
+    }
+}
+
+void sendStateToClient(EthernetClient the_client){
+    if(the_client.connected())
+    {
+        switch(currentState) {
+            case GO:    // everything enabled
+                RJNet::sendData(the_client, goMsg); 
+                break; 
+            case STOP:    // everything disabled
+                RJNet::sendData(the_client, stopMsg);
+                break;
+            case LIMITED:    // steering enabled, drive disabled
+                RJNet::sendData(the_client, limitedMsg);
+                break;
+        }
     }
 }
 

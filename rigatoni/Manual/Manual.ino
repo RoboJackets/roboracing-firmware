@@ -254,17 +254,12 @@ void readAllNewMessages(){
         if (data.length() != 0) {   // if data exists
             if (clientIP == nucIP)
             {
-                if (data.substring(0,2).equals(nucDriveStringHeader))  // if client is giving us new angle
+                if (parseValidateSpeedAngleMessage(data) == 0)
                 {  
+                    //New angle + speed command is valid
+                    //parseValidateSpeedAngleMessage sets variables directly
                     RJNet::sendData(client, ackMsg); // Reply "R"
-                    nuc_speed = parseSpeedMessage(data); 
                     lastNUCCommand = millis(); // Reset fail condition timer
-                }
-                else if (data.substring(0,2).equals(nucAngleStringHeader))  // if client is giving us new steering
-                {
-                    RJNet::sendData(client, ackMsg); // Reply "R"
-                    nuc_angle = parseAngleMessage(data); 
-                    lastNUCCommand = millis(); // Reset fail condition timer // TODO should these be seperate or is one timer okay?
                 }
                 else if (data.substring(0,2).equals(nucModeRequest))
                 {
@@ -453,14 +448,19 @@ void evaluate_ch_3() {
     rc_control = pwm_rc_control < PWM_CH_3_MID; // manual mode in power-on state
 }
 
-float parseSpeedMessage(const String speedMessage){
-    //takes in message from nuc and converts it to a float desired speed.
-    return speedMessage.substring(2).toFloat();
-}
-
-float parseAngleMessage(const String angleMessage){
-    //takes in message from nuc and converts it to a float desired speed.
-    return angleMessage.substring(2).toFloat();
+int parseValidateSpeedAngleMessage(const String speedMessage){
+    //takes in message from nuc and sets nuc_angle and nuc_speed
+    //Returns 1 for invalid message, 0 for valid message. If message invalid, does not modify
+    //target speed or angle
+    int message_break_pt = speedMessage.indexOf(nucAngleStringHeader);  //Returns -1 if not present
+    if(speedMessage.substring(0,2).equals(nucDriveStringHeader) && message_break_pt > 0){
+        nuc_speed = speedMessage.substring(2).toFloat();
+        nuc_angle = speedMessage.substring(message_break_pt + 2).toFloat();
+        return 0;
+    }
+    Serial.print("Invalid command message from NUC: ");
+    Serial.println(speedMessage);
+    return 1;
 }
 
 /*  NOT POSSIBLE For manual drive, not used in current version
