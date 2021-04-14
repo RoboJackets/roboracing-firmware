@@ -4,25 +4,16 @@
 #include "Ethernet.h"
 #include "RJNet.h"
 
-// Interrupt stuff
-volatile unsigned long pwm_rc_angle = 0;
-volatile unsigned long pwm_rc_speed = 0;
-volatile unsigned long pwm_rc_control = 0;
-
-volatile unsigned long prev_time_ch_1 = 0;
-volatile unsigned long prev_time_ch_2 = 0;
-volatile unsigned long prev_time_ch_3 = 0;
-
 // PWM limits from RC
-#define PWM_DEADBAND 10
+#define PWM_DEADBAND 20
 
-#define PWM_CH_1_LOWER 1536
-#define PWM_CH_1_MID 1649
-#define PWM_CH_1_UPPER 1852
+#define PWM_CH_1_LOWER 1000
+#define PWM_CH_1_MID 1500
+#define PWM_CH_1_UPPER 2040
 
-#define PWM_CH_2_LOWER 1494
-#define PWM_CH_2_MID 1757
-#define PWM_CH_2_UPPER 2020
+#define PWM_CH_2_LOWER 1020
+#define PWM_CH_2_MID 1500
+#define PWM_CH_2_UPPER 2040
 
 #define PWM_CH_3_MID 1494
 
@@ -35,11 +26,28 @@ volatile unsigned long prev_time_ch_3 = 0;
 #define STEERING_TIMEOUT_MS 1000
 #define DRIVE_TIMEOUT_MS 1000 
 
+#define REMOTE_TIMEOUT_COUNT 20
+
+// Interrupt stuff
+volatile unsigned long pwm_rc_angle = 0;
+volatile unsigned long pwm_rc_speed = 0;
+volatile unsigned long pwm_rc_control = 0;
+
+unsigned long last_pwm_rc_angle = 0;
+unsigned long current_remote_timeout_count = 0;
+
+volatile unsigned long prev_time_ch_1 = 0;
+volatile unsigned long prev_time_ch_2 = 0;
+volatile unsigned long prev_time_ch_3 = 0;
+
 bool led_1_state = true;
 bool led_2_state = false;
 
-bool rc_present_state = false;
-bool rc_prev_state = true;
+bool remote_present_state = false;
+bool rx_present_state = false;
+bool rx_prev_state = true;
+
+bool rcrx_present_state = false;
 
 bool manual_state = true; // true if RC controlled, false if NUC controlled
 
@@ -149,7 +157,7 @@ void pin_assign(){
     attachInterrupt(digitalPinToInterrupt(CH_3), isr_rising_ch_3, RISING);
 }
 
-void rc_missing();
+void rcrx_missing();
 void evaluate_manual();
 void evaluate_ch_1();
 void evaluate_ch_2();
@@ -203,19 +211,13 @@ void loop() {
     readAllNewMessages();
     sendNewMessages();
     
-    rc_missing();
-    if(rc_present_state){
-      evaluate_ch_1();
-      evaluate_ch_2();
-      evaluate_ch_3();
-//      Serial.print(" CH_1 ");
-//      Serial.println(rc_angle);
-//      Serial.print(" CH_2 ");
-//      Serial.println(rc_speed);
-//      Serial.print(" CH_3 ");
-//      Serial.println(rc_control);
-      led_1_state = !led_1_state;
-      set_led_1(led_1_state);
+    rcrx_missing();
+    if(rcrx_present_state){
+        evaluate_ch_1();
+        evaluate_ch_2();
+        evaluate_ch_3();
+        led_1_state = !led_1_state;
+        set_led_1(led_1_state);
     }
 
     evaluate_state();
@@ -362,31 +364,74 @@ void evaluate_manual_switch(){
     manual_state = digitalRead(SWITCH);
 } */
 
-void rc_missing(){
-    rc_present_state = digitalRead(RC_IN);
-    if(!rc_present_state){
-        Serial.println("RC Reciever Missing");
+
+// Issue with turning the remote off, it sends the last command for CH1 and CH3.
+// This function takes advantage of the noise of the PWM when the remote is on
+// to act as a timeout if repeating PWM is seen (indicating remote is off / out of reach).
+void remote_missing()
+{
+    if(last_pwm_rc_angle == pwm_rc_angle)
+    {
+        if(remote_present_state)
+        {
+            current_remote_timeout_count = current_remote_timeout_count + 1;
+            if(current_remote_timeout_count > REMOTE_TIMEOUT_COUNT)
+            {
+                remote_present_state = false;
+            }
+        }
+    }
+    else
+    {
+        last_pwm_rc_angle = pwm_rc_angle;
+        current_remote_timeout_count = 0;
+        remote_present_state = true;
+    }
+}
+
+// KNOWN ISSUE
+// When the receiver gets reattached, the board reboots
+void rcrx_missing(){
+
+    remote_missing();
+    rx_present_state = digitalRead(RC_IN);
+    if(!rx_present_state){
+        Serial.println("RC Receiver Missing");
         pwm_rc_angle = 0;
         pwm_rc_speed = 0;
         pwm_rc_control = 0;
+
         prev_time_ch_1 = 0;
         prev_time_ch_2 = 0;
         prev_time_ch_3 = 0;
-        if(rc_prev_state){
+        if(rx_prev_state){
             detachInterrupt(digitalPinToInterrupt(CH_1));
             detachInterrupt(digitalPinToInterrupt(CH_2));
             detachInterrupt(digitalPinToInterrupt(CH_3));
         }
-    } else if (rc_present_state && !rc_prev_state){
+    } else if (rx_present_state && !rx_prev_state){
+        Serial.println("RC Receiver is back!");
         attachInterrupt(digitalPinToInterrupt(CH_1), isr_rising_ch_1, RISING);
         attachInterrupt(digitalPinToInterrupt(CH_2), isr_rising_ch_2, RISING);
         attachInterrupt(digitalPinToInterrupt(CH_3), isr_rising_ch_3, RISING);
     }
-    rc_prev_state = rc_present_state;
+    rx_prev_state = rx_present_state;
+
+    if(!rx_present_state || !remote_present_state){
+        // Set actionable values to safe defaults
+        rc_angle = 0;
+        rc_speed = 0;
+        manual_state = true;
+        rcrx_present_state = false;
+    }
+    else
+    {
+        rcrx_present_state = true;
+    }
 }
 
 void evaluate_state(){ // Determines if RC-controlled or NUC-controlled
-    if(rc_present_state && rc_control){ 
+    if(rx_present_state && rc_control){ 
         manual_state = true;
     }
     else{
@@ -394,7 +439,6 @@ void evaluate_state(){ // Determines if RC-controlled or NUC-controlled
     }
 }
 
-// TODO Review
 void evaluate_ch_1() {
     // Scales from PWM to m/s
     if(pwm_rc_angle < PWM_CH_1_LOWER || pwm_rc_angle > PWM_CH_1_UPPER)
@@ -419,7 +463,6 @@ void evaluate_ch_1() {
     }
 }
 
-// TODO Review
 void evaluate_ch_2() {
     // Scales from PWM to m/s
     if(pwm_rc_speed < PWM_CH_2_LOWER || pwm_rc_speed > PWM_CH_2_UPPER)
