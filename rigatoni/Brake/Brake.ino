@@ -13,7 +13,6 @@
 /* Stepper*/ 
 
 #define PER_STEP_DELAY_MS 5 // ms
-#define STEPPER_DEADBAND 2 // Steps deadband 
 
 static const uint8_t PULSE_DURATION_US = 10; // us 
 static const uint8_t DIR_DURATION_US = 20; // us
@@ -238,7 +237,7 @@ void assignDirection(){
 
 void goToHome()
 {
-    // Default clockwise    
+    // Default CW    
     checkHome();
     while(awayFromHomeSwitch &&
         limitSwitchGood)
@@ -252,9 +251,10 @@ void goToHome()
     
     if(limitSwitchGood)
     {
-        stepperPulse(); // Step once away
+        stepperPulse(); // Step once away CCW
     }
 
+    // Reset default back to CW
     digitalWrite(DIR_PIN, HIGH);
     delayMicroseconds(DIR_DURATION_US);
 }
