@@ -12,16 +12,39 @@
 
 /* Stepper*/ 
 
+#define STEPPER_TO_MOTOR_GEAR_RATIO 15.3
+#define ENCODER_BAD_POSITION 0xFFFF
+#define ENCODER_BAD_POSITION_ATTEMPTS 3
+#define ENCODER_POSITIONS_PER_REVOLUTION 16384.0
+#define PI 3.1459
+
+#define PER_STEP_DELAY_MS 5 // ms
+
+// TODO check min and max
+#define MIN_ANGLE_RADS -0.2 // rads
+#define MAX_ANGLE_RADS 0.2  // rads
+
+//#define ENCODER_ZERO // uncomment to set the zero of the encoder
+
 bool steeringEnabled = false;
-static const uint8_t PULSE_DURATION = 10; // us 
-static const uint8_t DIR_DURATION = 20; // us 
-static const float STEPPER_DEADBAND = 0.035; // rads. Because stepper motor 1.8 deg per step -> slightly more
+static const uint8_t PULSE_DURATION_US = 10; // us 
+static const uint8_t DIR_DURATION_US = 20; // us
+// Encoder is accurate to 0.2 degrees -> 0.003491 rads
+// Stepper changes by 0.1176 degrees (1.8deg of motor / 15.3 gear box)  -> 0.0021 rads
+// Steering deadband to account for discrete stepper + encoder
+static const float STEPPER_DEADBAND = 0.006; // rads
 static const unsigned long STEPPER_TIMEOUT = 50; // ms
 
-// TODO need to set encoder zero
-static const uint16_t ENCODER_ZERO = 1000;
+volatile bool limitSwitch1Good = true;
+volatile bool limitSwitch2Good = true; 
+
+// TODO NEED TO SET ENCODER ZERO
+static const int ENCODER_ZERO_POS = 1000;
+
 float currentAngle = 0;
 float desiredAngle = 0;
+bool isCWDirection = true;
+bool encoderGood = true;
 
 /* Ethernet */
 EthernetServer server(PORT);
@@ -47,51 +70,69 @@ const static String estopStopMsg = "D";
 const static String estopLimitedMsg = "L";
 const static String estopGoMsg = "G";
 const static String estopRequestMsg = "S?";
+const static String estopSendError = "FAIL";
 
 void setup() {
     
-    pinMode(LED, OUTPUT);
+    pinMode(LED_PIN, OUTPUT);
 
     /* Initialization for stepper*/
   
-    pinMode(dirPin, OUTPUT);
-    pinMode(pulsePin, OUTPUT);
-    pinMode(commandInterruptPin, INPUT_PULLUP);
-    digitalWrite(pulsePin, HIGH);
+    pinMode(DIR_PIN, OUTPUT);
+    pinMode(PULSE_PIN, OUTPUT);
 
+    pinMode(LIMIT_SWITCH_1_PIN, INPUT_PULLUP);
+    pinMode(LIMIT_SWITCH_2_PIN, INPUT_PULLUP);
+    
+    digitalWrite(PULSE_PIN, HIGH); // Active LOW
+    digitalWrite(DIR_PIN, HIGH);   // Default CW
+
+    limitSwitch1Good = digitalRead(LIMIT_SWITCH_1_PIN);
+    limitSwitch2Good = digitalRead(LIMIT_SWITCH_2_PIN);
+
+    attachInterrupt(digitalPinToInterrupt(LIMIT_SWITCH_1_PIN), limitSwitch1Hit,CHANGE);
+    attachInterrupt(digitalPinToInterrupt(LIMIT_SWITCH_2_PIN), limitSwitch2Hit,CHANGE);
 
     /* Initialization for encoder*/
-    //  pinMode(SPI_SCLK, OUTPUT);
-    //  pinMode(SPI_MOSI, OUTPUT);
-    //  pinMode(SPI_MISO, INPUT);
-    pinMode(ENC_PIN, OUTPUT);
-    pinMode(RST_ETH, OUTPUT);
-    pinMode(CS_ETH, OUTPUT);
+    pinMode(SPI_SCLK_PIN, OUTPUT);
+    pinMode(SPI_MISO_PIN, OUTPUT);
+    pinMode(SPI_MOSI_PIN, INPUT);
+    pinMode(ENC_CS_PIN, OUTPUT);
+    pinMode(ETH_RST_PIN, OUTPUT);
+    pinMode(ETH_CS_PIN, OUTPUT);
 
-    digitalWrite(ENC_PIN, HIGH); // disable encoder on setup
+    digitalWrite(ENC_CS_PIN, HIGH); // disable encoder on setup
     SPI.begin();
 
+    // Will set encoder to zero
+    // #ifdef ENCODER_ZERO
+    //     setZeroSPI();
+    //     while(1){
+    //         Serial.println("Encoder Set to Zero. Reset and comment out ENCODER_ZERO to run.");
+    //         delay(500);
+    //     }
+    // #endif
 
     /* Initialization for ethernet*/
     resetEthernet();
 
-    Ethernet.init(CS_ETH);  // SCLK pin from eth header
+    Ethernet.init(ETH_CS_PIN);  // SCLK pin from eth header
     Ethernet.begin(steeringMAC, steeringIP); // initialize ethernet device
   
     Serial.begin(BAUDRATE);
 
     unsigned long loopCounter = 0;
     while (Ethernet.hardwareStatus() == EthernetNoHardware) {
-        digitalWrite(LED, loopCounter++ % 4 == 0);
+        digitalWrite(LED_PIN, loopCounter++ % 4 == 0);
         Serial.println("Ethernet shield was not found.");
         delay(100);
     }
     
     while(Ethernet.linkStatus() == LinkOFF) {
-        digitalWrite(LED, loopCounter++ % 4 > 0);
+        digitalWrite(LED_PIN, loopCounter++ % 4 > 0);
         Serial.println("Ethernet cable is not connected."); // do something with this
         delay(100);    // TURN down delay to check/startup faster
-        digitalWrite(LED, !digitalRead(LED));
+        digitalWrite(LED_PIN, !digitalRead(LED_PIN));
     }
 
     server.begin();
@@ -101,20 +142,34 @@ void setup() {
     estopBoard.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);
     estopConnected = estopBoard.connect(estopIP, PORT) > 0;
 
-
     wdt_reset();
     wdt_enable(WDTO_500MS);
 }
  
 void loop() {
     wdt_reset();
-    digitalWrite(LED, !digitalRead(LED));
+    digitalWrite(LED_PIN, !digitalRead(LED_PIN));
 
     readEthernet();  // check for new angle from ethernet
 
-    if (steeringEnabled)
+    if(steeringEnabled && encoderGood && limitSwitch1Good && limitSwitch2Good)
     {
         goToPosition();
+    }
+    
+    if(!limitSwitch1Good)
+    {
+        Serial.println("LIMIT SWITCH 1 NOT GOOD!");
+    }
+
+    if(!limitSwitch2Good)
+    {
+        Serial.println("LIMIT SWITCH 2 NOT GOOD!");
+    }
+
+    if(!encoderGood)
+    {
+        Serial.println("ENCODER NOT GOOD!");
     }
 
     sendToEstop();
@@ -139,7 +194,7 @@ void readEthernet(){
             }
             else if(otherIP == manualIP){
                 if (data.substring(0,2).equals(manualStringHeader)){    // if client is giving us new angle in the form of S=$float
-                    desiredAngle = data.substring(2).toFloat(); // set new angle, convert from str to float
+                    desiredAngle = constrain(data.substring(2).toFloat(), MIN_ANGLE_RADS, MAX_ANGLE_RADS); // set new angle, convert from str to float
                     RJNet::sendData(client, ackMsg);
                 }
                 else {
@@ -170,9 +225,9 @@ void readEthernet(){
 
 void resetEthernet() {
     //Resets Ethernet shield
-    digitalWrite(RST_ETH, LOW);
+    digitalWrite(ETH_RST_PIN, LOW);
     delay(1);
-    digitalWrite(RST_ETH, HIGH);
+    digitalWrite(ETH_RST_PIN, HIGH);
     delay(501);
 }
 
@@ -185,44 +240,110 @@ void sendToEstop() {
     }
     else{
         if(millis() > lastEstopReply + MIN_MESSAGE_SPACING && millis() > lastEstopRequest + MIN_MESSAGE_SPACING){
-            RJNet::sendData(estopBoard, estopRequestMsg);
+            if(limitSwitch1Good && limitSwitch2Good)
+            {
+                RJNet::sendData(estopBoard, estopRequestMsg);
+            }
+            else
+            {
+                RJNet::sendData(estopBoard, estopSendError);
+            }
             lastEstopRequest = millis();
         }
     }
 }
 
 /* For setting direction of stepper motor */
-void assignDirection(){       
-    currentAngle = getCurrentAngle();         // read current position from encoder
-    if (abs(abs(desiredAngle) - abs(currentAngle)) > STEPPER_DEADBAND){      // checks if motor needs to turn
-        if (desiredAngle < currentAngle){      // set dirPIN to CW or CCW
-            digitalWrite(dirPin, LOW);
-        } else {
-            digitalWrite(dirPin, HIGH);
+// CCW is positive radians
+// CW is negative radians
+// TODO CHECK functionality 
+void assignDirection(float goalAngle, float measuredAngle){  
+    if (abs(abs(goalAngle) - abs(measuredAngle)) > STEPPER_DEADBAND){      // checks if motor needs to turn before changing direction
+        bool setDirPin = HIGH; // setdirPIN to CW or CCW, HIGH is CW, LOW is CCW
+        if (goalAngle > measuredAngle){  // CCW
+            setDirPin = LOW;
+        } 
+        else {  // CW
+            setDirPin = HIGH;
         }
-        delayMicroseconds(DIR_DURATION);
+
+        // Only change the pin if necessary
+        if(setDirPin != isCWDirection){
+            isCWDirection = setDirPin;
+            digitalWrite(DIR_PIN, setDirPin);
+            delayMicroseconds(DIR_DURATION_US);
+        }
+    }
+    else
+    {
+        Serial.println("Close enough for direction");
     }
 }
 
+void limitSwitch1Hit() {
+    limitSwitch1Good = false;
+}
+
+void limitSwitch2Hit() {
+    limitSwitch2Good = false;
+}
+
 void stepperPulse(){ // rotates stepper motor one step in the currently set direction
-    digitalWrite(pulsePin, LOW);
-    delayMicroseconds(PULSE_DURATION);
-    digitalWrite(pulsePin, HIGH);
-    delayMicroseconds(PULSE_DURATION);
+    digitalWrite(PULSE_PIN, LOW);
+    delayMicroseconds(PULSE_DURATION_US);
+    digitalWrite(PULSE_PIN, HIGH);
+    delayMicroseconds(PULSE_DURATION_US);
 }
 
 void goToPosition(){
     unsigned long startTime = millis();
-    while(abs(abs(desiredAngle) - abs(currentAngle)) > STEPPER_DEADBAND && millis() - startTime < STEPPER_TIMEOUT)
+    currentAngle = getCurrentAngle(); // Check current angle to avoid running if unnecessary
+
+    while(abs(abs(desiredAngle) - abs(currentAngle)) > STEPPER_DEADBAND && 
+        millis() - startTime < STEPPER_TIMEOUT &&
+        encoderGood &&
+        limitSwitch1Good &&
+        limitSwitch2Good)
     {
-        assignDirection();
+        assignDirection(desiredAngle, currentAngle);
         stepperPulse();
-        currentAngle = getCurrentAngle(); 
+        currentAngle = getCurrentAngle();
+        delay(PER_STEP_DELAY_MS);
     }
 }
 
+float getCurrentAngle(){
+    int encoderAttemptCounts = 0;
+    uint16_t currentPositionEncoder = getPositionSPI();
+    float angle = 0;
+    // Try to poll to get valid encoder value
+    while (currentPositionEncoder == ENCODER_BAD_POSITION && 
+        encoderAttemptCounts < ENCODER_BAD_POSITION_ATTEMPTS)
+    {
+        currentPositionEncoder = getPositionSPI(); //try again
+        encoderAttemptCounts += 1;
+    }
+
+    if(currentPositionEncoder != ENCODER_BAD_POSITION)
+    {
+        // TODO UNCLEAR IF CW on encoder increases position or decreases it
+        // Might need to invert to match CW 
+        int currentPositionFromZero =  int(currentPositionEncoder) - ENCODER_ZERO_POS;
+        angle = currentPositionFromZero*((2*PI)/ENCODER_POSITIONS_PER_REVOLUTION); // ticks * (rads/ticks) = rads
+    }
+    else
+    {
+        angle = 2*PI;
+        encoderGood = false;
+    }
+    return angle;
+}
+
+
+
+/* Encoder Helper Functions */
 void setCSLine(uint8_t csLine){   // enable or disable encoder
-    digitalWrite(ENC_PIN, csLine);
+    digitalWrite(ENC_CS_PIN, csLine);
 }
 
 uint8_t spiWriteRead(uint8_t sendByte, uint8_t releaseLine){
@@ -249,7 +370,7 @@ void setZeroSPI(){
     delayMicroseconds(3); 
   
     spiWriteRead(ZERO, true);
-    delay(250); //250 second delay to allow the encoder to reset
+    delay(250); //250 ms delay to allow the encoder to reset
 }
 
 void resetAMT22(){
@@ -259,20 +380,11 @@ void resetAMT22(){
     delayMicroseconds(3); 
   
     spiWriteRead(RESET, true);
-    delay(250); //250 second delay to allow the encoder to start back up
+    delay(250); //250 ms delay to allow the encoder to start back up
 }
-
-float getCurrentAngle(){
-
-    uint16_t currentPosition = getPositionSPI();
-
-
-}
-
-
 
 uint16_t getPositionSPI(){
-    uint16_t currentPosition;       //16-bit response from encoder
+    uint16_t currentPosition;       //14-bit response from encoder
     bool binaryArray[16];           //after receiving the position we will populate this array and use it for calculating the checksum
 
     //get first byte which is the high byte, shift it 8 bits. don't release line for the first byte
@@ -296,8 +408,10 @@ uint16_t getPositionSPI(){
     }
     else
     {
-        currentPosition = 0xFFFF; //bad position
+        currentPosition = ENCODER_BAD_POSITION; //bad position
     }
+
+    // Don't need to shift for 14 bit version
 
     return currentPosition;
 }
