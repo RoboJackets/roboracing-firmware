@@ -1,4 +1,3 @@
-
 /* SPI pins */
 #define SPI_MOSI_PIN        MOSI
 #define SPI_MISO_PIN        MISO
@@ -12,8 +11,6 @@ static const byte ETH_CS_PIN = 12;  // atmega pin 26, digital pin 12
 static const byte ETH_RST_PIN = 3;  // atmega pin 18, digital pin 3
 static const byte ENC_CS_PIN = 6;
 static const byte LED_PIN = A3;
-
-unsigned long startTime = 0;
 
 #define BAUDRATE        115200
 

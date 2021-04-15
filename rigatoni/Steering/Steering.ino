@@ -73,25 +73,29 @@ const static String estopRequestMsg = "S?";
 const static String estopSendError = "FAIL";
 
 void setup() {
-    
     pinMode(LED_PIN, OUTPUT);
-
-    /* Initialization for stepper*/
-  
-    pinMode(DIR_PIN, OUTPUT);
-    pinMode(PULSE_PIN, OUTPUT);
 
     pinMode(LIMIT_SWITCH_1_PIN, INPUT_PULLUP);
     pinMode(LIMIT_SWITCH_2_PIN, INPUT_PULLUP);
-    
-    digitalWrite(PULSE_PIN, HIGH); // Active LOW
-    digitalWrite(DIR_PIN, HIGH);   // Default CW
 
     limitSwitch1Good = digitalRead(LIMIT_SWITCH_1_PIN);
     limitSwitch2Good = digitalRead(LIMIT_SWITCH_2_PIN);
 
     attachInterrupt(digitalPinToInterrupt(LIMIT_SWITCH_1_PIN), limitSwitch1Hit,CHANGE);
     attachInterrupt(digitalPinToInterrupt(LIMIT_SWITCH_2_PIN), limitSwitch2Hit,CHANGE);
+
+    while(!limitSwitch1Good || !limitSwitch2Good)
+    {
+        Serial.println("LIMIT SWITCH FAULT!");
+        delay(100);
+    }
+
+    /* Initialization for stepper*/
+    pinMode(DIR_PIN, OUTPUT);
+    pinMode(PULSE_PIN, OUTPUT);
+
+    digitalWrite(PULSE_PIN, HIGH); // Active LOW
+    digitalWrite(DIR_PIN, HIGH);   // Default CW
 
     /* Initialization for encoder*/
     pinMode(SPI_SCLK_PIN, OUTPUT);
@@ -181,7 +185,6 @@ void readEthernet(){
         String data = RJNet::readData(client);  // if i get string from RJNet buffer
         IPAddress otherIP = client.remoteIP();
         client.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);   //Set connection delay so we don't hang
-
         Serial.print("Message: ");
         Serial.print(data);
         Serial.print(" From: ");
@@ -338,8 +341,6 @@ float getCurrentAngle(){
     }
     return angle;
 }
-
-
 
 /* Encoder Helper Functions */
 void setCSLine(uint8_t csLine){   // enable or disable encoder
