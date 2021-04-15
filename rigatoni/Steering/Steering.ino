@@ -16,7 +16,7 @@
 #define ENCODER_BAD_POSITION 0xFFFF
 #define ENCODER_BAD_POSITION_ATTEMPTS 3
 #define ENCODER_POSITIONS_PER_REVOLUTION 16384.0
-#define PI 3.1459
+#define PI 3.141592653589793
 
 #define PER_STEP_DELAY_MS 5 // ms
 
@@ -261,7 +261,7 @@ void sendToEstop() {
 // CW is negative radians
 // TODO CHECK functionality 
 void assignDirection(float goalAngle, float measuredAngle){  
-    if (abs(abs(goalAngle) - abs(measuredAngle)) > STEPPER_DEADBAND){      // checks if motor needs to turn before changing direction
+    if (abs(goalAngle - measuredAngle) > STEPPER_DEADBAND){      // checks if motor needs to turn before changing direction
         bool setDirPin = HIGH; // setdirPIN to CW or CCW, HIGH is CW, LOW is CCW
         if (goalAngle > measuredAngle){  // CCW
             setDirPin = LOW;
@@ -302,7 +302,7 @@ void goToPosition(){
     unsigned long startTime = millis();
     currentAngle = getCurrentAngle(); // Check current angle to avoid running if unnecessary
 
-    while(abs(abs(desiredAngle) - abs(currentAngle)) > STEPPER_DEADBAND && 
+    while(abs(desiredAngle - currentAngle) > STEPPER_DEADBAND && 
         millis() - startTime < STEPPER_TIMEOUT &&
         encoderGood &&
         limitSwitch1Good &&
