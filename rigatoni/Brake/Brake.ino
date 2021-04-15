@@ -28,7 +28,6 @@ int desiredBrakingForce = 0;
 int currentBrakingForce = 0;
 
 bool isCWDirection = true;
-bool brakeEnabled = false;
 
 /* Ethernet */
 EthernetServer server(PORT);
@@ -162,16 +161,10 @@ void readEthernet(){
             }
             else if(otherIP == estopIP)
             {
-                if (!data.equals(estopStopMsg)){   // Covers both limited and go
-                    engageMaxBraking = true;
-                }
-                else
-                {
-                    engageMaxBraking = false;
-                }
+                engageMaxBraking = data.equals(estopStopMsg);
                 lastEstopReply = millis();
-                Serial.print("Estop: brake enabled? ");
-                Serial.println(brakeEnabled);
+                Serial.print("Estop: Max braking? ");
+                Serial.println(engageMaxBraking);
             }
         }
         else {
