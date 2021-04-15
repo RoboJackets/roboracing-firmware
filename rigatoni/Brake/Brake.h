@@ -7,22 +7,7 @@ static const byte ETH_RST_PIN = 3;  // atmega pin 18, digital pin 3
 static const byte ENC_CS_PIN = 6;
 static const byte LED_PIN = A3;
 
-float desiredAngle = 0;
-float currentAngle = 0;
-
-
-float maxInt = 2;
-float minInt = 0;
-
-unsigned long startTime = 0;
-
-
-
-
 //Engage max braking if don't hear from estop in this long
 const int estopTimeoutMS = 500;
 
 #define BAUDRATE        115200
-
-//LED
-#define LED A3

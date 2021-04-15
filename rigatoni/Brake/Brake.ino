@@ -98,13 +98,13 @@ void setup() {
   
     unsigned long loopCounter = 0;
     while(Ethernet.hardwareStatus() == EthernetNoHardware) {
-        digitalWrite(LED, loopCounter++ % 4 == 0);
+        digitalWrite(LED_PIN, loopCounter++ % 4 == 0);
         Serial.println("Ethernet shield was not found.");
         delay(100);
     }
 
     while(Ethernet.linkStatus() == LinkOFF) {
-        digitalWrite(LED, loopCounter++ % 4 > 0);
+        digitalWrite(LED_PIN, loopCounter++ % 4 > 0);
         Serial.println("Ethernet cable is not connected.");
         delay(100);
     }
