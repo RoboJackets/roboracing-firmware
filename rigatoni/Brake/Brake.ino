@@ -8,7 +8,6 @@
 // Notes:
 // Need to connect VDC GND and dir- to common GND
 // Need to have feedback connected to function
-// make sure encoder switch is set to run mode
 
 /* Stepper*/ 
 
@@ -230,11 +229,12 @@ void assignDirection(){
     }
 }
 
+// Will attempt to home to 0 brake position
+// KNOWN BEHAVIOR -> Should just loop if motor not enabled
 void goToHome()
 {
     // Default CW    
-    while(awayFromHomeSwitch &&
-        limitSwitchGood)
+    while(awayFromHomeSwitch)
     {
         stepperPulse();
     }
