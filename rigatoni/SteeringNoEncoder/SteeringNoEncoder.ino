@@ -8,43 +8,38 @@
 // Notes:
 // Need to connect VDC GND and dir- to common GND
 // Need to have feedback connected to function
-// make sure encoder switch is set to run mode
 
 /* Stepper*/ 
 
 #define STEPPER_TO_MOTOR_GEAR_RATIO 15.3
-#define ENCODER_BAD_POSITION 0xFFFF
-#define ENCODER_BAD_POSITION_ATTEMPTS 3
-#define ENCODER_POSITIONS_PER_REVOLUTION 16384.0
 #define PI 3.141592653589793
 
 #define PER_STEP_DELAY_MS 5 // ms
 
-// TODO check min and max
-#define MIN_ANGLE_RADS -0.2 // rads
-#define MAX_ANGLE_RADS 0.2  // rads
-
-//#define ENCODER_ZERO // uncomment to set the zero of the encoder
-
 bool steeringEnabled = false;
 static const uint8_t PULSE_DURATION_US = 10; // us 
 static const uint8_t DIR_DURATION_US = 20; // us
-// Encoder is accurate to 0.2 degrees -> 0.003491 rads
-// Stepper changes by 0.1176 degrees (1.8deg of motor / 15.3 gear box)  -> 0.0021 rads
-// Steering deadband to account for discrete stepper + encoder
-static const float STEPPER_DEADBAND = 0.006; // rads
+// Stepper changes by 0.1176 degrees (1.8deg of motor / 15.3 gear box)
+static const float STEPPER_STEP_SIZE = 0.0020533; // rads
+// Steering deadband to account for discrete stepper
+static const float STEPPER_DEADBAND = 0.005; // rads
 static const unsigned long STEPPER_TIMEOUT = 50; // ms
 
-volatile bool limitSwitch1Good = true;
-volatile bool limitSwitch2Good = true; 
+volatile bool limitSwitchCounterClockGood = true;
+volatile bool limitSwitchClockGood = true; 
 
-// TODO NEED TO SET ENCODER ZERO
-static const int ENCODER_ZERO_POS = 1000;
+// TODO NEED TO SET STEPPER DISTANCE
+// How many steps from limit switch to center on each side
+static const int STEPPER_CCW_LIMIT_TO_ZERO_POS = 5;
+static const int STEPPER_CW_LIMIT_TO_ZERO_POS = 5;
 
+static const float MIN_ANGLE_RADS = -STEPPER_CW_LIMIT_TO_ZERO_POS*STEPPER_STEP_SIZE;
+static const float MAX_ANGLE_RADS = STEPPER_CCW_LIMIT_TO_ZERO_POS*STEPPER_STEP_SIZE;
+
+int currentStepPos = 0; // Stepper steps position
 float currentAngle = 0;
 float desiredAngle = 0;
 bool isCWDirection = true;
-bool encoderGood = true;
 
 /* Ethernet */
 EthernetServer server(PORT);
@@ -75,20 +70,15 @@ const static String estopSendError = "FAIL";
 void setup() {
     pinMode(LED_PIN, OUTPUT);
 
-    pinMode(LIMIT_SWITCH_1_PIN, INPUT_PULLUP);
-    pinMode(LIMIT_SWITCH_2_PIN, INPUT_PULLUP);
+    /* Initialization for limit switches*/
+    pinMode(LIMIT_SWITCH_CCW_PIN, INPUT_PULLUP); // If limit switch pressed, high
+    pinMode(LIMIT_SWITCH_CW_PIN, INPUT_PULLUP); // If limit switch pressed, high
 
-    limitSwitch1Good = digitalRead(LIMIT_SWITCH_1_PIN);
-    limitSwitch2Good = digitalRead(LIMIT_SWITCH_2_PIN);
+    limitSwitchCounterClockGood = !digitalRead(LIMIT_SWITCH_CCW_PIN);
+    limitSwitchClockGood = !digitalRead(LIMIT_SWITCH_CW_PIN);
 
-    attachInterrupt(digitalPinToInterrupt(LIMIT_SWITCH_1_PIN), limitSwitch1Hit,CHANGE);
-    attachInterrupt(digitalPinToInterrupt(LIMIT_SWITCH_2_PIN), limitSwitch2Hit,CHANGE);
-
-    while(!limitSwitch1Good || !limitSwitch2Good)
-    {
-        Serial.println("LIMIT SWITCH FAULT!");
-        delay(100);
-    }
+    attachInterrupt(digitalPinToInterrupt(LIMIT_SWITCH_CCW_PIN), limitSwitchCCWChange,CHANGE);
+    attachInterrupt(digitalPinToInterrupt(LIMIT_SWITCH_CW_PIN), limitSwitchCWChange,CHANGE);
 
     /* Initialization for stepper*/
     pinMode(DIR_PIN, OUTPUT);
@@ -98,24 +88,9 @@ void setup() {
     digitalWrite(DIR_PIN, HIGH);   // Default CW
 
     /* Initialization for encoder*/
-    pinMode(SPI_SCLK_PIN, OUTPUT);
-    pinMode(SPI_MISO_PIN, OUTPUT);
-    pinMode(SPI_MOSI_PIN, INPUT);
-    pinMode(ENC_CS_PIN, OUTPUT);
     pinMode(ETH_RST_PIN, OUTPUT);
     pinMode(ETH_CS_PIN, OUTPUT);
 
-    digitalWrite(ENC_CS_PIN, HIGH); // disable encoder on setup
-    SPI.begin();
-
-    // Will set encoder to zero
-    // #ifdef ENCODER_ZERO
-    //     setZeroSPI();
-    //     while(1){
-    //         Serial.println("Encoder Set to Zero. Reset and comment out ENCODER_ZERO to run.");
-    //         delay(500);
-    //     }
-    // #endif
 
     /* Initialization for ethernet*/
     resetEthernet();
@@ -146,6 +121,8 @@ void setup() {
     estopBoard.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);
     estopConnected = estopBoard.connect(estopIP, PORT) > 0;
 
+    goToHome();
+
     wdt_reset();
     wdt_enable(WDTO_500MS);
 }
@@ -156,24 +133,9 @@ void loop() {
 
     readEthernet();  // check for new angle from ethernet
 
-    if(steeringEnabled && encoderGood && limitSwitch1Good && limitSwitch2Good)
+    if(steeringEnabled)
     {
         goToPosition();
-    }
-    
-    if(!limitSwitch1Good)
-    {
-        Serial.println("LIMIT SWITCH 1 NOT GOOD!");
-    }
-
-    if(!limitSwitch2Good)
-    {
-        Serial.println("LIMIT SWITCH 2 NOT GOOD!");
-    }
-
-    if(!encoderGood)
-    {
-        Serial.println("ENCODER NOT GOOD!");
     }
 
     sendToEstop();
@@ -243,14 +205,8 @@ void sendToEstop() {
     }
     else{
         if(millis() > lastEstopReply + MIN_MESSAGE_SPACING && millis() > lastEstopRequest + MIN_MESSAGE_SPACING){
-            if(limitSwitch1Good && limitSwitch2Good)
-            {
-                RJNet::sendData(estopBoard, estopRequestMsg);
-            }
-            else
-            {
-                RJNet::sendData(estopBoard, estopSendError);
-            }
+            // TODO May reimplement FAIL in the future
+            RJNet::sendData(estopBoard, estopSendError);
             lastEstopRequest = millis();
         }
     }
@@ -283,136 +239,87 @@ void assignDirection(float goalAngle, float measuredAngle){
     }
 }
 
-void limitSwitch1Hit() {
-    limitSwitch1Good = false;
+// Interrupt called when CCW limit switch changes
+void limitSwitchCCWChange() {
+    limitSwitchCounterClockGood = !digitalRead(LIMIT_SWITCH_CCW_PIN);
 }
 
-void limitSwitch2Hit() {
-    limitSwitch2Good = false;
+// Interrupt called when CW limit switch changes
+void limitSwitchCWChange() {
+    limitSwitchClockGood = !digitalRead(LIMIT_SWITCH_CW_PIN);
 }
 
 void stepperPulse(){ // rotates stepper motor one step in the currently set direction
-    digitalWrite(PULSE_PIN, LOW);
-    delayMicroseconds(PULSE_DURATION_US);
-    digitalWrite(PULSE_PIN, HIGH);
-    delayMicroseconds(PULSE_DURATION_US);
+    if(limitSwitchClockGood && limitSwitchCounterClockGood)
+    {
+        digitalWrite(PULSE_PIN, LOW);
+        delayMicroseconds(PULSE_DURATION_US);
+        digitalWrite(PULSE_PIN, HIGH);
+        delayMicroseconds(PULSE_DURATION_US);
+    }
+    else
+    {
+        Serial.println("At extents!");
+    }
+}
+
+// Will attempt to home to 0 steering position
+// KNOWN BEHAVIOR -> Should just loop if motor not enabled / limit switches not responding
+void goToHome(){
+
+    // Default CW
+    while(limitSwitchClockGood )
+    {
+        stepperPulse();
+    }
+
+    // Once home, now switch to CCW direction to move to center
+    isCWDirection = false;
+    digitalWrite(DIR_PIN, LOW);
+    delayMicroseconds(DIR_DURATION_US);
+
+    // Steps to the center
+    for(int i = 0; i < STEPPER_CW_LIMIT_TO_ZERO_POS; i++)
+    {
+        stepperPulse();
+        if(!limitSwitchCounterClockGood)
+        {
+            Serial.println("SHOULD NOT HAVE REACHED LIMIT!");
+            break;
+        }
+    }
+
+    Serial.println("Good to go!");
+    
 }
 
 void goToPosition(){
     unsigned long startTime = millis();
-    currentAngle = getCurrentAngle(); // Check current angle to avoid running if unnecessary
+    checkCurrentAngle(); // Check current angle to avoid running if unnecessary
 
     while(abs(desiredAngle - currentAngle) > STEPPER_DEADBAND && 
         millis() - startTime < STEPPER_TIMEOUT &&
-        encoderGood &&
-        limitSwitch1Good &&
-        limitSwitch2Good)
+        limitSwitchCounterClockGood &&
+        limitSwitchClockGood)
     {
         assignDirection(desiredAngle, currentAngle);
         stepperPulse();
-        currentAngle = getCurrentAngle();
+        // TODO verify direction
+        if(isCWDirection)
+        {
+            currentStepPos += 1;
+        }
+        else
+        {
+            currentStepPos -= 1;
+        }
+
+        checkCurrentAngle();
         delay(PER_STEP_DELAY_MS);
     }
 }
 
-float getCurrentAngle(){
-    int encoderAttemptCounts = 0;
-    uint16_t currentPositionEncoder = getPositionSPI();
-    float angle = 0;
-    // Try to poll to get valid encoder value
-    while (currentPositionEncoder == ENCODER_BAD_POSITION && 
-        encoderAttemptCounts < ENCODER_BAD_POSITION_ATTEMPTS)
-    {
-        currentPositionEncoder = getPositionSPI(); //try again
-        encoderAttemptCounts += 1;
-    }
-
-    if(currentPositionEncoder != ENCODER_BAD_POSITION)
-    {
-        // TODO UNCLEAR IF CW on encoder increases position or decreases it
-        // Might need to invert to match CW 
-        int currentPositionFromZero =  int(currentPositionEncoder) - ENCODER_ZERO_POS;
-        angle = currentPositionFromZero*((2*PI)/ENCODER_POSITIONS_PER_REVOLUTION); // ticks * (rads/ticks) = rads
-    }
-    else
-    {
-        angle = 2*PI;
-        encoderGood = false;
-    }
-    return angle;
-}
-
-/* Encoder Helper Functions */
-void setCSLine(uint8_t csLine){   // enable or disable encoder
-    digitalWrite(ENC_CS_PIN, csLine);
-}
-
-uint8_t spiWriteRead(uint8_t sendByte, uint8_t releaseLine){
-    uint8_t data;
-
-    //set cs low, cs may already be low but there's no issue calling it again except for extra time
-    setCSLine(LOW);
-
-    //There is a minimum time requirement after CS goes low before data can be clocked out of the encoder.
-    delayMicroseconds(3);
-
-    //send the command  
-    data = SPI.transfer(sendByte);
-    delayMicroseconds(3); //There is also a minimum time after clocking that CS should remain asserted before we release it
-    setCSLine(releaseLine); //if releaseLine is high set it high else it stays low
-  
-    return data;
-}
-
-void setZeroSPI(){
-    spiWriteRead(NOP, false); // NOP needs to be first byte before extended command can be set
-
-    //this is the time required between bytes as specified in the datasheet.
-    delayMicroseconds(3); 
-  
-    spiWriteRead(ZERO, true);
-    delay(250); //250 ms delay to allow the encoder to reset
-}
-
-void resetAMT22(){
-    spiWriteRead(NOP, false); // NOP needs to be first byte before extended command can be set
-
-    //this is the time required between bytes as specified in the datasheet.
-    delayMicroseconds(3); 
-  
-    spiWriteRead(RESET, true);
-    delay(250); //250 ms delay to allow the encoder to start back up
-}
-
-uint16_t getPositionSPI(){
-    uint16_t currentPosition;       //14-bit response from encoder
-    bool binaryArray[16];           //after receiving the position we will populate this array and use it for calculating the checksum
-
-    //get first byte which is the high byte, shift it 8 bits. don't release line for the first byte
-    currentPosition = spiWriteRead(NOP, false) << 8;   
-
-    //this is the time required between bytes as specified in the datasheet.
-    delayMicroseconds(3);
-
-    //OR the low byte with the currentPosition variable. release line after second byte
-    currentPosition |= spiWriteRead(NOP, true);
-  
-    //run through the 16 bits of position and put each bit into a slot in the array so we can do the checksum calculation
-    for(int i = 0; i < 16; i++) binaryArray[i] = (0x01) & (currentPosition >> (i));
-
-    //using the equation on the datasheet we can calculate the checksums and then make sure they match what the encoder sent
-    if ((binaryArray[15] == !(binaryArray[13] ^ binaryArray[11] ^ binaryArray[9] ^ binaryArray[7] ^ binaryArray[5] ^ binaryArray[3] ^ binaryArray[1]))
-          && (binaryArray[14] == !(binaryArray[12] ^ binaryArray[10] ^ binaryArray[8] ^ binaryArray[6] ^ binaryArray[4] ^ binaryArray[2] ^ binaryArray[0])))
-    {
-        //we got back a good position, so just mask away the checkbits
-        currentPosition &= 0x3FFF;
-    }
-    else
-    {
-        currentPosition = ENCODER_BAD_POSITION; //bad position
-    }
-
-    // Don't need to shift for 14 bit version
-
-    return currentPosition;
+void checkCurrentAngle()
+{
+    currentAngle = float(currentStepPos)*STEPPER_STEP_SIZE;
 }

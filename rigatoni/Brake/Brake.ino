@@ -18,7 +18,7 @@ static const uint8_t PULSE_DURATION_US = 10; // us
 static const uint8_t DIR_DURATION_US = 20; // us
 static const unsigned long STEPPER_TIMEOUT = 50; // ms
 
-bool awayFromHomeSwitch = true; // Used for homing
+volatile bool awayFromHomeSwitch = true; // Used for homing
 volatile bool limitSwitchGood = true; // Used for limits of e-stop
 
 // TODO check max steps
@@ -61,13 +61,15 @@ bool engageMaxBraking = true;
 void setup() {
     pinMode(LED_PIN, OUTPUT);
 
-    /* Initialization for stepper*/
-    pinMode(HOME_SWITCH_PIN, INPUT_PULLUP);
-    pinMode(LIMIT_SWITCH_PIN, INPUT_PULLUP);
+    /* Initialization for limit switches*/
+    pinMode(HOME_SWITCH_PIN, INPUT_PULLUP); // If limit switch pressed, high
+    pinMode(LIMIT_SWITCH_PIN, INPUT_PULLUP); // If limit switch pressed, high
 
-    limitSwitchGood = digitalRead(LIMIT_SWITCH_PIN);
+    limitSwitchGood = !digitalRead(LIMIT_SWITCH_PIN);
+    awayFromHomeSwitch = !digitalRead(HOME_SWITCH_PIN);
 
-    attachInterrupt(digitalPinToInterrupt(LIMIT_SWITCH_PIN), limitSwitchHit,CHANGE);
+    attachInterrupt(digitalPinToInterrupt(LIMIT_SWITCH_PIN), limitSwitchChange,CHANGE);
+    attachInterrupt(digitalPinToInterrupt(HOME_SWITCH_PIN), homeSwitchChange,CHANGE);
 
     while(!limitSwitchGood)
     {
@@ -81,8 +83,6 @@ void setup() {
 
     digitalWrite(PULSE_PIN, HIGH); // Active LOW
     digitalWrite(DIR_PIN, HIGH);   // Default CW
-
-    goToHome();
 
     Serial.begin(BAUDRATE);
 
@@ -113,6 +113,8 @@ void setup() {
 
     estopBoard.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);
     estopConnected = estopBoard.connect(estopIP, PORT) > 0;
+
+    goToHome();
 
     wdt_reset();
     wdt_enable(WDTO_500MS);
@@ -231,40 +233,47 @@ void assignDirection(){
 void goToHome()
 {
     // Default CW    
-    checkHome();
     while(awayFromHomeSwitch &&
         limitSwitchGood)
     {
         stepperPulse();
-        checkHome();
     }
 
+    // Set to CCW
+    isCWDirection = false;
     digitalWrite(DIR_PIN, LOW);
     delayMicroseconds(DIR_DURATION_US);
     
-    if(limitSwitchGood)
+    // Step away CCW until off home switch
+    while(!awayFromHomeSwitch)
     {
-        stepperPulse(); // Step once away CCW
+        stepperPulse();
     }
 
-    // Reset default back to CW
-    digitalWrite(DIR_PIN, HIGH);
-    delayMicroseconds(DIR_DURATION_US);
+    // Stays CCW since at the "zero" brake
 }
 
-void checkHome(){
-    awayFromHomeSwitch = digitalRead(HOME_SWITCH_PIN);
+void homeSwitchChange(){
+    awayFromHomeSwitch = !digitalRead(HOME_SWITCH_PIN);
 }
 
-void limitSwitchHit() {
-    limitSwitchGood = false;
+void limitSwitchChange() {
+    limitSwitchGood = !digitalRead(LIMIT_SWITCH_PIN);
 }
 
 void stepperPulse(){ // rotates stepper motor one step in the currently set direction
-    digitalWrite(PULSE_PIN, LOW);
-    delayMicroseconds(PULSE_DURATION_US);
-    digitalWrite(PULSE_PIN, HIGH);
-    delayMicroseconds(PULSE_DURATION_US);
+    if(limitSwitchGood && awayFromHomeSwitch)
+    {
+        digitalWrite(PULSE_PIN, LOW);
+        delayMicroseconds(PULSE_DURATION_US);
+        digitalWrite(PULSE_PIN, HIGH);
+        delayMicroseconds(PULSE_DURATION_US);
+    }
+    else
+    {
+        Serial.println("At extents!");
+    }
+
 }
 
 void goToPosition(){
@@ -285,8 +294,6 @@ void goToPosition(){
         {
             currentBrakingForce -= 1;
         }
-        checkHome();
-
         delay(PER_STEP_DELAY_MS);
     }
 }
