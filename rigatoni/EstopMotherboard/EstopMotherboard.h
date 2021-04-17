@@ -5,7 +5,6 @@
 
 #define STEERING_EN 10 
 #define DRIVE_EN 9 
-#define POWER_EN 6 
 
 #define SENSOR_1 8 
 #define SENSOR_2 12 
