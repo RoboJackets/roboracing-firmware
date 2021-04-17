@@ -335,13 +335,13 @@ void setup() {
     wdt_enable(WDTO_500MS);
 }
 
-void setPowerEN() {
-    digitalWrite(POWER_EN, digitalRead(POWER_IN));
+void readPowerEN() {
+    digitalWrite(POWER_EN, !digitalRead(POWER_IN));
 }
 
 void loop() {
     wdt_reset();
-    setPowerEN();
+    readPowerEN();
     evaluateState();
 
     digitalWrite(LED1, !digitalRead(LED1));
