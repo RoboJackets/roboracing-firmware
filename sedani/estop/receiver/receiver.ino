@@ -101,8 +101,8 @@ RFM69 radio(RF69_SPI_CS, 3);
 
 #define RADIO_RESET A5 //Not needed for UNO, but doesn't hurt anything
 
-#define DRIVE_ENABLE 12
-#define STEERING_ENABLE 6
+#define DRIVE_ENABLE 6  //steering_en_rb since switched
+#define STEERING_ENABLE 12  //drive_en_rb since switched
 #define DIE_PIN 8
 
 
