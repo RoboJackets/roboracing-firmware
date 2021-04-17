@@ -251,7 +251,7 @@ void loop() {
         digitalWrite(DRIVE_ENABLE, HIGH);
         digitalWrite(STEERING_ENABLE, HIGH);
     }
-    else if(state = limitedCode){
+    else if(state == limitedCode){
         //Limited operations
         digitalWrite(DRIVE_ENABLE, LOW);
         digitalWrite(STEERING_ENABLE, HIGH);
