@@ -248,7 +248,6 @@ void setup() {
     //pinMode(17, OUTPUT);   //Default SS pin as output
     digitalWrite(STEERING_EN, LOW);  // Initially start E-stopped
     digitalWrite(DRIVE_EN, LOW);  // Initially start E-stopped
-    digitalWrite(POWER_EN, HIGH);  // Initially start with Power
     digitalWrite(STACK_G, HIGH); // change these light settings
     digitalWrite(STACK_Y, HIGH);
     digitalWrite(STACK_R, HIGH); 

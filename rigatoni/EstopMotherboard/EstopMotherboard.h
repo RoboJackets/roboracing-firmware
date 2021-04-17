@@ -1,10 +1,10 @@
 #define SAFE_RB 3 
 #define POWER_IN 2 
-#define STEERING_IN 0 
-#define DRIVE_IN 1
+#define STEERING_IN 1 //drive_en_in since switched
+#define DRIVE_IN 0  //steering_en_in since switched
 
-#define STEERING_EN 10 
-#define DRIVE_EN 9 
+#define STEERING_EN 9  //drive_en_in since switched 
+#define DRIVE_EN 10  //steering_en_in since switched 
 
 #define SENSOR_1 8 
 #define SENSOR_2 12 
