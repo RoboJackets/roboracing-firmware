@@ -73,25 +73,24 @@ void stackLights(byte green, byte yellow, byte red) {
     }
 }
 
-void steerDriveBrake(byte steer, byte drive, byte brake_release) {
+void steerDrive(byte steer, byte drive) {
     digitalWrite(STEERING_EN, steer);
     digitalWrite(DRIVE_EN, drive);
-    digitalWrite(BRAKE_EN, brake_release);
 }
 
 
 void writeOutCurrentState() {  // CHANGE, STATUS NEEDS TO GO THROUGH NUC FIRST
     switch(currentState) {
     case GO:    // everything enabled
-        steerDriveBrake(HIGH, HIGH, HIGH);
+        steerDrive(HIGH, HIGH);
         stackLights(ON, OFF, OFF);  
         break; 
     case STOP:    // everything disabled
-        steerDriveBrake(LOW, LOW, LOW);
+        steerDrive(LOW, LOW);
         stackLights(OFF, OFF, ON);
         break;
     case LIMITED:    // steering enabled, drive disabled
-        steerDriveBrake(HIGH, LOW, HIGH);
+        steerDrive(HIGH, LOW);
         stackLights(OFF, ON, OFF);
         break;
     }
@@ -276,14 +275,14 @@ void evaluateState(void){
 void setup() {
     pinMode(INT, INPUT);
     pinMode(SAFE_RB, INPUT);
-    pinMode(START_RB, INPUT);
+    pinMode(POWER_IN, INPUT);
     pinMode(SENSOR_1, INPUT);
     pinMode(SENSOR_2, INPUT);
     pinMode(STEERING_IN, INPUT);
     pinMode(DRIVE_IN, INPUT);
     pinMode(STEERING_EN, OUTPUT);
     pinMode(DRIVE_EN, OUTPUT);
-    pinMode(BRAKE_EN, OUTPUT);
+    pinMode(POWER_EN, OUTPUT);
     pinMode(STACK_G, OUTPUT);
     pinMode(STACK_Y, OUTPUT);
     pinMode(STACK_R, OUTPUT);
@@ -293,7 +292,7 @@ void setup() {
     //pinMode(17, OUTPUT);   //Default SS pin as output
     digitalWrite(STEERING_EN, LOW);  // Initially start E-stopped
     digitalWrite(DRIVE_EN, LOW);  // Initially start E-stopped
-    digitalWrite(BRAKE_EN, LOW);  //
+    digitalWrite(POWER_EN, HIGH);  // Initially start with Power
     digitalWrite(STACK_G, HIGH); // change these light settings
     digitalWrite(STACK_Y, HIGH);
     digitalWrite(STACK_R, HIGH); 
@@ -336,10 +335,13 @@ void setup() {
     wdt_enable(WDTO_500MS);
 }
 
+void setPowerEN() {
+    digitalWrite(POWER_EN, digitalRead(POWER_IN));
+}
 
 void loop() {
     wdt_reset();
-    
+    setPowerEN();
     evaluateState();
 
     digitalWrite(LED1, !digitalRead(LED1));
