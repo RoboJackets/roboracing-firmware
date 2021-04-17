@@ -103,7 +103,7 @@ RFM69 radio(RF69_SPI_CS, 3);
 
 #define DRIVE_ENABLE 12
 #define STEERING_ENABLE 6
-#define DIE_PIN 1  //CHANGE THIS
+#define DIE_PIN 8
 
 
 
