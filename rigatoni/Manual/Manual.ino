@@ -67,6 +67,9 @@ unsigned long lastSteeringCommand = 0;
 
 unsigned long lastPrintTime = 0;
 
+//End of startup. Needed so we don't connect for X seconds
+unsigned long endOfStartupTime = 0;
+
 // float value_throttle; For manual throttle, not implemented in this version
 
 /* Ethernet */
@@ -197,9 +200,8 @@ void setup(){
     steeringBoard.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);
     driveBoard.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);
 
-    steeringConnected = steeringBoard.connect(steeringIP, PORT) > 0;
-    driveConnected = driveBoard.connect(steeringIP, PORT) > 0;
-
+    endOfStartupTime = millis();
+    
     // WATCHDOG TIMER
     wdt_reset();
     wdt_enable(WDTO_500MS);
@@ -326,6 +328,12 @@ void readAllNewMessages(){
 }
 
 void sendNewMessages() {
+    if(millis() - endOfStartupTime < MS_AFTER_STARTUP_BEFORE_CLIENT_CONNECT){
+        //Do nothing before MS_AFTER_STARTUP_BEFORE_CLIENT_CONNECT
+        steeringConnected = false;
+        driveConnected = false;
+        return;
+    }
 
     // Steering message send
     steeringConnected = steeringBoard.connected();

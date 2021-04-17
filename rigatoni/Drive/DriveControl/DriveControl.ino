@@ -51,6 +51,9 @@ unsigned long lastManualCommand = 0;
 unsigned long estopRequestSent = 0;
 unsigned long brakeCommandSent = 0;
 
+//End of startup. Needed so we don't connect for X seconds
+unsigned long endOfStartupTime = 0;
+
 //TCP Connection status to brake and estop
 bool estopConnected = false;
 bool brakeConnected = false;
@@ -151,11 +154,10 @@ void setup(){
 
     estopBoard.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);
     brakeBoard.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);
-    
-    estopConnected = estopBoard.connect(estopIP, PORT) > 0;
-    brakeConnected = brakeBoard.connect(brakeIP, PORT) > 0;
 
     attachInterrupt(digitalPinToInterrupt(ENCODER_A_PIN), HallEncoderInterrupt, FALLING);
+    
+    endOfStartupTime = millis();
     
     // WATCHDOG TIMER
     wdt_reset();
@@ -308,6 +310,13 @@ void sendToBrakeEstop(void){
     Checks our connection to the brake and estop and attempts to reconnect if we are disconnected.
     If we are connected and sufficient time has elapsed both from our last request and their last reply, send new request to estop/brake
     */
+    if(millis() - endOfStartupTime < MS_AFTER_STARTUP_BEFORE_CLIENT_CONNECT){
+        //Do nothing before MS_AFTER_STARTUP_BEFORE_CLIENT_CONNECT
+        estopConnected = false;
+        brakeConnected = false;
+        return;
+    }
+    
     brakeConnected = brakeBoard.connected();
     if(!brakeConnected){
         //Lost TCP connection with the brake board. Takes 10 seconds for TCP connection to fail after disconnect.

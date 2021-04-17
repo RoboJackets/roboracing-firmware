@@ -52,6 +52,9 @@ EthernetServer server(PORT);
 EthernetClient estopBoard;
 bool estopConnected = false;
 
+//End of startup. Needed so we don't connect for X seconds
+unsigned long endOfStartupTime = 0;
+
 //Timestamps of our last messages to boards in ms
 unsigned long lastEstopRequest = 0;
 unsigned long lastEstopReply = 0;
@@ -144,7 +147,8 @@ void setup() {
     Serial.println(Ethernet.localIP());
   
     estopBoard.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);
-    estopConnected = estopBoard.connect(estopIP, PORT) > 0;
+    
+    endOfStartupTime = millis();
 
     wdt_reset();
     wdt_enable(WDTO_500MS);
@@ -235,6 +239,12 @@ void resetEthernet() {
 }
 
 void sendToEstop() {
+    if(millis() - endOfStartupTime < MS_AFTER_STARTUP_BEFORE_CLIENT_CONNECT){
+        //Do nothing before MS_AFTER_STARTUP_BEFORE_CLIENT_CONNECT
+        estopConnected = false;
+        return;
+    }
+    
     estopConnected = estopBoard.connected();
     if(!estopConnected){
         //Lost TCP connection with the estop board

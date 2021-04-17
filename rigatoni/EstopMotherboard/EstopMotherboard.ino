@@ -32,13 +32,12 @@ byte remoteState = STOP;
 EthernetServer server(PORT);
 
 // NUC 
-EthernetClient NUC;
-// Time variables to throttle message sends
+const int timeToNucTimeoutMS = 500;
 unsigned long lastNUCReply = 0;
-unsigned long nucRequestSent = 0;
 bool nucConnected = false;
 
 unsigned long lastTimePrintedNucConnFail = 0;
+unsigned long timeAtEndOfStartup = 0;
 
 byte nucState = GO; // Default state GO to operate without NUC connected 
 
@@ -115,12 +114,12 @@ void respondToClient() {
                 currentState = STOP;
                 Serial.print("HARDWARE FAULT: MESSAGE: ");
             }
-            else if(data.equals(nucResponseGo)){
+            else if(client.remoteIP() == nucIP && data.equals(nucResponseGo)){
                 nucState = GO;
                 lastNUCReply = millis();
                 sendStateToClient(client);
             }
-            else if(data.equals(nucResponseHalt)){
+            else if(client.remoteIP() == nucIP && data.equals(nucResponseHalt)){
                 nucState = STOP;
                 lastNUCReply = millis();
                 sendStateToClient(client);
@@ -159,47 +158,6 @@ void sendStateToClient(EthernetClient the_client){
     }
 }
 
-void respondToNUC() {
-    if(NUC.available())
-    {
-        String data = RJNet::readData(NUC);
-        if (data.length() != 0) {
-            if(data.equals(nucResponseGo))
-            {
-                nucState = GO;
-                lastNUCReply = millis();
-            }
-            else if(data.equals(nucResponseHalt))
-            {
-                nucState = STOP;
-                lastNUCReply = millis();
-            }
-            else
-            {
-                Serial.println("INVALID NUC MESSAGE!");
-            }
-        }
-    }
-
-}
-
-void requestNUCState() {
-    nucConnected = NUC.connected();
-    if(!nucConnected){
-        //Lost TCP connection with the NUC. Takes 10 seconds for TCP connection to fail after disconnect.
-        //Takes a very long time to time out
-        NUC.connect(nucIP, PORT);
-    }
-    else
-    {
-        // Checks to make sure messages are not sent too fast
-        if(millis() > lastNUCReply + MIN_MESSAGE_SPACING && millis() > nucRequestSent + MIN_MESSAGE_SPACING){
-            RJNet::sendData(NUC, nucRequestStateMsg);
-            nucRequestSent = millis();
-        } 
-    }
-
-}
 
 void resetEthernet(void){
     //Resets the Ethernet shield
@@ -275,14 +233,12 @@ void evaluateState(void){
 void setup() {
     pinMode(INT, INPUT);
     pinMode(SAFE_RB, INPUT);
-    pinMode(POWER_IN, INPUT);
     pinMode(SENSOR_1, INPUT);
     pinMode(SENSOR_2, INPUT);
     pinMode(STEERING_IN, INPUT);
     pinMode(DRIVE_IN, INPUT);
     pinMode(STEERING_EN, OUTPUT);
     pinMode(DRIVE_EN, OUTPUT);
-    pinMode(POWER_EN, OUTPUT);
     pinMode(STACK_G, OUTPUT);
     pinMode(STACK_Y, OUTPUT);
     pinMode(STACK_R, OUTPUT);
@@ -328,28 +284,21 @@ void setup() {
     Serial.print("Our address: ");
     Serial.println(Ethernet.localIP());
 
-    NUC.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);
-
     // WATCHDOG TIMER
     wdt_reset();
     wdt_enable(WDTO_500MS);
 }
 
-void readPowerEN() {
-    digitalWrite(POWER_EN, !digitalRead(POWER_IN));
-}
-
 void loop() {
     wdt_reset();
-    readPowerEN();
     evaluateState();
 
     digitalWrite(LED1, !digitalRead(LED1));
 
     writeOutCurrentState();
     respondToClient();
-    requestNUCState();
-    respondToNUC();
+    
+    nucConnected = millis() - lastNUCReply < timeToNucTimeoutMS; 
     
     if(!nucConnected && (millis() - 500 > lastTimePrintedNucConnFail)){
         Serial.println("No connection with NUC.");

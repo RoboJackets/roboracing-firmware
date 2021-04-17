@@ -6,6 +6,8 @@
 
 #define MIN_MESSAGE_SPACING 100 //Send messages at 10 Hz
 
+static const int MS_AFTER_STARTUP_BEFORE_CLIENT_CONNECT = 3000;
+
 
 static const IPAddress nucIP(192, 168, 0, 2);
 static const IPAddress estopIP(192, 168, 0, 3);
@@ -21,3 +23,4 @@ const static byte manualMAC[] = {0xDE, 0xAD, 0xBE, 0xEF, 0x06};
 const static byte brakeMAC[] = {0xDE, 0xAD, 0xBE, 0xEF, 0x07};
 
 static const byte PORT = 7;
+
