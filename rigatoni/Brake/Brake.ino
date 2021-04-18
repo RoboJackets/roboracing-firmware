@@ -293,7 +293,7 @@ void goToPosition(){
 
     // Tries to get location, but has a timeout
     while(currentBrakingForce-desiredBrakingForce != 0 && 
-        millis() - startTime < STEPPER_TIMEOUT &&)
+        millis() - startTime < STEPPER_TIMEOUT)
     {
         assignDirection();
         stepperPulse();
