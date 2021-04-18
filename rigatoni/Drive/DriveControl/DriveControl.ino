@@ -98,7 +98,7 @@ float softwareDesiredVelocity = 0;      //What Software is commanding us
 
 //Motor translation parameters
 static const float batteryVoltage = 48.0;
-static const byte maxSpeedPwm = 255;
+static const byte maxSpeedPwm = 130; // Changed to 130 from 255 to scale for motor controller throttle range
 static const byte zeroSpeedPwm = 0; // 100% PWM, 0% Voltage
 
 void setup(){
@@ -187,7 +187,7 @@ void loop() {
         Serial.print("Current speed: ");
         Serial.print(get_speed());
         Serial.print(" Motor Current: ");
-        Serial.println(motorCurrent);
+        Serial.println(motorCurrent - 2); // -2 to account for zero point of the current sensor
         
         lastPrintTime = millis();
     }

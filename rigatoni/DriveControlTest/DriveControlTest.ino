@@ -97,7 +97,7 @@ float softwareDesiredVelocity = 0;      //What Software is commanding us
 
 //Motor translation parameters
 static const float batteryVoltage = 48.0;
-static const byte maxSpeedPwm = 255;
+static const byte maxSpeedPwm = 130;
 static const byte zeroSpeedPwm = 0; // 100% PWM, 0% Voltage
 
 void setup(){
@@ -115,23 +115,23 @@ void setup(){
 
 
     // Motor Pins
-	pinMode(MOTOR_CNTRL_PIN, OUTPUT);
+	  pinMode(MOTOR_CNTRL_PIN, OUTPUT);
     pinMode(FORWARD_OUT_PIN, OUTPUT);
     pinMode(REVERSE_OUT_PIN, OUTPUT);
     writeReversingContactorForward(true); //Start out with reversing contactor going forwards.
 
     // Current Sensing Pins
-	pinMode(CURR_DATA_PIN, INPUT);
+	  pinMode(CURR_DATA_PIN, INPUT);
     
     Serial.begin(115200);
 
 	//********** Ethernet Initialization *************//
-    resetEthernet();
+ //   resetEthernet();
     
-	Ethernet.init(ETH_CS_PIN); 	// CS pin from eth header
-	Ethernet.begin(driveMAC, driveIP); 	// initialize the ethernet device
+//	Ethernet.init(ETH_CS_PIN); 	// CS pin from eth header
+//	Ethernet.begin(driveMAC, driveIP); 	// initialize the ethernet device
     
-	unsigned long loopCounter = 0;
+/*	unsigned long loopCounter = 0;
     while(Ethernet.hardwareStatus() == EthernetNoHardware) {
         digitalWrite(LED2_PIN, loopCounter++ % 4 == 0);
         Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
@@ -153,8 +153,8 @@ void setup(){
 
     estopBoard.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);
     brakeBoard.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);
-
-    attachInterrupt(digitalPinToInterrupt(ENCODER_A_PIN), HallEncoderInterrupt, FALLING);
+*/
+   // attachInterrupt(digitalPinToInterrupt(ENCODER_A_PIN), HallEncoderInterrupt, FALLING);
     
     endOfStartupTime = millis();
     
@@ -168,7 +168,7 @@ void loop() {
     digitalWrite(LED2_PIN, !digitalRead(LED2_PIN));
     
 	// Read new messages from WizNet and make necessary replies
-    readAllNewMessages();
+  //  readAllNewMessages();
 	
     //How long since the last controller execution
     unsigned long currTime = micros();
@@ -178,18 +178,20 @@ void loop() {
     //Calculate current speed
     motorCurrent = getMotorCurrent();
 
-    executeStateMachine(loopTimeStep);
+    writeVoltageToMotor(10);    
+
+//    executeStateMachine(loopTimeStep);
     
     //Print diagnostics
     if (millis() > lastPrintTime + printDelayMs){
         Serial.print("Motor Current: ");
-        Serial.println(motorCurrent);
+        Serial.println(motorCurrent - 2);
         
         lastPrintTime = millis();
     }
     
     //Now make requests to estop and brake
-    sendToBrakeEstop();
+    //sendToBrakeEstop();
 }
 
 ////
@@ -208,7 +210,7 @@ float parseSpeedMessage(const String speedMessage){
     //takes in message from manual and converts it to a float desired speed.
     return speedMessage.substring(2).toFloat();
 }
-
+/*
 void handleSingleClientMessage(EthernetClient otherBoard){
     /*
     Handles a single client with new data. We make no initial distinction about who the otherBoard is - it could be a server connection OR 
@@ -218,7 +220,7 @@ void handleSingleClientMessage(EthernetClient otherBoard){
     Else, see if it is Estop telling us the state
     or Manual telling us the velocity
     or Brake acknowledging a command
-    */
+    /*
     String data = RJNet::readData(otherBoard);  //RJNet handles getting complete message
     otherBoard.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);   //Set connection delay so we don't hang
     
@@ -283,7 +285,7 @@ void handleSingleClientMessage(EthernetClient otherBoard){
 void readAllNewMessages(){
     /*
     Checks the server, brake, and Estop for new messages and deals with them
-    */
+    
     EthernetClient client = server.available();  //if there is a new message from client create client object, otherwise new client object null
     // These look for clients
     while(client){
@@ -300,12 +302,13 @@ void readAllNewMessages(){
         handleSingleClientMessage(estopBoard);
     }
 }
-
+*/
+/*
 void sendToBrakeEstop(void){
     /*
     Checks our connection to the brake and estop and attempts to reconnect if we are disconnected.
     If we are connected and sufficient time has elapsed both from our last request and their last reply, send new request to estop/brake
-    */
+    
     if(millis() - endOfStartupTime < MS_AFTER_STARTUP_BEFORE_CLIENT_CONNECT){
         //Do nothing before MS_AFTER_STARTUP_BEFORE_CLIENT_CONNECT
         estopConnected = false;
@@ -348,17 +351,18 @@ void resetEthernet(void){
     digitalWrite(ETH_RST_PIN, HIGH);
     delay(501);
 }
-
+*/
 ////
 // STATE MACHINE FUNCTIONS
 ////
-
+/*
 void executeStateMachine(float timeSinceLastLoop){ 
     //Check what state we are in at the moment.
     //We are disabled if the motor is disabled, or any of our clients has timed out 
     unsigned long currTime = millis();
-    
+    current_state = STATE_DRIVING_FORWARD;
     //Check if we are connected to all boards
+    
     bool connectedToAllBoards = true;
     if(!brakeConnected){
         Serial.println("Lost brake TCP connection");
@@ -433,26 +437,26 @@ void executeStateMachine(float timeSinceLastLoop){
 		}
 	}
 }
-
+*/
 float gen_control_voltage_brake_force(){
-    return 5;
+    return 0;
 }
-
+/*
 void runStateDisabled(){
     /*
     Motor off, brakes engaged. Don't care what reversing contactor is doing.
-    */
+    
     writeMotorOff();
     desired_braking_force = maxBrakingForce;
     
     //Reset speed filter so we don't have problems coming out of this state
-    reset_controller(get_speed());
+//    reset_controller(get_speed());
 }
 
 void runStateForward(float timestep){
     /*
     Going forward in normal operation.
-    */
+   
     writeReversingContactorForward(true);
     
     float capped_target_speed = max(0, softwareDesiredVelocity);    //If softwareDesiredVelocity < 0, then this is 0, so we will brake in preparation for going backwards
@@ -467,7 +471,7 @@ void runStateReverse(float timestep){
     /*
     Going reversed in normal operation.
     Remeber our controller controls SPEED and disregards direction. So to go backwards we flip the reversing contactor and make the speed positive
-    */
+   
     writeReversingContactorForward(false);
     
     float capped_target_speed = max(0, -softwareDesiredVelocity);    //If softwareDesiredVelocity > 0, then this is 0, so we will brake in preparation for going forwards
@@ -478,7 +482,7 @@ void runStateReverse(float timestep){
     writeVoltageToMotor(desired_motor_voltage);
 }
 
-
+*/
 void writeReversingContactorForward(bool forward){
     /*
     Controls the reversing contactor. True means go forward, False means go backwards
