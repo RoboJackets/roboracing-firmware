@@ -89,12 +89,11 @@ void setup() {
     pinMode(PULSE_PIN, OUTPUT);
 
     digitalWrite(PULSE_PIN, HIGH); // Active LOW
-    digitalWrite(DIR_PIN, HIGH);   // Default CW
+    digitalWrite(DIR_PIN, LOW);   // Default CW
 
     /* Initialization for encoder*/
     pinMode(ETH_RST_PIN, OUTPUT);
     pinMode(ETH_CS_PIN, OUTPUT);
-
 
     Serial.begin(BAUDRATE);
 
@@ -209,7 +208,6 @@ void sendToEstop() {
         return;
     }
 
-
     estopConnected = estopBoard.connected();
     if(!estopConnected){
         //Lost TCP connection with the estop board
@@ -233,10 +231,10 @@ void assignDirection(float goalAngle, float measuredAngle){
     if (abs(goalAngle - measuredAngle) > STEPPER_DEADBAND){      // checks if motor needs to turn before changing direction
         bool setDirPin = HIGH; // setdirPIN to CW or CCW, HIGH is CW, LOW is CCW
         if (goalAngle > measuredAngle){  // CCW
-            setDirPin = LOW;
+            setDirPin = HIGH;
         } 
         else {  // CW
-            setDirPin = HIGH;
+            setDirPin = LOW;
         }
 
         // Only change the pin if necessary
@@ -263,12 +261,15 @@ void limitSwitchCWChange() {
 }
 
 void stepperPulse(){ // rotates stepper motor one step in the currently set direction
-    if(limitSwitchClockGood && limitSwitchCounterClockGood)
+    // Only allow movement if not in the direction that a limit switch is triggered 
+    if((isCWDirection && limitSwitchClockGood) || (!isCWDirection && limitSwitchCounterClockGood))
     {
         digitalWrite(PULSE_PIN, LOW);
         delayMicroseconds(PULSE_DURATION_US);
         digitalWrite(PULSE_PIN, HIGH);
         delayMicroseconds(PULSE_DURATION_US);
+
+        delayMicroseconds(PER_STEP_DELAY_US);
     }
     else
     {
@@ -288,32 +289,25 @@ void goToHome(){
 
     // Once home, now switch to CCW direction to move to center
     isCWDirection = false;
-    digitalWrite(DIR_PIN, LOW);
+    digitalWrite(DIR_PIN, HIGH);
     delayMicroseconds(DIR_DURATION_US);
 
     // Steps to the center
     for(int i = 0; i < STEPPER_CW_LIMIT_TO_ZERO_POS; i++)
     {
         stepperPulse();
-        if(!limitSwitchCounterClockGood)
-        {
-            Serial.println("SHOULD NOT HAVE REACHED LIMIT!");
-            break;
-        }
     }
 
-    Serial.println("Good to go!");
-    
+    Serial.println("Good to go!");   
 }
 
 void goToPosition(){
     unsigned long startTime = millis();
     checkCurrentAngle(); // Check current angle to avoid running if unnecessary
 
+    // Tries to get location
     while(abs(desiredAngle - currentAngle) > STEPPER_DEADBAND && 
-        millis() - startTime < STEPPER_TIMEOUT &&
-        limitSwitchCounterClockGood &&
-        limitSwitchClockGood)
+        millis() - startTime < STEPPER_TIMEOUT)
     {
         assignDirection(desiredAngle, currentAngle);
         stepperPulse();
@@ -328,7 +322,6 @@ void goToPosition(){
         }
 
         checkCurrentAngle();
-        delay(PER_STEP_DELAY_MS);
     }
 }
 

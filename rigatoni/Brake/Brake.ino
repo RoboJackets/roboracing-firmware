@@ -11,7 +11,7 @@
 
 /* Stepper*/ 
 
-#define PER_STEP_DELAY_MS 5 // ms
+#define PER_STEP_DELAY_US 200 // us
 
 static const uint8_t PULSE_DURATION_US = 10; // us 
 static const uint8_t DIR_DURATION_US = 20; // us
@@ -84,7 +84,7 @@ void setup() {
     pinMode(PULSE_PIN, OUTPUT);
 
     digitalWrite(PULSE_PIN, HIGH); // Active LOW
-    digitalWrite(DIR_PIN, HIGH);   // Default CW
+    digitalWrite(DIR_PIN, LOW);   // Default CW
 
     Serial.begin(BAUDRATE);
 
@@ -223,8 +223,8 @@ void assignDirection(){
     if(currentBrakingForce-desiredBrakingForce != 0)
     {
         bool setDirPin = HIGH; // setdirPIN to CW or CCW, HIGH is CW, LOW is CCW
-        if(desiredBrakingForce < currentBrakingForce){      // set dirPIN to CW or CCW
-            setDirPin = HIGH;
+        if(desiredBrakingForce > currentBrakingForce){      // set dirPIN to CW or CCW
+            setDirPin = HIGH;   // CCW
         } else {
             setDirPin = LOW;
         }
@@ -260,6 +260,7 @@ void goToHome()
     }
 
     // Stays CCW since at the "zero" brake
+    Serial.println("Good to go!");
 }
 
 void homeSwitchChange(){
@@ -271,12 +272,14 @@ void limitSwitchChange() {
 }
 
 void stepperPulse(){ // rotates stepper motor one step in the currently set direction
-    if(limitSwitchGood && awayFromHomeSwitch)
+    if((isCWDirection && awayFromHomeSwitch) || (!isCWDirection && limitSwitchGood))
     {
         digitalWrite(PULSE_PIN, LOW);
         delayMicroseconds(PULSE_DURATION_US);
         digitalWrite(PULSE_PIN, HIGH);
         delayMicroseconds(PULSE_DURATION_US);
+
+        delayMicroseconds(PER_STEP_DELAY_US);
     }
     else
     {
@@ -287,10 +290,10 @@ void stepperPulse(){ // rotates stepper motor one step in the currently set dire
 
 void goToPosition(){
     unsigned long startTime = millis();
+
+    // Tries to get location, but has a timeout
     while(currentBrakingForce-desiredBrakingForce != 0 && 
-        millis() - startTime < STEPPER_TIMEOUT &&
-        awayFromHomeSwitch &&
-        limitSwitchGood)
+        millis() - startTime < STEPPER_TIMEOUT &&)
     {
         assignDirection();
         stepperPulse();
@@ -303,6 +306,5 @@ void goToPosition(){
         {
             currentBrakingForce -= 1;
         }
-        delay(PER_STEP_DELAY_MS);
     }
 }
