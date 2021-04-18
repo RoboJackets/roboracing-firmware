@@ -14,7 +14,8 @@
 #define STEPPER_TO_MOTOR_GEAR_RATIO 15.3
 #define PI 3.141592653589793
 
-#define PER_STEP_DELAY_MS 5 // ms
+// TODO determine
+#define PER_STEP_DELAY_US 200 // us
 
 bool steeringEnabled = false;
 static const uint8_t PULSE_DURATION_US = 10; // us 
@@ -30,8 +31,8 @@ volatile bool limitSwitchClockGood = true;
 
 // TODO NEED TO SET STEPPER DISTANCE
 // How many steps from limit switch to center on each side
-static const int STEPPER_CCW_LIMIT_TO_ZERO_POS = 5;
-static const int STEPPER_CW_LIMIT_TO_ZERO_POS = 5;
+static const int STEPPER_CCW_LIMIT_TO_ZERO_POS = 5000;
+static const int STEPPER_CW_LIMIT_TO_ZERO_POS = 5000;
 
 static const float MIN_ANGLE_RADS = -STEPPER_CW_LIMIT_TO_ZERO_POS*STEPPER_STEP_SIZE;
 static const float MAX_ANGLE_RADS = STEPPER_CCW_LIMIT_TO_ZERO_POS*STEPPER_STEP_SIZE;
@@ -92,13 +93,14 @@ void setup() {
     pinMode(ETH_CS_PIN, OUTPUT);
 
 
+    Serial.begin(BAUDRATE);
+
+    while(!Serial);
     /* Initialization for ethernet*/
     resetEthernet();
 
     Ethernet.init(ETH_CS_PIN);  // SCLK pin from eth header
     Ethernet.begin(steeringMAC, steeringIP); // initialize ethernet device
-  
-    Serial.begin(BAUDRATE);
 
     unsigned long loopCounter = 0;
     while (Ethernet.hardwareStatus() == EthernetNoHardware) {
@@ -268,7 +270,7 @@ void stepperPulse(){ // rotates stepper motor one step in the currently set dire
 void goToHome(){
 
     // Default CW
-    while(limitSwitchClockGood )
+    while(limitSwitchClockGood)
     {
         stepperPulse();
     }
