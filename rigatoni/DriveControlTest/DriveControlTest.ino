@@ -1,10 +1,15 @@
+#define ENCODER_OPTIMIZE_INTERRUPTS
+#include <Encoder.h>
 #include "RigatoniNetwork.h"
 #include <avr/wdt.h>
 #include "DriveControlTest.h"
 #include "RJNet.h"
 #include <Ethernet.h>
 
-#define NUM_MAGNETS 24
+#define NUM_HOLES 24
+#define NUM_COUNTS 4
+#define PI 3.14159265 
+#define WHEEL_DIAMETER .3 // meters
 const static float US_PER_SEC = 1000000.0;
 
 
@@ -65,6 +70,13 @@ const static float adcMaxVoltage = 5.0;
 const static float currentSensorAmpsPerVolt = 200.0;
 const static float ampsPerBit = currentSensorAmpsPerVolt*adcMaxVoltage/adcResolution;
 float motorCurrent = 0;                 //Current passing through the motor (can be + or -, depending on direction)
+
+/****************Encoder***********************/
+Encoder encoder(2,0);
+float velocity;
+long oldPosition;
+long newPosition;
+unsigned long previousVelReading;
 
 //Printing timing
 const static int printDelayMs = 1000;
@@ -154,10 +166,10 @@ void setup(){
     estopBoard.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);
     brakeBoard.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);
 */
-   // attachInterrupt(digitalPinToInterrupt(ENCODER_A_PIN), HallEncoderInterrupt, FALLING);
     
     endOfStartupTime = millis();
-    
+    newPosition = encoder.read();
+  
     // WATCHDOG TIMER
     wdt_reset();
     wdt_enable(WDTO_500MS);
@@ -174,11 +186,11 @@ void loop() {
     unsigned long currTime = micros();
     float loopTimeStep = (currTime - lastControllerRunTime)/US_PER_SEC;
     lastControllerRunTime = currTime;
+    writeVoltageToMotor(10);
     
     //Calculate current speed
-    motorCurrent = getMotorCurrent();
-
-    writeVoltageToMotor(10);    
+    motorCurrent = getMotorCurrent(); 
+    getVelocity();
 
 //    executeStateMachine(loopTimeStep);
     
@@ -186,10 +198,11 @@ void loop() {
     if (millis() > lastPrintTime + printDelayMs){
         Serial.print("Motor Current: ");
         Serial.println(motorCurrent - 2);
-        
+        Serial.print("Velocity = ");
+        Serial.println(encoder.read());
         lastPrintTime = millis();
     }
-    
+
     //Now make requests to estop and brake
     //sendToBrakeEstop();
 }
@@ -518,4 +531,16 @@ void writeVoltageToMotor(float voltage){
 float getMotorCurrent(){
     unsigned int rawCurrentBits = analogRead(CURR_DATA_PIN);
     return (ampsPerBit*rawCurrentBits) - currentSensorMidpoint; // 200A/V * current voltage -> gives A
+}
+
+////
+// SPEEDOMETER FUNCTIONS
+////
+
+float getVelocity() {
+    newPosition = encoder.read();
+    if (newPosition != oldPosition) { // We are not stopped
+      velocity = ((newPosition - oldPosition) / (NUM_HOLES * NUM_COUNTS)) * PI * .3 / (millis() - previousVelReading);
+      previousVelReading = millis();
+    }    
 }
