@@ -271,7 +271,7 @@ void goToHome()
     while(awayFromHomeSwitch)
     {
         stepperPulse();
-        delayMicroseconds(500);
+        delayMicroseconds(2000);
     }
 
     // Set to CCW
@@ -341,7 +341,7 @@ int stepperStepsFromHomeForForce(float brakingForce) {
         if(LUTBrakingForce >= brakingForce) {
             //entry i is > than target, i-1 is < target. Linear interpolate
             float LUTBrakingForcePrevEntry = BrakeLUT[i-1][1];
-            return BrakeLUT[i-1][0] + (brakingForce - LUTBrakingForcePrevEntry)/(LUTBrakingForce - LUTBrakingForcePrevEntry) * (BrakeLUT[i][0] - BrakeLUT[i-1][0]);
+            return BrakeLUT[i-1][0] + (brakingForce - LUTBrakingForcePrevEntry) * (BrakeLUT[i][0] - BrakeLUT[i-1][0])/(LUTBrakingForce - LUTBrakingForcePrevEntry);
         }
     }
     return BrakeLUT[BrakeLUTMaxIndex][0];
@@ -357,7 +357,7 @@ float brakingForceFromCurrentPos(int currStepsFromHome){
         if(LUTBrakeSteps >= currStepsFromHome) {
             //entry i is > than target, i-1 is < target. Linear interpolate
             int LUTBrakeStepsPrevEntry = BrakeLUT[i-1][0];
-            return BrakeLUT[i-1][1] + (currStepsFromHome - LUTBrakeStepsPrevEntry)/(LUTBrakeSteps - LUTBrakeStepsPrevEntry) * (BrakeLUT[i][1] - BrakeLUT[i-1][1]);
+            return BrakeLUT[i-1][1] + (currStepsFromHome - LUTBrakeStepsPrevEntry) * (BrakeLUT[i][1] - BrakeLUT[i-1][1])/(LUTBrakeSteps - LUTBrakeStepsPrevEntry);
         }
     }
     return BrakeLUT[BrakeLUTMaxIndex][1];
