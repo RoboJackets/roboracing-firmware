@@ -21,7 +21,6 @@ static const unsigned long STEPPER_TIMEOUT = 50; // ms
 volatile bool awayFromHomeSwitch = true; // Used for homing
 volatile bool limitSwitchGood = true; // Used for limits of e-stop
 
-
 int desiredBrakeStepsFromHome = 0;
 int currentBrakeStepsFromHome = 0;
 
@@ -55,9 +54,6 @@ const static String estopLimitedMsg = "L";
 const static String estopGoMsg = "G";
 const static String estopRequestMsg = "S?";
 const static String estopSendError = "FAIL";
-
-//True when the car is limited or disabled
-bool engageMaxBraking = true;
 
 void setup() {
     pinMode(LED_PIN, OUTPUT);
@@ -130,15 +126,6 @@ void loop() {
 
     readEthernet();  // check for new angle from ethernet
     
-    if(millis() - lastEstopReply > estopTimeoutMS){
-        Serial.println("Estop timed out; max braking");
-        desiredBrakeStepsFromHome = MAX_STEPPER_POSITION_FROM_HOME;
-    }
-    else if(engageMaxBraking){
-        Serial.println("Estop ordered max braking");
-        desiredBrakeStepsFromHome = MAX_STEPPER_POSITION_FROM_HOME;
-    }
-    
     if(limitSwitchGood)
     {
         goToPosition();
@@ -185,15 +172,7 @@ void readEthernet(){
                     int desiredBrakingForce = constrain(data.substring(2).toInt(), 0, MAX_COMMAND_FORCE);
                     desiredBrakeStepsFromHome = stepperStepsFromHomeForForce(brakingForceFromCurrentPos(desiredBrakingForce));
                     RJNet::sendData(client, ackMsg);
-                    Serial.println("R");
                 }
-            }
-            else if(otherIP == estopIP)
-            {
-                engageMaxBraking = data.equals(estopStopMsg);
-                lastEstopReply = millis();
-                Serial.print("Estop: Max braking? ");
-                Serial.println(engageMaxBraking);
             }
         }
         else {
@@ -251,7 +230,7 @@ void assignDirection(){
         if(desiredBrakeStepsFromHome > currentBrakeStepsFromHome){      // set dirPIN to CW or CCW
             setDirPin = HIGH;   // CCW
         } else {
-            setDirPin = LOW;
+            setDirPin = LOW;    // CW
         }
 
         // Only change the pin if necessary
@@ -271,7 +250,7 @@ void goToHome()
     while(awayFromHomeSwitch)
     {
         stepperPulse();
-        delayMicroseconds(500);
+        delayMicroseconds(500); // Extra small delay for homing
     }
 
     // Set to CCW
@@ -283,7 +262,7 @@ void goToHome()
     while(!awayFromHomeSwitch)
     {
         stepperPulse();
-        delayMicroseconds(500);
+        delayMicroseconds(500); // Extra small delay for homing
     }
     currentBrakeStepsFromHome = 0;
     // Stays CCW since at the "zero" brake
@@ -322,7 +301,6 @@ void goToPosition(){
     while(currentBrakeStepsFromHome-desiredBrakeStepsFromHome != 0 && millis() - startTime < STEPPER_TIMEOUT){
         assignDirection();
         stepperPulse();
-        // TODO verify direction
         if(isCWDirection) {
             currentBrakeStepsFromHome += 1;
         }
