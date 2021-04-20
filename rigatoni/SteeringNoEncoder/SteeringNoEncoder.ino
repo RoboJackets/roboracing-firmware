@@ -15,7 +15,7 @@
 #define PI 3.141592653589793
 
 // TODO determine
-#define PER_STEP_DELAY_US 200 // us
+#define PER_STEP_DELAY_US 600 // us
 
 bool steeringEnabled = false;
 static const uint8_t PULSE_DURATION_US = 10; // us 
@@ -31,8 +31,8 @@ volatile bool limitSwitchClockGood = true;
 
 // TODO NEED TO SET STEPPER DISTANCE
 // How many steps from limit switch to center on each side
-static const int STEPPER_CCW_LIMIT_TO_ZERO_POS = 5000;
-static const int STEPPER_CW_LIMIT_TO_ZERO_POS = 5000;
+static const int STEPPER_CCW_LIMIT_TO_ZERO_POS = 1700;
+static const int STEPPER_CW_LIMIT_TO_ZERO_POS = 1700;
 
 static const float MIN_ANGLE_RADS = -STEPPER_CW_LIMIT_TO_ZERO_POS*STEPPER_STEP_SIZE;
 static const float MAX_ANGLE_RADS = STEPPER_CCW_LIMIT_TO_ZERO_POS*STEPPER_STEP_SIZE;
@@ -90,6 +90,8 @@ void setup() {
 
     digitalWrite(PULSE_PIN, HIGH); // Active LOW
     digitalWrite(DIR_PIN, LOW);   // Default CW
+
+    isCWDirection = true;
 
     /* Initialization for encoder*/
     pinMode(ETH_RST_PIN, OUTPUT);

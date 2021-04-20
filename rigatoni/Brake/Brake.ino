@@ -271,18 +271,19 @@ void goToHome()
     while(awayFromHomeSwitch)
     {
         stepperPulse();
-        delayMicroseconds(2000);
+        delayMicroseconds(500);
     }
 
     // Set to CCW
     isCWDirection = false;
-    digitalWrite(DIR_PIN, LOW);
+    digitalWrite(DIR_PIN, HIGH);
     delayMicroseconds(DIR_DURATION_US);
     
     // Step away CCW until off home switch
     while(!awayFromHomeSwitch)
     {
         stepperPulse();
+        delayMicroseconds(500);
     }
     currentBrakeStepsFromHome = 0;
     // Stays CCW since at the "zero" brake
