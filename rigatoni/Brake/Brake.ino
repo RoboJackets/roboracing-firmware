@@ -1,4 +1,5 @@
 #include "Brake.h"
+#include "BrakeLUT.h"
 #include "RigatoniNetwork.h"
 #include "RJNet.h"
 #include <Ethernet.h>
@@ -20,11 +21,9 @@ static const unsigned long STEPPER_TIMEOUT = 50; // ms
 volatile bool awayFromHomeSwitch = true; // Used for homing
 volatile bool limitSwitchGood = true; // Used for limits of e-stop
 
-// TODO check max steps
-static const int MAX_STEP = 10;
 
-int desiredBrakingForce = 0;
-int currentBrakingForce = 0;
+int desiredBrakeStepsFromHome = 0;
+int currentBrakeStepsFromHome = 0;
 
 bool isCWDirection = true;
 
@@ -77,6 +76,7 @@ void setup() {
     {
         Serial.println("LIMIT SWITCH FAULT!");
         delay(100);
+        limitSwitchGood = !digitalRead(LIMIT_SWITCH_PIN);
     }
 
     /* Initialization for stepper*/
@@ -122,15 +122,39 @@ void setup() {
     wdt_enable(WDTO_500MS);
 }
 
+unsigned long lastPrintTime = 0;
+
 void loop() {
     wdt_reset();
     digitalWrite(LED_PIN, !digitalRead(LED_PIN));
 
     readEthernet();  // check for new angle from ethernet
-
+    
+    if(millis() - lastEstopReply > estopTimeoutMS){
+        Serial.println("Estop timed out; max braking");
+        desiredBrakeStepsFromHome = MAX_STEPPER_POSITION_FROM_HOME;
+    }
+    else if(engageMaxBraking){
+        Serial.println("Estop ordered max braking");
+        desiredBrakeStepsFromHome = MAX_STEPPER_POSITION_FROM_HOME;
+    }
+    
     if(limitSwitchGood)
     {
         goToPosition();
+    }
+    else {
+        Serial.println("Limit switch fault; holding position");
+    }
+    
+    if(millis() - lastPrintTime > 500){
+        lastPrintTime = millis();
+        Serial.print("Desired stepper position: ");
+        Serial.print(desiredBrakeStepsFromHome);
+        Serial.print(" Current stepper position: ");
+        Serial.print(currentBrakeStepsFromHome);
+        Serial.print(" Current stepper force: ");
+        Serial.println(brakingForceFromCurrentPos(currentBrakeStepsFromHome));
     }
   
     sendToEstop();
@@ -151,14 +175,15 @@ void readEthernet(){
         if (data.length() != 0) {   // if data exists
             if(data.substring(0,2).equals(brakeForceRequestMsg))
             {
-                String reply = "F=" + String(currentBrakingForce);  // reply with F=force
+                String reply = "F=" + String(currentBrakeStepsFromHome);  // reply with F=force
                 RJNet::sendData(client, reply);
             }
             else if(otherIP == driveIP)
             {
                 if (data.substring(0,2).equals(driveStringHeader)){    // if client is giving us new angle in the form of S=$float
                     // TODO These should be changed to forces
-                    desiredBrakingForce = constrain(data.substring(2).toInt(), 0, MAX_STEP);
+                    int desiredBrakingForce = constrain(data.substring(2).toInt(), 0, MAX_COMMAND_FORCE);
+                    desiredBrakeStepsFromHome = stepperStepsFromHomeForForce(brakingForceFromCurrentPos(desiredBrakingForce));
                     RJNet::sendData(client, ackMsg);
                     Serial.println("R");
                 }
@@ -220,10 +245,10 @@ void sendToEstop() {
 /* For setting direction of stepper motor */
 // TODO CHECK functionality
 void assignDirection(){      
-    if(currentBrakingForce-desiredBrakingForce != 0)
+    if(currentBrakeStepsFromHome-desiredBrakeStepsFromHome != 0)
     {
         bool setDirPin = HIGH; // setdirPIN to CW or CCW, HIGH is CW, LOW is CCW
-        if(desiredBrakingForce > currentBrakingForce){      // set dirPIN to CW or CCW
+        if(desiredBrakeStepsFromHome > currentBrakeStepsFromHome){      // set dirPIN to CW or CCW
             setDirPin = HIGH;   // CCW
         } else {
             setDirPin = LOW;
@@ -246,6 +271,7 @@ void goToHome()
     while(awayFromHomeSwitch)
     {
         stepperPulse();
+        delayMicroseconds(500);
     }
 
     // Set to CCW
@@ -258,7 +284,7 @@ void goToHome()
     {
         stepperPulse();
     }
-
+    currentBrakeStepsFromHome = 0;
     // Stays CCW since at the "zero" brake
     Serial.println("Good to go!");
 }
@@ -292,19 +318,47 @@ void goToPosition(){
     unsigned long startTime = millis();
 
     // Tries to get location, but has a timeout
-    while(currentBrakingForce-desiredBrakingForce != 0 && 
-        millis() - startTime < STEPPER_TIMEOUT)
-    {
+    while(currentBrakeStepsFromHome-desiredBrakeStepsFromHome != 0 && millis() - startTime < STEPPER_TIMEOUT){
         assignDirection();
         stepperPulse();
         // TODO verify direction
-        if(isCWDirection)
-        {
-            currentBrakingForce += 1;
+        if(isCWDirection) {
+            currentBrakeStepsFromHome += 1;
         }
-        else
-        {
-            currentBrakingForce -= 1;
+        else {
+            currentBrakeStepsFromHome -= 1;
         }
     }
+}
+
+int stepperStepsFromHomeForForce(float brakingForce) {
+    if(brakingForce <= 0) {
+        return BrakeLUT[0][0];
+    }
+
+    for(byte i = 1; i < BrakeLUTLength; i++) {
+        float LUTBrakingForce = BrakeLUT[i][1];
+        if(LUTBrakingForce >= brakingForce) {
+            //entry i is > than target, i-1 is < target. Linear interpolate
+            float LUTBrakingForcePrevEntry = BrakeLUT[i-1][1];
+            return BrakeLUT[i-1][0] + (brakingForce - LUTBrakingForcePrevEntry)/(LUTBrakingForce - LUTBrakingForcePrevEntry) * (BrakeLUT[i][0] - BrakeLUT[i-1][0]);
+        }
+    }
+    return BrakeLUT[BrakeLUTMaxIndex][0];
+}
+
+float brakingForceFromCurrentPos(int currStepsFromHome){
+    if(currStepsFromHome <= 0) {
+        return BrakeLUT[0][1];
+    }
+
+    for(byte i = 1; i < BrakeLUTLength; i++) {
+        int LUTBrakeSteps = BrakeLUT[i][0];
+        if(LUTBrakeSteps >= currStepsFromHome) {
+            //entry i is > than target, i-1 is < target. Linear interpolate
+            int LUTBrakeStepsPrevEntry = BrakeLUT[i-1][0];
+            return BrakeLUT[i-1][1] + (currStepsFromHome - LUTBrakeStepsPrevEntry)/(LUTBrakeSteps - LUTBrakeStepsPrevEntry) * (BrakeLUT[i][1] - BrakeLUT[i-1][1]);
+        }
+    }
+    return BrakeLUT[BrakeLUTMaxIndex][1];
 }
