@@ -29,15 +29,8 @@ bool isCWDirection = true;
 /* Ethernet */
 EthernetServer server(PORT);
 
-EthernetClient estopBoard;
-bool estopConnected = false;
-
 //End of startup. Needed so we don't connect for X seconds
 unsigned long endOfStartupTime = 0;
-
-//Timestamps of our last messages to boards in ms
-unsigned long lastEstopRequest = 0;
-unsigned long lastEstopReply = 0;
 
 //Universal acknowledge message
 const static String ackMsg = "R";
@@ -109,8 +102,6 @@ void setup() {
     Serial.print("Our address: ");
     Serial.println(Ethernet.localIP());
 
-    estopBoard.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);
-
     goToHome();
 
     endOfStartupTime = millis();
@@ -143,8 +134,6 @@ void loop() {
         Serial.print(" Current stepper force: ");
         Serial.println(brakingForceFromCurrentPos(currentBrakeStepsFromHome));
     }
-  
-    sendToEstop();
 }
 
 void readEthernet(){ 
@@ -189,36 +178,6 @@ void resetEthernet() {
     delay(1);
     digitalWrite(ETH_RST_PIN, HIGH);
     delay(501);
-}
-
-void sendToEstop() {
-    /* Sends a request to Estop for the current car state*/
-    if(millis() - endOfStartupTime < MS_AFTER_STARTUP_BEFORE_CLIENT_CONNECT){
-        //Do nothing before MS_AFTER_STARTUP_BEFORE_CLIENT_CONNECT
-        estopConnected = false;
-        return;
-    }
-    
-    estopConnected = estopBoard.connected();
-    if(!estopConnected){
-        //Lost TCP connection with the estop board
-        estopBoard.connect(estopIP, PORT);
-        Serial.println("Lost connection with estop");
-    }
-    else{
-        //Don't spam server with messages
-        if(millis() > lastEstopReply + MIN_MESSAGE_SPACING && millis() > lastEstopRequest + MIN_MESSAGE_SPACING){
-            if(limitSwitchGood)
-            {
-                RJNet::sendData(estopBoard, estopRequestMsg);
-            }
-            else
-            {
-                RJNet::sendData(estopBoard, estopSendError);
-            }
-            lastEstopRequest = millis();
-        }
-    }
 }
 
 /* For setting direction of stepper motor */
