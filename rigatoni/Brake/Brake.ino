@@ -162,7 +162,7 @@ void readEthernet(){
         if (data.length() != 0) {   // if data exists
             if(data.substring(0,2).equals(brakeForceRequestMsg))
             {
-                String reply = "F=" + String(currentBrakeStepsFromHome);  // reply with F=force
+                String reply = "F=" + String(brakingForceFromCurrentPos(currentBrakeStepsFromHome));  // reply with F=force
                 RJNet::sendData(client, reply);
             }
             else if(otherIP == driveIP)
@@ -170,7 +170,7 @@ void readEthernet(){
                 if (data.substring(0,2).equals(driveStringHeader)){    // if client is giving us new angle in the form of S=$float
                     // TODO These should be changed to forces
                     int desiredBrakingForce = constrain(data.substring(2).toInt(), 0, MAX_COMMAND_FORCE);
-                    desiredBrakeStepsFromHome = stepperStepsFromHomeForForce(brakingForceFromCurrentPos(desiredBrakingForce));
+                    desiredBrakeStepsFromHome = stepperStepsFromHomeForForce((float) desiredBrakingForce);
                     RJNet::sendData(client, ackMsg);
                 }
             }
@@ -311,7 +311,7 @@ void goToPosition(){
 }
 
 int stepperStepsFromHomeForForce(float brakingForce) {
-    if(brakingForce <= 0) {
+    if(brakingForce <= BrakeLUT[0][1]) {
         return BrakeLUT[0][0];
     }
 
@@ -327,7 +327,7 @@ int stepperStepsFromHomeForForce(float brakingForce) {
 }
 
 float brakingForceFromCurrentPos(int currStepsFromHome){
-    if(currStepsFromHome <= 0) {
+    if(currStepsFromHome <= BrakeLUT[0][0]) {
         return BrakeLUT[0][1];
     }
 

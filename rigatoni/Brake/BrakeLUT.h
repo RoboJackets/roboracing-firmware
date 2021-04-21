@@ -4,7 +4,7 @@ Needs to be calibrated; currently I made this up
 */
 const byte BrakeLUTLength = 3;
 const byte BrakeLUTMaxIndex = BrakeLUTLength - 1;
-const double BrakeLUT[BrakeLUTLength][2] = {
+const float BrakeLUT[BrakeLUTLength][2] = {
   {100, 0.0},
   {300, 50},
   {1000, 800}
