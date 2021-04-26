@@ -174,6 +174,8 @@ void evaluateState(void){
     steeringIn = digitalRead(STEERING_IN);
     driveIn = digitalRead(DRIVE_IN);
 
+
+
     // Check remote state
     if(steeringIn && driveIn)
     {
@@ -225,7 +227,16 @@ void evaluateState(void){
             Serial.println("UNEXPECTED STATE!");
         }
 
-    } 
+    }
+    
+    Serial.print("Remote: ");
+    Serial.println(remoteState);
+    
+    Serial.print("NUC: ");
+    Serial.println(nucState);
+
+    Serial.print("Overall: ");
+    Serial.println(currentState);  
 
 }
 

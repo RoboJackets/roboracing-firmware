@@ -228,7 +228,9 @@ void loop() {
     if(millis() - lastNUCCommand > NUC_TIMEOUT_MS){ // Check fail condition timer
         nuc_speed = 0;
         nuc_angle = 0;
+        Serial.println("NUC timed out");
     }
+
     
     if(millis() - 500 > lastPrintTime){
         lastPrintTime = millis();
@@ -256,16 +258,10 @@ void readAllNewMessages(){
         IPAddress clientIP = client.remoteIP();
         client.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);   //Set connection delay so we don't hang
         if (data.length() != 0) {   // if data exists
+            Serial.println(data);
             if (clientIP == nucIP)
             {
-                if (parseValidateSpeedAngleMessage(data) == 0)
-                {  
-                    //New angle + speed command is valid
-                    //parseValidateSpeedAngleMessage sets variables directly
-                    RJNet::sendData(client, ackMsg); // Reply "R"
-                    lastNUCCommand = millis(); // Reset fail condition timer
-                }
-                else if (data.substring(0,2).equals(nucModeRequest))
+                if (data.substring(0,2).equals(nucModeRequest))
                 {
                     String fullReply = "v="+String(rc_speed)+",a="+String(rc_angle)+",m=";
                     if(manual_state)
@@ -276,9 +272,18 @@ void readAllNewMessages(){
                     {
                         fullReply = fullReply + nucAutoMode;
                     }
-
+                    
                     RJNet::sendData(client, fullReply);
                     lastNUCCommand = millis();
+                    Serial.print("Responded with: ");
+                    Serial.println(fullReply);
+                }
+                else if (parseValidateSpeedAngleMessage(data) == 0)
+                {  
+                    //New angle + speed command is valid
+                    //parseValidateSpeedAngleMessage sets variables directly
+                    RJNet::sendData(client, ackMsg); // Reply "R"
+                    lastNUCCommand = millis(); // Reset fail condition timer
                 }
                 else
                 {
