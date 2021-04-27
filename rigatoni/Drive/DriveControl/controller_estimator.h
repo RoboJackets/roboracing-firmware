@@ -24,36 +24,37 @@ static const float controller_accel_limit = 4.5;    //max accel in m/s^2
 static const float velocity_filter_bandwidth = 5;   //Lowpass filter on command velocity. This controls how aggressive the car's response is
 
 //Motor feedforward and PI parameters
-static const float k_m_inv_r_to_u = 2.8451506121016807;
-static const float k_m_inv_r_dot_to_u = 1.93359375;
+static const float k_m_inv_r_to_u = 2.845150612101681;
+static const float k_m_inv_r_dot_to_u = 1.2890625;
 static const float k_m_inv_r_to_x = 1.0;
 
-static const float k_1m = 4.908560325397578;   //P gain
-static const float k_2m = 7.773046874998515;   //I gain
+static const float k_1m = 2.323990012897826;   //P gain
+static const float k_2m = 5.182031249999011;   //I gain
 
 //Brake feedforward and PI parameters
 static const float k_b_inv_r_to_u = -10.0;
-static const float k_b_inv_r_dot_to_u = -150.0;
+static const float k_b_inv_r_dot_to_u = -100.0;
 static const float k_b_inv_r_to_x = 1.0;
 
-static const float k_1b = -591.5;   //P gain
-static const float k_2b = -603;   //I gain
+static const float k_1b = -391;   //P gain
+static const float k_2b = -402;   //I gain
 
 static const float maxBrakingForce = 900.0;    //In Newtons
 
 /*Estimator*/
 //Gain matricies
-static const float L_pos = 39.94333333;
-static const float L_vel = 397.53711112;
+static const float L_pos = 39.91;
+static const float L_vel = 396.209;
 
 //Car physics parameters. THIS ONLY AFFECTS PART OF THE ESTIMATOR. Go back to the ipython notebook and recalculate ALL the gains in this file if you change these.
 static const float d = 10.0;        //Drag in N/(m/s)
 static const float Gr = 64.0/22.0;  //Gear ratio
-static const float m = 150;         //Car mass in kg
+static const float m = 100.0;         //Car mass in kg
 static const float rw = 0.27/2;     //Tire radius in m
 static const float Kt = 0.1260;      //Nm/Amp
 
-static const int num_magnets_on_shaft = 24; //Number of magnets on rear axle. This can change without recalculating other controller parameters
+static const int num_magnets_on_shaft = 24; //Number of encoder ticks per revolution
+
 static const float meters_per_encoder_tick = 2*pi*rw/num_magnets_on_shaft;
 
 //Replacement for std::pair only good for floats
@@ -64,8 +65,7 @@ extern "C" struct FloatPair{
 
 /*Function headers. There are many helper functions not listed here - you don't need to call them!*/
 //Encoder
-extern "C" void HallEncoderInterrupt();                        //Encoder callback
-extern "C" float estimate_vel(float, float, float);     //Estimates velocity. Call this once per loop. Can handle a timestep of 0.0
+extern "C" float estimate_vel(float, float, float, long);     //Estimates velocity. Call this once per loop. Can handle a timestep of 0.0
 extern "C" float get_speed();                                  //Getter function that returns the current velocity
 
 //Controller

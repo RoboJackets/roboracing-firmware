@@ -18,8 +18,6 @@ FloatPair make_float_pair(float first, float second){
 // Encoder measures position and we want speed, so we created an estimator
 ////
 
-volatile unsigned long currEncoderCount = 0;
-
 float est_vel = 0;
 float est_pos = 0;
 
@@ -36,25 +34,24 @@ float trapezoidal_target_velocity = 0;  //trapezoidal interpolation of Software'
 float filtered_target_vel = 0;          //Lowpass filtered version of trapezoidal interpolated velocities
 float filtered_target_accel = 0;
 
-
-////
-// ENCODER FUNCTIONS
-////
-
-void HallEncoderInterrupt(){
-    currEncoderCount++;
-}
-
 ////
 // SPEED ESTIMATOR FUNCTIONS
 // See ipython notebook
 ////
 
-float estimate_vel(float delta_t, float motor_current, float brake_force){
-    //All arguments are in SI units
+float estimate_vel(float delta_t, float motor_current, float brake_force, long currEncoderCount){
+    //All float arguments are in SI units
+    //currEncoderCount is in encoder ticks
     //This updates the global velocity estimate, currentSpeed
     //Use the Forward Euler method
-    //Call this ONCE per loop
+    //Call this ONCE and ONLY ONCE per loop. Use get_speed() if you want to get the speed again.
+    //Beware of max() and min(), which expand to have multiple function calls!
+    /*
+    You MUST zero your encoder count externally when calling this function, ex:
+    long currEncoderCount = myEnc.read();
+    myEnc.write(0);
+    est_speed = estimate_vel(float, float, float, currEncoderCount);
+    */
     float SI_encoder_pos = currEncoderCount * meters_per_encoder_tick;
     float change_in_position = SI_encoder_pos - est_pos;
     
@@ -75,6 +72,7 @@ float get_speed(){
 
 ////
 // MOTOR CONTROLLER FUNCTIONS
+// All these assume you are going forwards: brakes decelerate and motors accelerate!
 ////
 
 //Get current target velocity
@@ -151,9 +149,11 @@ float gen_brake_PI_control_voltage(float brake_force_ref, float vel_ref_b, float
     return brake_force_ref - k_1b * (current_vel - vel_ref_b) - k_2b * err_integral;
 }
 
-FloatPair gen_control_voltage_brake_force(float delta_t, float est_vel, float software_cmd_vel){
+FloatPair gen_control_voltage_brake_force(float delta_t, float est_speed, float software_cmd_vel){
     //The main controller function.
     //Returns (motor voltage, braking force). All arguments are in SI units (seconds, m/s)
+    //Beware that this assumes you are going forward. If (software_cmd_vel > est_speed) we use the brakes. If
+    //If you are in reverse, make est_speed and software_cmd_vel negative
     
     //Get target velocity + accel
     trapezoidal_target_velocity = gen_trapezoidal_vel(delta_t, trapezoidal_target_velocity, software_cmd_vel);
@@ -168,7 +168,7 @@ FloatPair gen_control_voltage_brake_force(float delta_t, float est_vel, float so
     float vel_ref_m = motor_voltage_velocity_ref.second;
     
     //Get voltage command
-    float voltage_command = gen_motor_PI_control_voltage(voltage_ref, vel_ref_m, est_vel, error_integral);
+    float voltage_command = gen_motor_PI_control_voltage(voltage_ref, vel_ref_m, est_speed, error_integral);
     
     //For the brakes
     //Get feedforward reference values
@@ -177,11 +177,11 @@ FloatPair gen_control_voltage_brake_force(float delta_t, float est_vel, float so
     float vel_ref_b = brake_force_velocity_ref.second;
     
     //Get brake force command
-    float brake_force_command = gen_brake_PI_control_voltage(brake_force_ref, vel_ref_b, est_vel, error_integral);
+    float brake_force_command = gen_brake_PI_control_voltage(brake_force_ref, vel_ref_b, est_speed, error_integral);
     brake_force_command = max(brake_force_command, 0);
     
     //Update error integral
-    error_integral += delta_t * (est_vel - filtered_target_vel);
+    error_integral += delta_t * (est_speed - filtered_target_vel);
     
     return make_float_pair(voltage_command, brake_force_command);
 }
