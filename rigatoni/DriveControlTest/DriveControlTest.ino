@@ -6,8 +6,8 @@
 #include "RJNet.h"
 #include <Ethernet.h>
 
-#define NUM_HOLES 24
-#define NUM_COUNTS 4
+#define NUM_HOLES 24.0
+#define NUM_COUNTS 4.0
 #define PI 3.14159265 
 #define WHEEL_DIAMETER .3 // meters
 const static float US_PER_SEC = 1000000.0;
@@ -120,6 +120,7 @@ void setup(){
 
 	// Encoder Pins
 	pinMode(ENCODER_A_PIN, INPUT);
+  pinMode(ENCODER_B_PIN, INPUT);
   
     // LED Pins
 	pinMode(LED2_PIN, OUTPUT);
@@ -186,21 +187,20 @@ void loop() {
     unsigned long currTime = micros();
     float loopTimeStep = (currTime - lastControllerRunTime)/US_PER_SEC;
     lastControllerRunTime = currTime;
-    writeVoltageToMotor(10);
-    
+    writeVoltageToMotor(32);
     //Calculate current speed
     motorCurrent = getMotorCurrent(); 
-    getVelocity();
 
 //    executeStateMachine(loopTimeStep);
     
     //Print diagnostics
     if (millis() > lastPrintTime + printDelayMs){
-        Serial.print("Motor Current: ");
-        Serial.println(motorCurrent - 2);
-        Serial.print("Velocity = ");
-        Serial.println(encoder.read());
-        lastPrintTime = millis();
+     //   Serial.print("Motor Current: ");
+       // Serial.println(motorCurrent - 2);     
+       getVelocity();
+       Serial.print("Velocity = ");
+       Serial.println(velocity);
+       lastPrintTime = millis();
     }
 
     //Now make requests to estop and brake
@@ -538,9 +538,8 @@ float getMotorCurrent(){
 ////
 
 float getVelocity() {
-    newPosition = encoder.read();
-    if (newPosition != oldPosition) { // We are not stopped
-      velocity = ((newPosition - oldPosition) / (NUM_HOLES * NUM_COUNTS)) * PI * .3 / (millis() - previousVelReading);
-      previousVelReading = millis();
-    }    
+    newPosition = encoder.read(); // We are not stopped
+    velocity = ((newPosition - oldPosition) / (NUM_HOLES * NUM_COUNTS)) * ((PI * .3) / ((millis() - previousVelReading)/ 1000));
+    previousVelReading = millis();
+    oldPosition = newPosition;
 }
