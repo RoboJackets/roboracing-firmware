@@ -46,6 +46,8 @@ float estimate_vel(float delta_t, float motor_current, float brake_force, long c
     //Use the Forward Euler method
     //Call this ONCE and ONLY ONCE per loop. Use get_speed() if you want to get the speed again.
     //Beware of max() and min(), which expand to have multiple function calls!
+    //If you are going in reverse, you have to negate motor_current and brake_force. We assume braking force makes velocity
+    //more negative and motor current makes the velocity more positive
     /*
     You MUST zero your encoder count externally when calling this function, ex:
     long currEncoderCount = myEnc.read();
@@ -56,7 +58,6 @@ float estimate_vel(float delta_t, float motor_current, float brake_force, long c
     float change_in_position = SI_encoder_pos - est_pos;
     
     //To prevent floating-point overflow, subtract encoder count from both encoder count AND current position (i.e. shift start point forward by currEncoderCount
-    currEncoderCount = 0;
     est_pos -= SI_encoder_pos;
 
     float new_est_pos = est_pos + delta_t * (est_vel + L_pos*change_in_position);
