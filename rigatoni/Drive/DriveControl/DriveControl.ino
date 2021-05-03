@@ -1,3 +1,5 @@
+#define ENCODER_OPTIMIZE_INTERRUPTS
+#include <Encoder.h>
 #include "RigatoniNetwork.h"
 #include <avr/wdt.h>
 #include "DriveControl.h"
@@ -60,7 +62,7 @@ bool brakeConnected = false;
 
 /****************Current Sensing****************/
 // Current Sensing
-const static float currentSensorMidpoint = 500.0;
+const static float currentSensorMidpoint = 502.0;
 const static int adcResolution = 1024;
 const static float adcMaxVoltage = 5.0;
 const static float currentSensorAmpsPerVolt = 200.0;
@@ -96,24 +98,27 @@ unsigned long lastControllerRunTime = 0;    //Last time the controller and speed
 float desired_braking_force = 0;        //Desired braking force in N (should be >=0)
 float softwareDesiredVelocity = 0;      //What Software is commanding us
 
+Encoder encoder(ENCODER_A_PIN,ENCODER_B_PIN);
+
 //Motor translation parameters
 static const float batteryVoltage = 48.0;
 static const byte maxSpeedPwm = 130; // Changed to 130 from 255 to scale for motor controller throttle range
-static const byte zeroSpeedPwm = 0; // 100% PWM, 0% Voltage
+static const byte zeroSpeedPwm = 0;
+byte desiredPWM = zeroSpeedPwm;   //Throttle setting
 
 void setup(){
     // Ethernet Pins
 	pinMode(ETH_INT_PIN, INPUT);
     pinMode(ETH_RST_PIN, OUTPUT);
     pinMode(ETH_CS_PIN, OUTPUT);
-
-	// Encoder Pins
-	pinMode(ENCODER_A_PIN, INPUT);
   
     // LED Pins
 	pinMode(LED2_PIN, OUTPUT);
     //pinMode(USER_LED_PIN, OUTPUT); TODO doesn't work on v1.0 of board
 
+    // Encoder Pins. You must call this to turn off the pullup resistors encoder library enables
+	pinMode(ENCODER_A_PIN, INPUT);
+    pinMode(ENCODER_B_PIN, INPUT);
 
     // Motor Pins
 	pinMode(MOTOR_CNTRL_PIN, OUTPUT);
@@ -154,14 +159,15 @@ void setup(){
 
     estopBoard.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);
     brakeBoard.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);
-
-    attachInterrupt(digitalPinToInterrupt(ENCODER_A_PIN), HallEncoderInterrupt, FALLING);
     
     endOfStartupTime = millis();
     
     // WATCHDOG TIMER
     wdt_reset();
     wdt_enable(WDTO_500MS);
+    
+    //Reset encoder
+    encoder.write(0);
 }
 
 void loop() {
@@ -178,16 +184,28 @@ void loop() {
     
     //Calculate current speed
     motorCurrent = getMotorCurrent();
-    estimate_vel(loopTimeStep, motorCurrent, desired_braking_force);
+    long encoderTicksSinceLastLoop = encoder.read();
+    encoder.write(0);
+    estimate_vel(loopTimeStep, motorCurrent, desired_braking_force, encoderTicksSinceLastLoop);
 
     executeStateMachine(loopTimeStep);
     
     //Print diagnostics
     if (millis() > lastPrintTime + printDelayMs){
-        Serial.print("Current speed: ");
+        Serial.print("Estop: motor ");
+        Serial.print(motorEnabled ? "enabled" : "disabled");
+        Serial.print(" Manual cmd speed: ");
+        Serial.print(softwareDesiredVelocity);
+        Serial.print(" Filtered target speed: ");
+        Serial.print(get_curr_target_speed());
+        Serial.print(" Throttle: ");
+        Serial.print(desiredPWM);
+        Serial.print(" Brake force: ");
+        Serial.print(desired_braking_force);
+        Serial.print(" Current speed: ");
         Serial.print(get_speed());
         Serial.print(" Motor Current: ");
-        Serial.println(motorCurrent - 2); // -2 to account for zero point of the current sensor
+        Serial.println(motorCurrent);
         
         lastPrintTime = millis();
     }
@@ -240,13 +258,11 @@ void handleSingleClientMessage(EthernetClient otherBoard){
             //Message from Estop board
             motorEnabled = parseEstopMessage(data);
             lastEstopReply = millis();
-            Serial.print("Estop: motor enabled? ");
-            Serial.println(motorEnabled);
         }
         else if(otherIP == brakeIP){
             //Message from brake board, should be acknoweldge
             //Is in form "R=$float", 
-            if(data.substring(0,2).equals(brakeAckHeader)){
+            if(data.substring(0,1).equals(ackMsg)){
                 lastBrakeReply = millis();
             }
             else{
@@ -263,9 +279,6 @@ void handleSingleClientMessage(EthernetClient otherBoard){
                     
                     //Acknowledge receipt of message
                     RJNet::sendData(otherBoard, ackMsg);
-                    
-                    Serial.print("New target speed: ");
-                    Serial.println(softwareDesiredVelocity);
                 }
                 else{
                     Serial.print("Wrong prefix from manual: ");
@@ -443,7 +456,7 @@ void runStateDisabled(){
     Motor off, brakes engaged. Don't care what reversing contactor is doing.
     */
     writeMotorOff();
-    desired_braking_force = maxBrakingForce;
+    desired_braking_force = 200;
     
     //Reset speed filter so we don't have problems coming out of this state
     reset_controller(get_speed());
@@ -496,18 +509,20 @@ void writeReversingContactorForward(bool forward){
 ////
 void writeMotorOff(void){
     //Disables the motor by writing correct voltage
-    analogWrite(MOTOR_CNTRL_PIN, zeroSpeedPwm);
+    desiredPWM = zeroSpeedPwm;
+    analogWrite(MOTOR_CNTRL_PIN, desiredPWM);
 }
 
 void writeVoltageToMotor(float voltage){
     if(voltage > batteryVoltage){
-        analogWrite(MOTOR_CNTRL_PIN, maxSpeedPwm);
+        desiredPWM = maxSpeedPwm;
     }
     else if(voltage < 0){
-        analogWrite(MOTOR_CNTRL_PIN, zeroSpeedPwm);
+        desiredPWM = zeroSpeedPwm;
     }
-    
-    byte desiredPWM = (byte) maxSpeedPwm*voltage/batteryVoltage;
+    else{
+        desiredPWM = (byte) maxSpeedPwm*voltage/batteryVoltage;
+    }
     analogWrite(MOTOR_CNTRL_PIN, desiredPWM);
 }
 

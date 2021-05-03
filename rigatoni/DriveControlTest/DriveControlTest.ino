@@ -187,7 +187,7 @@ void loop() {
     unsigned long currTime = micros();
     float loopTimeStep = (currTime - lastControllerRunTime)/US_PER_SEC;
     lastControllerRunTime = currTime;
-    writeVoltageToMotor(32);
+    writeVoltageToMotor(8);
     //Calculate current speed
     motorCurrent = getMotorCurrent(); 
 
