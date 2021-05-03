@@ -99,7 +99,6 @@ void setup() {
 
     Serial.begin(BAUDRATE);
 
-    while(!Serial);
     /* Initialization for ethernet*/
     resetEthernet();
 

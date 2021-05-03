@@ -65,7 +65,6 @@ void setup() {
     {
         Serial.println("LIMIT SWITCH FAULT!");
         delay(100);
-        limitSwitchGood = !digitalRead(LIMIT_SWITCH_PIN);
     }
 
     /* Initialization for stepper*/
@@ -76,6 +75,8 @@ void setup() {
     digitalWrite(DIR_PIN, LOW);   // Default CW
 
     Serial.begin(BAUDRATE);
+
+    goToHome();
 
     /* Initialization for ethernet*/
     resetEthernet();
@@ -102,8 +103,6 @@ void setup() {
     Serial.print("Our address: ");
     Serial.println(Ethernet.localIP());
 
-    goToHome();
-
     endOfStartupTime = millis();
     wdt_reset();
     wdt_enable(WDTO_500MS);
@@ -116,14 +115,9 @@ void loop() {
     digitalWrite(LED_PIN, !digitalRead(LED_PIN));
 
     readEthernet();  // check for new angle from ethernet
-    
-    if(limitSwitchGood)
-    {
-        goToPosition();
-    }
-    else {
-        Serial.println("Limit switch fault; holding position");
-    }
+
+    goToPosition();
+
     
     if(millis() - lastPrintTime > 500){
         lastPrintTime = millis();
@@ -132,8 +126,11 @@ void loop() {
         Serial.print(" Current stepper position: ");
         Serial.print(currentBrakeStepsFromHome);
         Serial.print(" Current stepper force: ");
-        Serial.println(brakingForceFromCurrentPos(currentBrakeStepsFromHome));
+        Serial.print(brakingForceFromCurrentPos(currentBrakeStepsFromHome));
+        Serial.print(" Our address: ");
+        Serial.println(Ethernet.localIP());
     }
+    delay(5);
 }
 
 void readEthernet(){ 
@@ -181,24 +178,18 @@ void resetEthernet() {
 }
 
 /* For setting direction of stepper motor */
-// TODO CHECK functionality
 void assignDirection(){      
-    if(currentBrakeStepsFromHome-desiredBrakeStepsFromHome != 0)
-    {
-        bool setDirPin = HIGH; // setdirPIN to CW or CCW, HIGH is CW, LOW is CCW
-        if(desiredBrakeStepsFromHome > currentBrakeStepsFromHome){      // set dirPIN to CW or CCW
-            setDirPin = HIGH;   // CCW
-        } else {
-            setDirPin = LOW;    // CW
-        }
-
-        // Only change the pin if necessary
-        if(setDirPin != isCWDirection){
-            isCWDirection = setDirPin;
-            digitalWrite(DIR_PIN, setDirPin);
-            delayMicroseconds(DIR_DURATION_US);
-        }
-    }
+  bool setDirPin = HIGH; // setdirPIN to CW or CCW, HIGH is CW, LOW is CCW
+  if(desiredBrakeStepsFromHome > currentBrakeStepsFromHome){      // set dirPIN to CW or CCW
+    setDirPin = HIGH;   // CCW
+  } else {
+    setDirPin = LOW;    // CW
+  }
+  
+  isCWDirection = setDirPin;
+  digitalWrite(DIR_PIN, setDirPin);
+  delayMicroseconds(DIR_DURATION_US);
+    
 }
 
 // Will attempt to home to 0 brake position
@@ -245,10 +236,27 @@ void stepperPulse(){ // rotates stepper motor one step in the currently set dire
         delayMicroseconds(PULSE_DURATION_US);
 
         delayMicroseconds(PER_STEP_DELAY_US);
+        
+        if(isCWDirection) {
+            currentBrakeStepsFromHome += 1;
+        }
+        else {
+            currentBrakeStepsFromHome -= 1;
+        }
     }
     else
     {
-        Serial.println("At extents!");
+        Serial.print("At extents! ");
+        Serial.print("CW? ");
+        Serial.print(isCWDirection);
+        Serial.print(", HOME: ");
+        Serial.print(awayFromHomeSwitch);
+        Serial.print(", LIMIT: ");
+        Serial.print(limitSwitchGood);
+    }
+
+    if(!awayFromHomeSwitch){
+      currentBrakeStepsFromHome = 0;
     }
 
 }
@@ -256,16 +264,9 @@ void stepperPulse(){ // rotates stepper motor one step in the currently set dire
 void goToPosition(){
     unsigned long startTime = millis();
 
-    // Tries to get location, but has a timeout
     while(currentBrakeStepsFromHome-desiredBrakeStepsFromHome != 0 && millis() - startTime < STEPPER_TIMEOUT){
         assignDirection();
         stepperPulse();
-        if(isCWDirection) {
-            currentBrakeStepsFromHome += 1;
-        }
-        else {
-            currentBrakeStepsFromHome -= 1;
-        }
     }
 }
 
