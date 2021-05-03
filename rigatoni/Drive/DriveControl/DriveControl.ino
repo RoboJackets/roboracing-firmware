@@ -403,16 +403,20 @@ void executeStateMachine(float timeSinceLastLoop){
         if(!motorEnabled || !connectedToAllBoards){
             currentState = STATE_DISABLED_FORWARD;
         }
-        else if(softwareDesiredVelocity < 0 && get_speed() < switch_direction_max_speed){
+        else if(softwareDesiredVelocity < 0 && abs(get_speed()) < switch_direction_max_speed){
             currentState = STATE_DRIVING_REVERSE;
+            //Reset controller to clear error integral
+            reset_controller(0);
         }
     }
     else if(currentState == STATE_DRIVING_REVERSE){
         if(!motorEnabled || !connectedToAllBoards){
             currentState = STATE_DISABLED_REVERSE;
         }
-        else if(softwareDesiredVelocity >= 0 && get_speed() < switch_direction_max_speed){
+        else if(softwareDesiredVelocity >= 0 && abs(get_speed()) < switch_direction_max_speed){
             currentState = STATE_DRIVING_FORWARD;
+            //Reset controller to clear error integral
+            reset_controller(0);
         }
     }
     else if(currentState == STATE_DISABLED_REVERSE){
