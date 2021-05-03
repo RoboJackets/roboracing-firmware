@@ -70,7 +70,7 @@ const static float ampsPerBit = currentSensorAmpsPerVolt*adcMaxVoltage/adcResolu
 float motorCurrent = 0;                 //Current passing through the motor (can be + or -, depending on direction)
 
 //Printing timing
-const static int printDelayMs = 1000;
+const static int printDelayMs = 300;
 unsigned long lastPrintTime = 0;
 
 /*
@@ -184,6 +184,7 @@ void loop() {
     
     //Calculate current speed
     motorCurrent = getMotorCurrent();
+    
     long encoderTicksSinceLastLoop = encoder.read();
     encoder.write(0);
     estimate_vel(loopTimeStep, motorCurrent, desired_braking_force, encoderTicksSinceLastLoop);
@@ -191,7 +192,7 @@ void loop() {
     executeStateMachine(loopTimeStep);
     
     //Print diagnostics
-    if (millis() > lastPrintTime + printDelayMs){
+    if (millis() - lastPrintTime >= printDelayMs){
         Serial.print("Estop: motor ");
         Serial.print(motorEnabled ? "enabled" : "disabled");
         Serial.print(" Manual cmd speed: ");
@@ -492,7 +493,7 @@ void runStateReverse(float timestep){
     float capped_target_speed = max(0, -softwareDesiredVelocity);    //If softwareDesiredVelocity > 0, then this is 0, so we will brake in preparation for going forwards
     
     //controls math here
-    FloatPair voltage_and_braking_force = gen_control_voltage_brake_force(timestep, get_speed(), capped_target_speed);
+    FloatPair voltage_and_braking_force = gen_control_voltage_brake_force(timestep, -get_speed(), capped_target_speed);
     float desired_motor_voltage = voltage_and_braking_force.first;
     desired_braking_force = voltage_and_braking_force.second;
     
