@@ -5,17 +5,17 @@
 #include "RJNet.h"
 
 // PWM limits from RC
-#define PWM_DEADBAND 20
+#define PWM_DEADBAND 40
 
 #define PWM_CH_1_LOWER 1000
-#define PWM_CH_1_MID 1500
+#define PWM_CH_1_MID 1492
 #define PWM_CH_1_UPPER 2040
 
 #define PWM_CH_2_LOWER 1020
-#define PWM_CH_2_MID 1500
+#define PWM_CH_2_MID 1492
 #define PWM_CH_2_UPPER 2040
 
-#define PWM_CH_3_MID 1494
+#define PWM_CH_3_MID 1492
 
 #define MAX_VELOCITY_FORWARD 10 // m/s
 #define MAX_VELOCITY_BACKWARD -2 // m/s
@@ -228,7 +228,7 @@ void loop() {
     if(millis() - lastNUCCommand > NUC_TIMEOUT_MS){ // Check fail condition timer
         nuc_speed = 0;
         nuc_angle = 0;
-        Serial.println("NUC timed out");
+        //Serial.println("NUC timed out");
     }
 
     
@@ -344,7 +344,7 @@ void sendNewMessages() {
     steeringConnected = steeringBoard.connected();
     if (!steeringConnected){
         steeringBoard.connect(steeringIP, PORT);
-        Serial.println("Lost connection with steering");
+       // Serial.println("Lost connection with steering");
     }
     else if (millis() > lastSteeringReply + MIN_MESSAGE_SPACING && millis() > lastSteeringCommand + MIN_MESSAGE_SPACING){
         lastSteeringCommand = millis();
