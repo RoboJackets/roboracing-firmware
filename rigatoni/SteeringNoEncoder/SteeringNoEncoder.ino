@@ -72,6 +72,8 @@ const static String estopRequestMsg = "S?";
 const static String estopSendError = "FAIL";
 
 void setup() {
+    Serial.begin(BAUDRATE);
+
     pinMode(LED_PIN, OUTPUT);
 
     /* Initialization for limit switches*/
@@ -93,11 +95,11 @@ void setup() {
 
     isCWDirection = true;
 
+    goToHome();
+
     /* Initialization for encoder*/
     pinMode(ETH_RST_PIN, OUTPUT);
     pinMode(ETH_CS_PIN, OUTPUT);
-
-    Serial.begin(BAUDRATE);
 
     /* Initialization for ethernet*/
     resetEthernet();
@@ -124,8 +126,6 @@ void setup() {
     Serial.println(Ethernet.localIP());
   
     estopBoard.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);
-
-    goToHome();
 
     endOfStartupTime = millis();
 
@@ -218,7 +218,7 @@ void sendToEstop() {
     else{
         if(millis() > lastEstopReply + MIN_MESSAGE_SPACING && millis() > lastEstopRequest + MIN_MESSAGE_SPACING){
             // TODO May reimplement FAIL in the future
-            RJNet::sendData(estopBoard, estopSendError);
+            RJNet::sendData(estopBoard, ackMsg);
             lastEstopRequest = millis();
         }
     }
