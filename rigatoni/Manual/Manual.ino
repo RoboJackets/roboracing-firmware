@@ -231,6 +231,8 @@ void loop() {
         //Serial.println("NUC timed out");
     }
 
+    //needed to get full pulse
+    delay(50);
     
     if(millis() - 500 > lastPrintTime){
         lastPrintTime = millis();
