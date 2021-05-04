@@ -59,6 +59,11 @@ float estimate_vel(float delta_t, float motor_current, float brake_force, long c
     
     //To prevent floating-point overflow, subtract encoder count from both encoder count AND current position (i.e. shift start point forward by currEncoderCount
     est_pos -= SI_encoder_pos;
+    
+    if(est_vel < 0){
+        //Going backwards, so brakes accelerate not decelerate
+        brake_force = -brake_force;
+    }
 
     float new_est_pos = est_pos + delta_t * (est_vel + L_pos*change_in_position);
     float new_est_vel = est_vel + delta_t * (-d/m*est_vel + Gr*Kt/(m*rw)*motor_current - 1.0/m*brake_force + L_vel*change_in_position);

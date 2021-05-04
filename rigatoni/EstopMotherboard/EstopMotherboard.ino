@@ -19,6 +19,7 @@ const static String genRequestStateMsg = "S?";
 //If we receive this, indicates a hardware failure and we should permanently stop
 const static String hardwareFailure = "FAIL";
 
+IPAddress hardwareFaultIP;   //IP address of thing that sent hardware fault
 bool isPermanentlyStopped = false;
 byte currentState = STOP;  // default state is STOP
 
@@ -111,6 +112,7 @@ void respondToClient() {
             if(data.equals(hardwareFailure))
             {
                 isPermanentlyStopped = true;
+                hardwareFaultIP = client.remoteIP();
                 currentState = STOP;
                 Serial.print("HARDWARE FAULT: MESSAGE: ");
             }
@@ -200,7 +202,8 @@ void evaluateState(void){
     {
         //hardware fault. Permanently stopped.
         currentState = STOP;
-        Serial.println("HARDWARE FAULT!");
+        Serial.print("HARDWARE FAULT ON ");
+        Serial.println(hardwareFaultIP);
     }
     else
     {
