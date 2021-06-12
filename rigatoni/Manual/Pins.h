@@ -21,3 +21,4 @@
 
 const int ETH_INT_PIN = 21; 
 const int ETH_CS_PIN = 4;
+const int ETH_RST_PIN = 10;
