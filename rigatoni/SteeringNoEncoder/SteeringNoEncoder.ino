@@ -4,12 +4,15 @@
 #include <Ethernet.h>
 #include <SPI.h>
 #include <avr/wdt.h>
+#include <AccelStepper.h>
 
 // Notes:
 // Need to connect VDC GND and dir- to common GND
 // Need to have feedback connected to function
 
 /* Stepper*/ 
+
+AccelStepper stepperMotor(AccelStepper::DRIVER, PULSE_PIN, DIR_PIN);
 
 #define STEPPER_TO_MOTOR_GEAR_RATIO 15.3
 #define PI 3.141592653589793
@@ -25,6 +28,8 @@ static const float STEPPER_STEP_SIZE = 0.0020533; // rads
 // Steering deadband to account for discrete stepper
 static const float STEPPER_DEADBAND = 0.005; // rads
 static const unsigned long STEPPER_TIMEOUT = 50; // ms
+static const int MAX_SPEED = 1000; // steps per second.
+static const int ACCEL = 20; // steps per second per second.
 
 volatile bool limitSwitchCounterClockGood = true;
 volatile bool limitSwitchClockGood = true; 
@@ -94,6 +99,10 @@ void setup() {
     digitalWrite(DIR_PIN, LOW);   // Default CW
 
     isCWDirection = true;
+
+    //Verify values in testing with new motor
+    stepperMotor.setMaxSpeed(MAX_SPEED);
+    stepperMotor.setAcceleration(ACCEL);
 
     goToHome();
 
@@ -265,12 +274,7 @@ void stepperPulse(){ // rotates stepper motor one step in the currently set dire
     // Only allow movement if not in the direction that a limit switch is triggered 
     if((isCWDirection && limitSwitchClockGood) || (!isCWDirection && limitSwitchCounterClockGood))
     {
-        digitalWrite(PULSE_PIN, LOW);
-        delayMicroseconds(PULSE_DURATION_US);
-        digitalWrite(PULSE_PIN, HIGH);
-        delayMicroseconds(PULSE_DURATION_US);
-
-        delayMicroseconds(PER_STEP_DELAY_US);
+        stepperMotor.run(); //steps towards relative target position.
     }
     else
     {
@@ -285,48 +289,46 @@ void goToHome(){
     // Default CW
     while(limitSwitchClockGood)
     {
+        stepperMotor.move(1); //sets relative target position to be 1 more than current position.
         stepperPulse();
     }
 
-    // Once home, now switch to CCW direction to move to center
     isCWDirection = false;
-    digitalWrite(DIR_PIN, HIGH);
-    delayMicroseconds(DIR_DURATION_US);
-
-    // Steps to the center
-    for(int i = 0; i < STEPPER_CW_LIMIT_TO_ZERO_POS; i++)
+    stepperMotor.setCurrentPosition(0);
+    
+    //setting target position to get to an absolute position 0 (ie center).
+    stepperMotor.moveTo(-STEPPER_CW_LIMIT_TO_ZERO_POS);
+    
+    //Steps to the center.
+    while(stepperMotor.currentPosition() > -STEPPER_CW_LIMIT_TO_ZERO_POS)
     {
         stepperPulse();
     }
+    stepperMotor.setCurrentPosition(0); // Center position now signified by value 0.
 
     Serial.println("Good to go!");   
 }
 
 void goToPosition(){
     unsigned long startTime = millis();
-    checkCurrentAngle(); // Check current angle to avoid running if unnecessary
 
-    // Tries to get location
-    while(abs(desiredAngle - currentAngle) > STEPPER_DEADBAND && 
-        millis() - startTime < STEPPER_TIMEOUT)
+    long targetPosition = round(desiredAngle / STEPPER_STEP_SIZE);
+    float deadbandStepPos = STEPPER_DEADBAND / STEPPER_STEP_SIZE;
+
+    stepperMotor.moveTo(targetPosition);
+    
+    //if Positive desired Angle/target Position, move CCW
+    //if Negative desired Angle/target Position, move CW
+    isCWDirection = targetPosition > stepperMotor.currentPosition() ? false : true;
+
+    while(abs(targetPosition - stepperMotor.currentPosition()) > deadbandStepPos && 
+      millis() - startTime < STEPPER_TIMEOUT)
     {
-        assignDirection(desiredAngle, currentAngle);
-        stepperPulse();
-        // TODO verify direction
-        if(isCWDirection)
-        {
-            currentStepPos += 1;
-        }
-        else
-        {
-            currentStepPos -= 1;
-        }
-
-        checkCurrentAngle();
+          stepperPulse();
     }
 }
 
 void checkCurrentAngle()
 {
-    currentAngle = float(currentStepPos)*STEPPER_STEP_SIZE;
+    currentAngle = float(stepperMotor.currentPosition())*STEPPER_STEP_SIZE;
 }
