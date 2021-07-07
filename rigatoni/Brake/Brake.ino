@@ -5,18 +5,22 @@
 #include <Ethernet.h>
 #include <SPI.h>
 #include <avr/wdt.h>
-
+#include <AccelStepper.h>
 // Notes:
 // Need to connect VDC GND and dir- to common GND
 // Need to have feedback connected to function
 
 /* Stepper*/ 
 
+AccelStepper stepperMotor(AccelStepper::DRIVER, PULSE_PIN, DIR_PIN);
+
 #define PER_STEP_DELAY_US 200 // us
 
 static const uint8_t PULSE_DURATION_US = 10; // us 
 static const uint8_t DIR_DURATION_US = 20; // us
 static const unsigned long STEPPER_TIMEOUT = 50; // ms
+static const int MAX_SPEED = 1000; // steps per second.
+static const int ACCEL = 20; // steps per second per second.
 
 volatile bool awayFromHomeSwitch = true; // Used for homing
 volatile bool limitSwitchGood = true; // Used for limits of e-stop
@@ -73,6 +77,10 @@ void setup() {
 
     digitalWrite(PULSE_PIN, HIGH); // Active LOW
     digitalWrite(DIR_PIN, LOW);   // Default CW
+
+    //Verify values in testing with new motor
+    stepperMotor.setMaxSpeed(MAX_SPEED);
+    stepperMotor.setAcceleration(ACCEL);
 
     Serial.begin(BAUDRATE);
 
@@ -199,21 +207,22 @@ void goToHome()
     // Default CW    
     while(awayFromHomeSwitch)
     {
+        stepperMotor.move(1); //sets relative target position to be 1 more than current position.
         stepperPulse();
         delayMicroseconds(500); // Extra small delay for homing
     }
 
     // Set to CCW
     isCWDirection = false;
-    digitalWrite(DIR_PIN, HIGH);
-    delayMicroseconds(DIR_DURATION_US);
     
     // Step away CCW until off home switch
     while(!awayFromHomeSwitch)
     {
+        stepperMotor.move(-1); //sets relative target position to be 1 less than current position.
         stepperPulse();
         delayMicroseconds(500); // Extra small delay for homing
     }
+    stepperMotor.setCurrentPosition(0); // Center position now signified by value 0.
     currentBrakeStepsFromHome = 0;
     // Stays CCW since at the "zero" brake
     Serial.println("Good to go!");
@@ -230,19 +239,7 @@ void limitSwitchChange() {
 void stepperPulse(){ // rotates stepper motor one step in the currently set direction
     if((isCWDirection && awayFromHomeSwitch) || (!isCWDirection && limitSwitchGood))
     {
-        digitalWrite(PULSE_PIN, LOW);
-        delayMicroseconds(PULSE_DURATION_US);
-        digitalWrite(PULSE_PIN, HIGH);
-        delayMicroseconds(PULSE_DURATION_US);
-
-        delayMicroseconds(PER_STEP_DELAY_US);
-        
-        if(isCWDirection) {
-            currentBrakeStepsFromHome += 1;
-        }
-        else {
-            currentBrakeStepsFromHome -= 1;
-        }
+        stepperMotor.run(); //steps towards relative target position.
     }
     else
     {
@@ -263,10 +260,13 @@ void stepperPulse(){ // rotates stepper motor one step in the currently set dire
 
 void goToPosition(){
     unsigned long startTime = millis();
-
-    while(currentBrakeStepsFromHome-desiredBrakeStepsFromHome != 0 && millis() - startTime < STEPPER_TIMEOUT){
-        assignDirection();
+    stepperMotor.moveTo(desiredBrakeStepsFromHome);
+    long stepCounter = abs(stepperMotor.currentPosition() - desiredBrakeStepsFromHome);
+    
+    while(stepCounter != 0 && millis() - startTime < STEPPER_TIMEOUT){
         stepperPulse();
+        currentBrakeStepsFromHome = stepperMotor.currentPosition();
+        stepCounter--;
     }
 }
 
