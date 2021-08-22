@@ -152,7 +152,7 @@ void pin_assign(){
 
     // Ethernet pins
     pinMode(ETH_INT_PIN, INPUT);
-    //pinMode(ETH_RST_PIN, INPUT);  NOT POSSIBLE Not connected in current version
+    pinMode(ETH_RST_PIN, INPUT);
     pinMode(ETH_CS_PIN, OUTPUT);
 
     attachInterrupt(digitalPinToInterrupt(CH_1), isr_rising_ch_1, RISING);
@@ -174,8 +174,7 @@ void setup(){
     Serial.begin(115200);
 
     /* Initialization for ethernet*/
-    // NOT POSSIBLE - Reset for ethernet is not broken out on microcontroller
-    // resetEthernet();
+    resetEthernet();
     Ethernet.init(ETH_CS_PIN);  // SCLK pin from eth header
     Ethernet.begin(manualMAC, manualIP); // initialize ethernet device
 
@@ -526,11 +525,10 @@ void evaluate_throttle() {
   value_throttle = map(analogRead(THROTTLE), 0, 1023, 0, 100) / 100.0;
 }*/
 
-//  NOT POSSIBLE ETH Not resetable in current board version
-//void resetEthernet(void){
-//    //Resets the Ethernet shield
-//    digitalWrite(ETH_RST_PIN, LOW);
-//    delay(1);
-//    digitalWrite(ETH_RST_PIN, HIGH);
-//    delay(501);
-//}
+void resetEthernet(void){
+    //Resets the Ethernet shield
+    digitalWrite(ETH_RST_PIN, LOW);
+    delay(1);
+    digitalWrite(ETH_RST_PIN, HIGH);
+    delay(501);
+}
