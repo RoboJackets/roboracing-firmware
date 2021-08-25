@@ -23,13 +23,15 @@ AccelStepper stepperMotor(AccelStepper::DRIVER, PULSE_PIN, DIR_PIN);
 bool steeringEnabled = false;
 static const uint8_t PULSE_DURATION_US = 10; // us 
 static const uint8_t DIR_DURATION_US = 20; // us
+//Motor controller gives us 4x microstepping - 800 steps/rev
 // Stepper changes by 0.1176 degrees (1.8deg of motor / 15.3 gear box)
 static const float STEPPER_STEP_SIZE = 0.0020533; // rads
 // Steering deadband to account for discrete stepper
 static const float STEPPER_DEADBAND = 0.005; // rads
 static const unsigned long STEPPER_TIMEOUT = 50; // ms
-static const int MAX_SPEED = 1000; // steps per second.
-static const int ACCEL = 20; // steps per second per second.
+static const int MAX_SPEED_WHILE_HOMING = 200;
+static const int MAX_SPEED = 8000; // steps per second.
+static const int ACCEL = 4000; // steps per second per second.
 
 volatile bool limitSwitchCounterClockGood = true;
 volatile bool limitSwitchClockGood = true; 
@@ -101,10 +103,15 @@ void setup() {
     isCWDirection = true;
 
     //Verify values in testing with new motor
-    stepperMotor.setMaxSpeed(MAX_SPEED);
+    stepperMotor.setMinPulseWidth(PULSE_DURATION_US);
     stepperMotor.setAcceleration(ACCEL);
 
+    //Set slow speed for going to home
+    stepperMotor.setMaxSpeed(MAX_SPEED_WHILE_HOMING);
     goToHome();
+    
+    //Set full speed for operation
+    stepperMotor.setMaxSpeed(MAX_SPEED);
 
     /* Initialization for encoder*/
     pinMode(ETH_RST_PIN, OUTPUT);
@@ -233,33 +240,6 @@ void sendToEstop() {
     }
 }
 
-/* For setting direction of stepper motor */
-// CCW is positive radians
-// CW is negative radians
-// TODO CHECK functionality 
-void assignDirection(float goalAngle, float measuredAngle){  
-    if (abs(goalAngle - measuredAngle) > STEPPER_DEADBAND){      // checks if motor needs to turn before changing direction
-        bool setDirPin = HIGH; // setdirPIN to CW or CCW, HIGH is CW, LOW is CCW
-        if (goalAngle > measuredAngle){  // CCW
-            setDirPin = HIGH;
-        } 
-        else {  // CW
-            setDirPin = LOW;
-        }
-
-        // Only change the pin if necessary
-        if(setDirPin != isCWDirection){
-            isCWDirection = setDirPin;
-            digitalWrite(DIR_PIN, setDirPin);
-            delayMicroseconds(DIR_DURATION_US);
-        }
-    }
-    else
-    {
-        Serial.println("Close enough for direction");
-    }
-}
-
 // Interrupt called when CCW limit switch changes
 void limitSwitchCCWChange() {
     limitSwitchCounterClockGood = !digitalRead(LIMIT_SWITCH_CCW_PIN);
@@ -285,7 +265,6 @@ void stepperPulse(){ // rotates stepper motor one step in the currently set dire
 // Will attempt to home to 0 steering position
 // KNOWN BEHAVIOR -> Should just loop if motor not enabled / limit switches not responding
 void goToHome(){
-
     // Default CW
     while(limitSwitchClockGood)
     {
@@ -300,7 +279,7 @@ void goToHome(){
     stepperMotor.moveTo(-STEPPER_CW_LIMIT_TO_ZERO_POS);
     
     //Steps to the center.
-    while(stepperMotor.currentPosition() > -STEPPER_CW_LIMIT_TO_ZERO_POS)
+    while(stepperMotor.isRunning())
     {
         stepperPulse();
     }
@@ -321,8 +300,7 @@ void goToPosition(){
     //if Negative desired Angle/target Position, move CW
     isCWDirection = targetPosition > stepperMotor.currentPosition() ? false : true;
 
-    while(abs(targetPosition - stepperMotor.currentPosition()) > deadbandStepPos && 
-      millis() - startTime < STEPPER_TIMEOUT)
+    while(stepperMotor.isRunning() && millis() - startTime < STEPPER_TIMEOUT)
     {
           stepperPulse();
     }
