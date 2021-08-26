@@ -31,9 +31,9 @@ static const float GEAR_RATIO = 15.3*3;
 static const float STEPPER_STEP_SIZE = 2*PI/(STEPS_PER_MOTOR_REV*GEAR_RATIO); //in rads
 
 static const unsigned long STEPPER_TIMEOUT = 50; // ms
-static const int MAX_SPEED_WHILE_HOMING = 800;
-static const int MAX_SPEED = 12000; // steps per second.
-static const int ACCEL = 12000; // steps per second per second.
+static const int MAX_SPEED_WHILE_HOMING = 1000;
+static const int MAX_SPEED = 15000; // steps per second.
+static const int ACCEL = 45000; // steps per second per second.
 
 volatile bool limitSwitchCounterClockGood = true;
 volatile bool limitSwitchClockGood = true; 
@@ -157,6 +157,8 @@ void loop() {
     digitalWrite(LED_PIN, !digitalRead(LED_PIN));
 
     readEthernet();  // check for new angle from ethernet
+    readEstopResponses();
+    
 
     if(steeringEnabled)
     {
@@ -212,25 +214,29 @@ void readEthernet(){
                     Serial.println("Invalid message received from manual");
                 }
             }
-            else if(otherIP == estopIP)
-            {
-                if (!data.equals(estopStopMsg)){   // Covers both limited and go
-                    steeringEnabled = true;
-                }
-                else
-                {
-                    steeringEnabled = false;
-                }
-                lastEstopReply = millis();
-                Serial.print("Estop: steering enabled? ");
-                Serial.println(steeringEnabled);
-            }
+            //Do not read Estop here - it is handled below
         } 
         else {
             Serial.print("Empty/invalid message received from: ");
             Serial.println(otherIP);
         }
         client = server.available();
+    }
+}
+
+void readEstopResponses(){
+    String data = RJNet::readData(estopBoard);  // if i get string from RJNet buffer
+    if (data.length() != 0) {// if data exists
+        if (!data.equals(estopStopMsg)){   // Covers both limited and go
+            steeringEnabled = true;
+        }
+        else
+        {
+            steeringEnabled = false;
+        }
+        lastEstopReply = millis();
+        Serial.print("Estop: steering enabled? ");
+        Serial.println(steeringEnabled);
     }
 }
 
@@ -258,7 +264,6 @@ void sendToEstop() {
     else{
         if(millis() > lastEstopReply + MIN_MESSAGE_SPACING && millis() > lastEstopRequest + MIN_MESSAGE_SPACING){
             // TODO May reimplement FAIL in the future
-            Serial.println("Sent request to estop");
             RJNet::sendData(estopBoard, estopRequestMsg);
             lastEstopRequest = millis();
         }
