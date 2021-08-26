@@ -37,7 +37,7 @@ const int timeToNucTimeoutMS = 500;
 unsigned long lastNUCReply = 0;
 bool nucConnected = false;
 
-unsigned long lastTimePrintedNucConnFail = 0;
+unsigned long lastTimePrintedStatus = 0;
 unsigned long timeAtEndOfStartup = 0;
 
 byte nucState = GO; // Default state GO to operate without NUC connected 
@@ -202,8 +202,6 @@ void evaluateState(void){
     {
         //hardware fault. Permanently stopped.
         currentState = STOP;
-        Serial.print("HARDWARE FAULT ON ");
-        Serial.println(hardwareFaultIP);
     }
     else
     {
@@ -231,16 +229,6 @@ void evaluateState(void){
         }
 
     }
-    
-    Serial.print("Remote: ");
-    Serial.println(remoteState);
-    
-    Serial.print("NUC: ");
-    Serial.println(nucState);
-
-    Serial.print("Overall: ");
-    Serial.println(currentState);  
-
 }
 
 
@@ -313,7 +301,18 @@ void loop() {
     
     nucConnected = millis() - lastNUCReply < timeToNucTimeoutMS; 
     
-    if(!nucConnected && (millis() - 500 > lastTimePrintedNucConnFail)){
-        Serial.println("No connection with NUC.");
+    if(millis() - 500 > lastTimePrintedStatus){
+        lastTimePrintedStatus = millis();
+        if(isPermanentlyStopped){
+            Serial.print("HARDWARE FAULT ON ");
+            Serial.print(hardwareFaultIP);
+        }
+        
+        if(!nucConnected){
+            Serial.print("No connection with NUC. ");
+        }
+        
+        Serial.print("Overall state: ");
+        Serial.println(currentState);
     }
 }
