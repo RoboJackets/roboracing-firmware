@@ -112,9 +112,10 @@ RFM69 radio(RF69_SPI_CS, 3);
 #define RED_LED 9
 
 //Buttons on the controller
+//Swapped Stop and Limited for firmware testing
 #define GO_BUTTON 6
-#define LIMITED_BUTTON 8
-#define STOP_BUTTON 12
+#define LIMITED_BUTTON 12
+#define STOP_BUTTON 8
 
 //Radio reset pin
 #define RADIO_RESET A5 //Not needed for UNO, but doesn't hurt anything
