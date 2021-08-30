@@ -20,7 +20,7 @@
 #define MAX_VELOCITY_FORWARD 10 // m/s
 #define MAX_VELOCITY_BACKWARD -2 // m/s
 
-#define MAX_ANGLE 0.52 // radians
+#define MAX_ANGLE 1.0 // radians
 
 #define NUC_TIMEOUT_MS 1000
 #define STEERING_TIMEOUT_MS 1000

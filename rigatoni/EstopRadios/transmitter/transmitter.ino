@@ -57,7 +57,7 @@ const static uint8_t limitedCode = 'l';
 const static uint8_t goCode = 'g';
 const static byte expectedMessageLength = 1;
 
-uint8_t state = eStopCode;
+uint8_t state = limitedCode;
 
 //Payload is the code (go or stop) to send with the radio.
 const static byte payloadLength = 1;
@@ -112,10 +112,9 @@ RFM69 radio(RF69_SPI_CS, 3);
 #define RED_LED 9
 
 //Buttons on the controller
-//Swapped Stop and Limited for firmware testing
 #define GO_BUTTON 6
-#define LIMITED_BUTTON 12
-#define STOP_BUTTON 8
+#define LIMITED_BUTTON 8
+#define STOP_BUTTON 12
 
 //Radio reset pin
 #define RADIO_RESET A5 //Not needed for UNO, but doesn't hurt anything
