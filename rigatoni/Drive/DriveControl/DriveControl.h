@@ -1,5 +1,5 @@
-#define ENCODER_A_PIN 2	    // ATMEGA32u4 pin PD1, Leonardo pin D2
-#define ENCODER_B_PIN 0	    // ATMEGA32u4 pin PD2, Leonardo pin D0
+#define ENCODER_A_PIN 0	    // ATMEGA32u4 pin PD1, Leonardo pin D2
+#define ENCODER_B_PIN 2	    // ATMEGA32u4 pin PD2, Leonardo pin D0
 
 #define ETH_RST_PIN 1	      // ATMEGA32u4 pin PD3, Leonardo pin D1
 #define ETH_CS_PIN 8        // ATMEGA32u4 pin PB4, Leonardo pin IO8 *JUMPER WIRE TO THIS*

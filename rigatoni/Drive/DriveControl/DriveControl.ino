@@ -7,7 +7,7 @@
 #include "controller_estimator.h"
 #include <Ethernet.h>
 
-#define NUM_MAGNETS 24
+#define NUM_MAGNETS 9
 const static float US_PER_SEC = 1000000.0;
 
 
@@ -73,6 +73,8 @@ float motorCurrent = 0;                 //Current passing through the motor (can
 const static int printDelayMs = 300;
 unsigned long lastPrintTime = 0;
 
+//For printing only
+long totalEncoderTicks = 0;
 /*
 State Machine
 
@@ -188,6 +190,7 @@ void loop() {
     long encoderTicksSinceLastLoop = encoder.read();
     encoder.write(0);
     estimate_vel(loopTimeStep, motorCurrent, desired_braking_force, encoderTicksSinceLastLoop);
+    totalEncoderTicks += encoderTicksSinceLastLoop;
 
     executeStateMachine(loopTimeStep);
     
@@ -205,6 +208,8 @@ void loop() {
         Serial.print(desired_braking_force);
         Serial.print(" Current speed: ");
         Serial.print(get_speed());
+        Serial.print(" Encoder ticks:");
+        Serial.print(totalEncoderTicks);
         Serial.print(" Motor Current: ");
         Serial.println(motorCurrent);
         
@@ -461,7 +466,12 @@ void runStateDisabled(){
     Motor off, brakes engaged. Don't care what reversing contactor is doing.
     */
     writeMotorOff();
-    desired_braking_force = 200;
+    if(abs(get_speed()) > 0.2){
+        desired_braking_force = 200;
+    }
+    else {
+        desired_braking_force = 0;
+    }
     
     //Reset speed filter so we don't have problems coming out of this state
     reset_controller(get_speed());
