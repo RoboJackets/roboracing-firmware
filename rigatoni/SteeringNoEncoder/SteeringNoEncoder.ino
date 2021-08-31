@@ -80,9 +80,6 @@ const static String angleRequestMsg = "A?";
 //Manual RC angle command header
 const static String manualStringHeader = "S=";
 
-//Speed message from Drive
-const static String 
-
 //Possible messages from e-stop
 const static String estopStopMsg = "D";
 const static String estopLimitedMsg = "L";
