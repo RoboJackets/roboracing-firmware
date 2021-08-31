@@ -53,7 +53,7 @@ static const float m = 100.0;         //Car mass in kg
 static const float rw = 0.27/2;     //Tire radius in m
 static const float Kt = 0.1260;      //Nm/Amp
 
-static const int num_magnets_on_shaft = 96; //Number of encoder ticks per revolution
+static const int num_magnets_on_shaft = 36; //Number of encoder ticks per revolution
 
 static const float meters_per_encoder_tick = 2*pi*rw/num_magnets_on_shaft;
 
