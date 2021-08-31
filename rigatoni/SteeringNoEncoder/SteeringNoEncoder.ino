@@ -4,6 +4,7 @@
 #include <Ethernet.h>
 #include <SPI.h>
 #include <avr/wdt.h>
+#include <AccelStepper.h>
 
 // Notes:
 // Need to connect VDC GND and dir- to common GND
@@ -11,28 +12,36 @@
 
 /* Stepper*/ 
 
+AccelStepper stepperMotor(AccelStepper::DRIVER, PULSE_PIN, DIR_PIN);
+
 #define STEPPER_TO_MOTOR_GEAR_RATIO 15.3
 #define PI 3.141592653589793
 
 // TODO determine
 #define PER_STEP_DELAY_US 600 // us
 
-bool steeringEnabled = false;
+bool steeringEnabled = true;
 static const uint8_t PULSE_DURATION_US = 10; // us 
 static const uint8_t DIR_DURATION_US = 20; // us
-// Stepper changes by 0.1176 degrees (1.8deg of motor / 15.3 gear box)
-static const float STEPPER_STEP_SIZE = 0.0020533; // rads
-// Steering deadband to account for discrete stepper
-static const float STEPPER_DEADBAND = 0.005; // rads
+
+//Motor controller gives us 4x microstepping - 800 steps/rev
+static const float STEPS_PER_MOTOR_REV = 800;
+//1:15.3 gear box, 1:3 toothed pulleys
+static const float GEAR_RATIO = 15.3*3;
+static const float STEPPER_STEP_SIZE = 2*PI/(STEPS_PER_MOTOR_REV*GEAR_RATIO); //in rads
+
 static const unsigned long STEPPER_TIMEOUT = 50; // ms
+static const int MAX_SPEED_WHILE_HOMING = 1000;
+static const int MAX_SPEED = 15000; // steps per second.
+static const int ACCEL = 45000; // steps per second per second.
 
 volatile bool limitSwitchCounterClockGood = true;
 volatile bool limitSwitchClockGood = true; 
 
 // TODO NEED TO SET STEPPER DISTANCE
 // How many steps from limit switch to center on each side
-static const int STEPPER_CCW_LIMIT_TO_ZERO_POS = 1700;
-static const int STEPPER_CW_LIMIT_TO_ZERO_POS = 1700;
+static const int STEPPER_CCW_LIMIT_TO_ZERO_POS = 5000;
+static const int STEPPER_CW_LIMIT_TO_ZERO_POS = 5000;
 
 static const float MIN_ANGLE_RADS = -STEPPER_CW_LIMIT_TO_ZERO_POS*STEPPER_STEP_SIZE;
 static const float MAX_ANGLE_RADS = STEPPER_CCW_LIMIT_TO_ZERO_POS*STEPPER_STEP_SIZE;
@@ -95,7 +104,16 @@ void setup() {
 
     isCWDirection = true;
 
+    //Verify values in testing with new motor
+    stepperMotor.setMinPulseWidth(PULSE_DURATION_US);
+    stepperMotor.setAcceleration(ACCEL);
+
+    //Set slow speed for going to home
+    stepperMotor.setMaxSpeed(MAX_SPEED_WHILE_HOMING);
     goToHome();
+    
+    //Set full speed for operation
+    stepperMotor.setMaxSpeed(MAX_SPEED);
 
     /* Initialization for encoder*/
     pinMode(ETH_RST_PIN, OUTPUT);
@@ -132,12 +150,15 @@ void setup() {
     wdt_reset();
     wdt_enable(WDTO_500MS);
 }
- 
+
+unsigned long lastPrintTime = 0;
 void loop() {
     wdt_reset();
     digitalWrite(LED_PIN, !digitalRead(LED_PIN));
 
     readEthernet();  // check for new angle from ethernet
+    readEstopResponses();
+    
 
     if(steeringEnabled)
     {
@@ -145,6 +166,27 @@ void loop() {
     }
 
     sendToEstop();
+    
+    if(millis() - lastPrintTime > 200){
+        lastPrintTime = millis();
+        if(!limitSwitchCounterClockGood){
+            Serial.print("CCW limit hit. ");
+        }
+        if(!limitSwitchClockGood){
+            Serial.print("CW limit hit. ");
+        }
+        
+        if(steeringEnabled){
+            Serial.print("Steering enabled ");
+        }
+        else{
+            Serial.print("Steering DISABLED ");
+        }
+        Serial.print("Target position: ");
+        Serial.print(stepperMotor.targetPosition());
+        Serial.print(" Current position: ");
+        Serial.println(stepperMotor.currentPosition());
+    }
 }
 
 void readEthernet(){ 
@@ -172,25 +214,29 @@ void readEthernet(){
                     Serial.println("Invalid message received from manual");
                 }
             }
-            else if(otherIP == estopIP)
-            {
-                if (!data.equals(estopStopMsg)){   // Covers both limited and go
-                    steeringEnabled = true;
-                }
-                else
-                {
-                    steeringEnabled = false;
-                }
-                lastEstopReply = millis();
-                Serial.print("Estop: steering enabled? ");
-                Serial.println(steeringEnabled);
-            }
+            //Do not read Estop here - it is handled below
         } 
         else {
             Serial.print("Empty/invalid message received from: ");
             Serial.println(otherIP);
         }
         client = server.available();
+    }
+}
+
+void readEstopResponses(){
+    String data = RJNet::readData(estopBoard);  // if i get string from RJNet buffer
+    if (data.length() != 0) {// if data exists
+        if (!data.equals(estopStopMsg)){   // Covers both limited and go
+            steeringEnabled = true;
+        }
+        else
+        {
+            steeringEnabled = false;
+        }
+        lastEstopReply = millis();
+        Serial.print("Estop: steering enabled? ");
+        Serial.println(steeringEnabled);
     }
 }
 
@@ -218,36 +264,9 @@ void sendToEstop() {
     else{
         if(millis() > lastEstopReply + MIN_MESSAGE_SPACING && millis() > lastEstopRequest + MIN_MESSAGE_SPACING){
             // TODO May reimplement FAIL in the future
-            RJNet::sendData(estopBoard, ackMsg);
+            RJNet::sendData(estopBoard, estopRequestMsg);
             lastEstopRequest = millis();
         }
-    }
-}
-
-/* For setting direction of stepper motor */
-// CCW is positive radians
-// CW is negative radians
-// TODO CHECK functionality 
-void assignDirection(float goalAngle, float measuredAngle){  
-    if (abs(goalAngle - measuredAngle) > STEPPER_DEADBAND){      // checks if motor needs to turn before changing direction
-        bool setDirPin = HIGH; // setdirPIN to CW or CCW, HIGH is CW, LOW is CCW
-        if (goalAngle > measuredAngle){  // CCW
-            setDirPin = HIGH;
-        } 
-        else {  // CW
-            setDirPin = LOW;
-        }
-
-        // Only change the pin if necessary
-        if(setDirPin != isCWDirection){
-            isCWDirection = setDirPin;
-            digitalWrite(DIR_PIN, setDirPin);
-            delayMicroseconds(DIR_DURATION_US);
-        }
-    }
-    else
-    {
-        Serial.println("Close enough for direction");
     }
 }
 
@@ -261,16 +280,17 @@ void limitSwitchCWChange() {
     limitSwitchClockGood = !digitalRead(LIMIT_SWITCH_CW_PIN);
 }
 
+bool isStepperGoing(){
+    //Returns True if not at target position.
+    //The built-in .isRunning() also returns True if speed is 0
+    return stepperMotor.distanceToGo() != 0;
+}
+
 void stepperPulse(){ // rotates stepper motor one step in the currently set direction
     // Only allow movement if not in the direction that a limit switch is triggered 
     if((isCWDirection && limitSwitchClockGood) || (!isCWDirection && limitSwitchCounterClockGood))
     {
-        digitalWrite(PULSE_PIN, LOW);
-        delayMicroseconds(PULSE_DURATION_US);
-        digitalWrite(PULSE_PIN, HIGH);
-        delayMicroseconds(PULSE_DURATION_US);
-
-        delayMicroseconds(PER_STEP_DELAY_US);
+        stepperMotor.run(); //steps towards relative target position.
     }
     else
     {
@@ -281,52 +301,48 @@ void stepperPulse(){ // rotates stepper motor one step in the currently set dire
 // Will attempt to home to 0 steering position
 // KNOWN BEHAVIOR -> Should just loop if motor not enabled / limit switches not responding
 void goToHome(){
-
     // Default CW
+    //Go to -infinity and move till we hit the switch
+    stepperMotor.move(-10000000);
     while(limitSwitchClockGood)
     {
         stepperPulse();
     }
 
-    // Once home, now switch to CCW direction to move to center
     isCWDirection = false;
-    digitalWrite(DIR_PIN, HIGH);
-    delayMicroseconds(DIR_DURATION_US);
-
-    // Steps to the center
-    for(int i = 0; i < STEPPER_CW_LIMIT_TO_ZERO_POS; i++)
+    stepperMotor.setCurrentPosition(0);
+    
+    //setting target position to get to an absolute position 0 (ie center).
+    stepperMotor.moveTo(STEPPER_CW_LIMIT_TO_ZERO_POS);
+    
+    //Steps to the center.
+    while(isStepperGoing())
     {
         stepperPulse();
     }
+    stepperMotor.setCurrentPosition(0); // Center position now signified by value 0.
 
     Serial.println("Good to go!");   
 }
 
 void goToPosition(){
     unsigned long startTime = millis();
-    checkCurrentAngle(); // Check current angle to avoid running if unnecessary
 
-    // Tries to get location
-    while(abs(desiredAngle - currentAngle) > STEPPER_DEADBAND && 
-        millis() - startTime < STEPPER_TIMEOUT)
+    long targetPosition = round(desiredAngle / STEPPER_STEP_SIZE);
+
+    stepperMotor.moveTo(targetPosition);
+    
+    //if Positive desired Angle/target Position, move CCW
+    //if Negative desired Angle/target Position, move CW
+    isCWDirection = targetPosition > stepperMotor.currentPosition() ? false : true;
+
+    while(isStepperGoing() && millis() - startTime < STEPPER_TIMEOUT)
     {
-        assignDirection(desiredAngle, currentAngle);
         stepperPulse();
-        // TODO verify direction
-        if(isCWDirection)
-        {
-            currentStepPos += 1;
-        }
-        else
-        {
-            currentStepPos -= 1;
-        }
-
-        checkCurrentAngle();
     }
 }
 
 void checkCurrentAngle()
 {
-    currentAngle = float(currentStepPos)*STEPPER_STEP_SIZE;
+    currentAngle = float(stepperMotor.currentPosition())*STEPPER_STEP_SIZE;
 }

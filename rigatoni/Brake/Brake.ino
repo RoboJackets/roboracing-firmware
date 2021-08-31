@@ -5,14 +5,15 @@
 #include <Ethernet.h>
 #include <SPI.h>
 #include <avr/wdt.h>
+#include <AccelStepper.h>
 
 // Notes:
 // Need to connect VDC GND and dir- to common GND
 // Need to have feedback connected to function
 
 /* Stepper*/ 
+AccelStepper stepperMotor(AccelStepper::DRIVER, PULSE_PIN, DIR_PIN);
 
-#define PER_STEP_DELAY_US 200 // us
 
 static const uint8_t PULSE_DURATION_US = 10; // us 
 static const uint8_t DIR_DURATION_US = 20; // us
@@ -21,7 +22,10 @@ static const unsigned long STEPPER_TIMEOUT = 50; // ms
 volatile bool awayFromHomeSwitch = true; // Used for homing
 volatile bool limitSwitchGood = true; // Used for limits of e-stop
 
-int desiredBrakeStepsFromHome = 0;
+static const int MAX_SPEED_WHILE_HOMING = 100;
+static const int MAX_SPEED = 2000; // steps per second.
+static const int ACCEL = 50000; // steps per second per second.
+
 int currentBrakeStepsFromHome = 0;
 
 bool isCWDirection = true;
@@ -66,6 +70,8 @@ void setup() {
         Serial.println("LIMIT SWITCH FAULT!");
         delay(100);
     }
+    
+    Serial.begin(BAUDRATE);
 
     /* Initialization for stepper*/
     pinMode(DIR_PIN, OUTPUT);
@@ -74,9 +80,16 @@ void setup() {
     digitalWrite(PULSE_PIN, HIGH); // Active LOW
     digitalWrite(DIR_PIN, LOW);   // Default CW
 
-    Serial.begin(BAUDRATE);
+    //Verify values in testing with new motor
+    stepperMotor.setMinPulseWidth(PULSE_DURATION_US);
+    stepperMotor.setAcceleration(ACCEL);
 
+    //Set slow speed for going to home
+    stepperMotor.setMaxSpeed(MAX_SPEED_WHILE_HOMING);
     goToHome();
+    
+    //Set full speed for operation
+    stepperMotor.setMaxSpeed(MAX_SPEED);
 
     /* Initialization for ethernet*/
     resetEthernet();
@@ -122,15 +135,14 @@ void loop() {
     if(millis() - lastPrintTime > 500){
         lastPrintTime = millis();
         Serial.print("Desired stepper position: ");
-        Serial.print(desiredBrakeStepsFromHome);
+        Serial.print(stepperMotor.targetPosition());
         Serial.print(" Current stepper position: ");
-        Serial.print(currentBrakeStepsFromHome);
+        Serial.print(stepperMotor.currentPosition());
         Serial.print(" Current stepper force: ");
-        Serial.print(brakingForceFromCurrentPos(currentBrakeStepsFromHome));
-        Serial.print(" Our address: ");
-        Serial.println(Ethernet.localIP());
+        Serial.println(brakingForceFromCurrentPos(stepperMotor.currentPosition()));
     }
-    delay(5);
+    //Limits top speed to 200/sec regardless
+    //delay(5);
 }
 
 void readEthernet(){ 
@@ -156,7 +168,7 @@ void readEthernet(){
                 if (data.substring(0,2).equals(driveStringHeader)){    // if client is giving us new angle in the form of S=$float
                     // TODO These should be changed to forces
                     int desiredBrakingForce = constrain(data.substring(2).toInt(), 0, MAX_COMMAND_FORCE);
-                    desiredBrakeStepsFromHome = stepperStepsFromHomeForForce((float) desiredBrakingForce);
+                    stepperMotor.moveTo(stepperStepsFromHomeForForce((float) desiredBrakingForce));
                     RJNet::sendData(client, ackMsg);
                 }
             }
@@ -177,46 +189,32 @@ void resetEthernet() {
     delay(501);
 }
 
-/* For setting direction of stepper motor */
-void assignDirection(){      
-  bool setDirPin = HIGH; // setdirPIN to CW or CCW, HIGH is CW, LOW is CCW
-  if(desiredBrakeStepsFromHome > currentBrakeStepsFromHome){      // set dirPIN to CW or CCW
-    setDirPin = HIGH;   // CCW
-  } else {
-    setDirPin = LOW;    // CW
-  }
-  
-  isCWDirection = setDirPin;
-  digitalWrite(DIR_PIN, setDirPin);
-  delayMicroseconds(DIR_DURATION_US);
-    
-}
 
-// Will attempt to home to 0 brake position
-// KNOWN BEHAVIOR -> Should just loop if motor not enabled
-void goToHome()
-{
-    // Default CW    
+// Will attempt to home to 0 steering position
+// KNOWN BEHAVIOR -> Should just loop if motor not enabled / limit switches not responding
+void goToHome(){
+    // Default CW
+    //Go to -infinity and move till we hit the switch
+    stepperMotor.move(-10000000);
     while(awayFromHomeSwitch)
     {
         stepperPulse();
-        delayMicroseconds(500); // Extra small delay for homing
     }
 
-    // Set to CCW
     isCWDirection = false;
-    digitalWrite(DIR_PIN, HIGH);
-    delayMicroseconds(DIR_DURATION_US);
+    stepperMotor.setCurrentPosition(0);
     
-    // Step away CCW until off home switch
+    //setting target position to get to an absolute position 0 (ie center).
+    stepperMotor.move(10000000);
+    
+     // Step away CCW until off home switch
     while(!awayFromHomeSwitch)
     {
         stepperPulse();
-        delayMicroseconds(500); // Extra small delay for homing
     }
-    currentBrakeStepsFromHome = 0;
-    // Stays CCW since at the "zero" brake
-    Serial.println("Good to go!");
+    stepperMotor.setCurrentPosition(0); // Center position now signified by value 0.
+
+    Serial.println("Good to go!");   
 }
 
 void homeSwitchChange(){
@@ -227,45 +225,34 @@ void limitSwitchChange() {
     limitSwitchGood = !digitalRead(LIMIT_SWITCH_PIN);
 }
 
+bool isStepperGoing(){
+    //Returns True if not at target position.
+    //The built-in .isRunning() also returns True if speed is 0
+    return stepperMotor.distanceToGo() != 0;
+}
+
 void stepperPulse(){ // rotates stepper motor one step in the currently set direction
+    // Only allow movement if not in the direction that a limit switch is triggered 
     if((isCWDirection && awayFromHomeSwitch) || (!isCWDirection && limitSwitchGood))
     {
-        digitalWrite(PULSE_PIN, LOW);
-        delayMicroseconds(PULSE_DURATION_US);
-        digitalWrite(PULSE_PIN, HIGH);
-        delayMicroseconds(PULSE_DURATION_US);
-
-        delayMicroseconds(PER_STEP_DELAY_US);
-        
-        if(isCWDirection) {
-            currentBrakeStepsFromHome += 1;
-        }
-        else {
-            currentBrakeStepsFromHome -= 1;
-        }
+        stepperMotor.run(); //steps towards relative target position.
     }
     else
     {
-        Serial.print("At extents! ");
-        Serial.print("CW? ");
-        Serial.print(isCWDirection);
-        Serial.print(", HOME: ");
-        Serial.print(awayFromHomeSwitch);
-        Serial.print(", LIMIT: ");
-        Serial.print(limitSwitchGood);
+        Serial.println("At extents!");
+        //This call sets the current position to the current position
+        //So we don't change the position but we reset the motor speed to 0
+        //since it isn't moving any more.
+        stepperMotor.setCurrentPosition(stepperMotor.currentPosition());
     }
-
-    if(!awayFromHomeSwitch){
-      currentBrakeStepsFromHome = 0;
-    }
-
 }
 
 void goToPosition(){
     unsigned long startTime = millis();
+    
+    isCWDirection = stepperMotor.targetPosition() > stepperMotor.currentPosition() ? false : true;
 
-    while(currentBrakeStepsFromHome-desiredBrakeStepsFromHome != 0 && millis() - startTime < STEPPER_TIMEOUT){
-        assignDirection();
+    while(isStepperGoing() && millis() - startTime < STEPPER_TIMEOUT){
         stepperPulse();
     }
 }
