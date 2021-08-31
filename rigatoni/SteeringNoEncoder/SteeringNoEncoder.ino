@@ -61,6 +61,13 @@ bool estopConnected = false;
 unsigned long lastEstopRequest = 0;
 unsigned long lastEstopReply = 0;
 
+EthernetClient estopBoard;
+bool estopConnected = false;
+
+//Timestamps of our last messages to boards in ms
+unsigned long lastEstopRequest = 0;
+unsigned long lastEstopReply = 0;
+
 //End of startup. Needed so we don't connect for X seconds
 unsigned long endOfStartupTime = 0;
 
@@ -72,6 +79,9 @@ const static String angleRequestMsg = "A?";
 
 //Manual RC angle command header
 const static String manualStringHeader = "S=";
+
+//Speed message from Drive
+const static String 
 
 //Possible messages from e-stop
 const static String estopStopMsg = "D";

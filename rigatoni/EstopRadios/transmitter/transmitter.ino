@@ -57,7 +57,7 @@ const static uint8_t limitedCode = 'l';
 const static uint8_t goCode = 'g';
 const static byte expectedMessageLength = 1;
 
-uint8_t state = limitedCode;
+uint8_t state = eStopCode;
 
 //Payload is the code (go or stop) to send with the radio.
 const static byte payloadLength = 1;
@@ -171,7 +171,7 @@ void setup() {
     digitalWrite(RED_LED, LOW);
 
     wdt_reset();
-    wdt_enable(WDTO_500MS);
+    wdt_enable(WDTO_1S);
 }
 
 bool lastSendSuccessful = false;
