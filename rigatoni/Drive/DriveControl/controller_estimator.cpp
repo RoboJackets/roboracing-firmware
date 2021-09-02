@@ -125,7 +125,7 @@ void reset_controller(float new_speed){
 FloatPair gen_motor_feedforward_reference(float target_vel, float target_accel){
     //Returns (voltage reference in volts, velocity reference in m/s) for motor controller
     if(!USE_FEEDFORWARD_CONTROL){
-        return make_float_pair(0.0, 0.0);
+        return make_float_pair(0.0, target_vel);
     }
     //Generate the feedforward reference commands
     float voltage_ref = k_m_inv_r_to_u * target_vel + k_m_inv_r_dot_to_u * target_accel;
@@ -137,7 +137,7 @@ FloatPair gen_motor_feedforward_reference(float target_vel, float target_accel){
 FloatPair gen_brake_feedforward_reference(float target_vel, float target_accel){
     //Returns (force reference in N, velocity reference in m/s) for brake controller
     if(!USE_FEEDFORWARD_CONTROL){
-        return make_float_pair(0.0, 0.0);
+        return make_float_pair(0.0, target_vel);
     }
     //Generate the feedforward reference commands
     float brake_force_ref = k_b_inv_r_to_u * target_vel + k_b_inv_r_dot_to_u * target_accel;
