@@ -171,7 +171,7 @@ void setup() {
     digitalWrite(RED_LED, LOW);
 
     wdt_reset();
-    wdt_enable(WDTO_1S);
+    wdt_enable(WDTO_500MS);
 }
 
 bool lastSendSuccessful = false;

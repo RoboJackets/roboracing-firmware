@@ -14,11 +14,8 @@
 
 AccelStepper stepperMotor(AccelStepper::DRIVER, PULSE_PIN, DIR_PIN);
 
-#define STEPPER_TO_MOTOR_GEAR_RATIO 15.3
 #define PI 3.141592653589793
 
-// TODO determine
-#define PER_STEP_DELAY_US 600 // us
 
 bool steeringEnabled = true;
 static const uint8_t PULSE_DURATION_US = 10; // us 
@@ -26,22 +23,22 @@ static const uint8_t DIR_DURATION_US = 20; // us
 
 //Motor controller gives us 4x microstepping - 800 steps/rev
 static const float STEPS_PER_MOTOR_REV = 800;
-//1:15.3 gear box, 1:3 toothed pulleys
-static const float GEAR_RATIO = 15.3*3;
+//1:47 gear box, 1:3 toothed pulleys
+static const float GEAR_RATIO = 47*3;
 static const float STEPPER_STEP_SIZE = 2*PI/(STEPS_PER_MOTOR_REV*GEAR_RATIO); //in rads
 
 static const unsigned long STEPPER_TIMEOUT = 50; // ms
-static const int MAX_SPEED_WHILE_HOMING = 1000;
-static const int MAX_SPEED = 15000; // steps per second.
-static const int ACCEL = 45000; // steps per second per second.
+static const int MAX_SPEED_WHILE_HOMING = 30000;
+static const int MAX_SPEED = 150000; // steps per second.
+static const int ACCEL = 400000; // steps per second per second.
 
 volatile bool limitSwitchCounterClockGood = true;
 volatile bool limitSwitchClockGood = true; 
 
 // TODO NEED TO SET STEPPER DISTANCE
 // How many steps from limit switch to center on each side
-static const int STEPPER_CCW_LIMIT_TO_ZERO_POS = 5000;
-static const int STEPPER_CW_LIMIT_TO_ZERO_POS = 5000;
+static const int STEPPER_CCW_LIMIT_TO_ZERO_POS = 15000;
+static const int STEPPER_CW_LIMIT_TO_ZERO_POS = 15000;
 
 static const float MIN_ANGLE_RADS = -STEPPER_CW_LIMIT_TO_ZERO_POS*STEPPER_STEP_SIZE;
 static const float MAX_ANGLE_RADS = STEPPER_CCW_LIMIT_TO_ZERO_POS*STEPPER_STEP_SIZE;
@@ -53,13 +50,6 @@ bool isCWDirection = true;
 
 /* Ethernet */
 EthernetServer server(PORT);
-
-EthernetClient estopBoard;
-bool estopConnected = false;
-
-//Timestamps of our last messages to boards in ms
-unsigned long lastEstopRequest = 0;
-unsigned long lastEstopReply = 0;
 
 EthernetClient estopBoard;
 bool estopConnected = false;

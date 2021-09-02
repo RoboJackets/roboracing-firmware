@@ -77,9 +77,6 @@ void setup() {
     pinMode(DIR_PIN, OUTPUT);
     pinMode(PULSE_PIN, OUTPUT);
 
-    digitalWrite(PULSE_PIN, HIGH); // Active LOW
-    digitalWrite(DIR_PIN, LOW);   // Default CW
-
     //Verify values in testing with new motor
     stepperMotor.setMinPulseWidth(PULSE_DURATION_US);
     stepperMotor.setAcceleration(ACCEL);
@@ -195,7 +192,8 @@ void resetEthernet() {
 void goToHome(){
     // Default CW
     //Go to -infinity and move till we hit the switch
-    stepperMotor.move(-10000000);
+    Serial.println("Going toward switch");
+    stepperMotor.moveTo(-10000000);
     while(awayFromHomeSwitch)
     {
         stepperPulse();
@@ -205,7 +203,9 @@ void goToHome(){
     stepperMotor.setCurrentPosition(0);
     
     //setting target position to get to an absolute position 0 (ie center).
-    stepperMotor.move(10000000);
+    stepperMotor.moveTo(10000000);
+    
+    Serial.println("Hit the switch; moving away");
     
      // Step away CCW until off home switch
     while(!awayFromHomeSwitch)
