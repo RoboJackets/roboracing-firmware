@@ -30,7 +30,7 @@ static const float STEPPER_STEP_SIZE = 2*PI/(STEPS_PER_MOTOR_REV*GEAR_RATIO); //
 static const unsigned long STEPPER_TIMEOUT = 50; // ms
 static const int MAX_SPEED_WHILE_HOMING = 30000;
 static const int MAX_SPEED = 150000; // steps per second.
-static const int ACCEL = 400000; // steps per second per second.
+static const int ACCEL = 800000; // steps per second per second.
 
 volatile bool limitSwitchCounterClockGood = true;
 volatile bool limitSwitchClockGood = true; 
@@ -43,8 +43,6 @@ static const int STEPPER_CW_LIMIT_TO_ZERO_POS = 15000;
 static const float MIN_ANGLE_RADS = -STEPPER_CW_LIMIT_TO_ZERO_POS*STEPPER_STEP_SIZE;
 static const float MAX_ANGLE_RADS = STEPPER_CCW_LIMIT_TO_ZERO_POS*STEPPER_STEP_SIZE;
 
-int currentStepPos = 0; // Stepper steps position
-float currentAngle = 0;
 bool isCWDirection = true;
 
 static const unsigned int COMMAND_CONNECTION_TIMEOUT_MS = 500;  //If we don't get a packet in this long, we assume this board is no longer commanding angle
@@ -171,7 +169,8 @@ void loop() {
     readEthernet();  // check for new angle from ethernet
     readEstopResponses();
     
-
+    stateMachineForCurrentAngle();
+    
     if(steeringEnabled)
     {
         goToPosition();
@@ -228,7 +227,7 @@ void readEthernet(){
         if (data.length() != 0) {// if data exists
             if(data.substring(0,2).equals(angleRequestMsg))
             {
-                String reply = "A=" + String(currentAngle);   // reply with A= currentAngle
+                String reply = "A=" + String(checkCurrentAngle());   // reply with A= currentAngle
                 RJNet::sendData(client, reply);
             }
             else if(otherIP == manualIP){
@@ -245,8 +244,10 @@ void readEthernet(){
                     nucDesiredAngle = constrain(data.substring(2).toFloat(), MIN_ANGLE_RADS, MAX_ANGLE_RADS); // set new angle, convert from str to float
                     lastNUCAngleTime = millis();
                     // reply with A= currentAngle
-                    String reply = "A=" + String(currentAngle);   
+                    String reply = "A=" + String(checkCurrentAngle());   
                     RJNet::sendData(client, reply);
+                    Serial.print("Angle from NUC: ");
+                    Serial.println(nucDesiredAngle);
                 }
                 else {
                     Serial.println("Invalid message received from NUC");
@@ -273,8 +274,6 @@ void readEstopResponses(){
             steeringEnabled = false;
         }
         lastEstopReply = millis();
-        Serial.print("Estop: steering enabled? ");
-        Serial.println(steeringEnabled);
     }
 }
 
@@ -333,6 +332,10 @@ void stepperPulse(){ // rotates stepper motor one step in the currently set dire
     else
     {
         Serial.println("At extents!");
+        //This call sets the current position to the current position
+        //So we don't change the position but we reset the motor speed to 0
+        //since it isn't moving any more.
+        stepperMotor.setCurrentPosition(stepperMotor.currentPosition());
     }
 }
 
@@ -399,7 +402,7 @@ void stateMachineForCurrentAngle(){
     }
 }
 
-void checkCurrentAngle()
+float checkCurrentAngle()
 {
-    currentAngle = float(stepperMotor.currentPosition())*STEPPER_STEP_SIZE;
+    return float(stepperMotor.currentPosition())*STEPPER_STEP_SIZE;
 }

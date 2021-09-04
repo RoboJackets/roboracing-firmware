@@ -331,7 +331,8 @@ void sendNewMessages() {
         else if (millis() > lastDriveCommand + MIN_MESSAGE_SPACING){
             // sending a velocity to the drivebrake board from rc only in manual mode
             lastDriveCommand = millis();
-            RJNet::sendData(driveBoard, manualDriveStringHeader + String(rc_speed)); 
+            RJNet::sendData(driveBoard, manualDriveStringHeader + String(rc_speed));
+            Serial.println("Sent to drive");
         }
     }
 }

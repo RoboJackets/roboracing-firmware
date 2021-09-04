@@ -458,7 +458,7 @@ void executeStateMachine(float timeSinceLastLoop){
     
     //Check who is commanding the speed
     stateMachineForCurrentSpeed();
-    if(whoIsCommandingSpeed = NOBODY){
+    if(whoIsCommandingSpeed == NOBODY){
         //Nobody giving valid speed commands
         connectedToAllBoards = false;
     }

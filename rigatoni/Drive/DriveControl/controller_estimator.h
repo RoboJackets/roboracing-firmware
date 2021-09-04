@@ -21,14 +21,14 @@ static const float switch_direction_max_speed = 0.1;    //Will switch directions
 
 static const float controller_decel_limit = 6;      //maximum deceleration in m/s^2
 static const float controller_accel_limit = 4.5;    //max accel in m/s^2
-static const float velocity_filter_bandwidth = 5;   //Lowpass filter on command velocity. This controls how aggressive the car's response is
+static const float velocity_filter_bandwidth = 10;   //Lowpass filter on command velocity. This controls how aggressive the car's response is
 
 //Motor feedforward and PI parameters
 static const float k_m_inv_r_to_u = 2.845150612101681;
 static const float k_m_inv_r_dot_to_u = 1.2890625;
 static const float k_m_inv_r_to_x = 1.0;
 
-static const float k_1m = 8.00140061;   //P gain. Puts poles at -4.
+static const float k_1m = 16; //8.00140061;   //P gain. Puts poles at -4.
 static const float k_2m = 0;   //I gain. Setting to 0 disables I for the motor
 
 //Brake feedforward and PI parameters
@@ -36,7 +36,7 @@ static const float k_b_inv_r_to_u = -10.0;
 static const float k_b_inv_r_dot_to_u = -100.0;
 static const float k_b_inv_r_to_x = 1.0;
 
-static const float k_1b = -410;   //P gain. Puts poles at -4.
+static const float k_1b = 800; //-410;   //P gain. Puts poles at -4.
 static const float k_2b = 0;   //I gain. Setting to 0 disables I for the brakes
 
 static const float maxBrakingForce = 900.0;    //In Newtons
