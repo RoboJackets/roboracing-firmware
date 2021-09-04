@@ -45,8 +45,19 @@ static const float MAX_ANGLE_RADS = STEPPER_CCW_LIMIT_TO_ZERO_POS*STEPPER_STEP_S
 
 int currentStepPos = 0; // Stepper steps position
 float currentAngle = 0;
-float desiredAngle = 0;
 bool isCWDirection = true;
+
+static const unsigned int COMMAND_CONNECTION_TIMEOUT_MS = 500;  //If we don't get a packet in this long, we assume this board is no longer commanding angle
+float desiredAngle = 0;     //This will be nucDesiredAngle or manualDesiredAngle depending on 
+float nucDesiredAngle = 0;
+float manualDesiredAngle = 0;
+
+enum currentAngleCommander{
+    MANUAL,
+    NUC,
+    NOBODY
+};
+currentAngleCommander whoIsCommandingAngle = NOBODY;
 
 /* Ethernet */
 EthernetServer server(PORT);
@@ -58,6 +69,10 @@ bool estopConnected = false;
 unsigned long lastEstopRequest = 0;
 unsigned long lastEstopReply = 0;
 
+//Timestamps of the last messages from NUC and manual in MS
+unsigned long lastNUCAngleTime = 0;
+unsigned long lastManualAngleTime = 0;
+
 //End of startup. Needed so we don't connect for X seconds
 unsigned long endOfStartupTime = 0;
 
@@ -68,7 +83,7 @@ const static String ackMsg = "R";
 const static String angleRequestMsg = "A?";
 
 //Manual RC angle command header
-const static String manualStringHeader = "S=";
+const static String angleCommandHeader = "S=";
 
 //Possible messages from e-stop
 const static String estopStopMsg = "D";
@@ -164,7 +179,7 @@ void loop() {
 
     sendToEstop();
     
-    if(millis() - lastPrintTime > 200){
+    if(millis() - lastPrintTime > 500){
         lastPrintTime = millis();
         if(!limitSwitchCounterClockGood){
             Serial.print("CCW limit hit. ");
@@ -179,6 +194,20 @@ void loop() {
         else{
             Serial.print("Steering DISABLED ");
         }
+        
+        Serial.print("Steering angle from: ");
+        switch (whoIsCommandingAngle){
+            case MANUAL:
+                Serial.print("Manual. ");
+                break;
+            case NUC:
+                Serial.print("NUC. ");
+                break;
+            case NOBODY:
+                Serial.print("Nobody. ");
+                break;
+        }
+        
         Serial.print("Target position: ");
         Serial.print(stepperMotor.targetPosition());
         Serial.print(" Current position: ");
@@ -203,12 +232,24 @@ void readEthernet(){
                 RJNet::sendData(client, reply);
             }
             else if(otherIP == manualIP){
-                if (data.substring(0,2).equals(manualStringHeader)){    // if client is giving us new angle in the form of S=$float
-                    desiredAngle = constrain(data.substring(2).toFloat(), MIN_ANGLE_RADS, MAX_ANGLE_RADS); // set new angle, convert from str to float
-                    RJNet::sendData(client, ackMsg);
+                if (data.substring(0,2).equals(angleCommandHeader)){    // if client is giving us new angle in the form of S=$float
+                    manualDesiredAngle = constrain(data.substring(2).toFloat(), MIN_ANGLE_RADS, MAX_ANGLE_RADS); // set new angle, convert from str to float
+                    lastManualAngleTime = millis();
                 }
                 else {
                     Serial.println("Invalid message received from manual");
+                }
+            }
+            else if(otherIP == nucIP){
+                if (data.substring(0,2).equals(angleCommandHeader)){    // if client is giving us new angle in the form of S=$float
+                    nucDesiredAngle = constrain(data.substring(2).toFloat(), MIN_ANGLE_RADS, MAX_ANGLE_RADS); // set new angle, convert from str to float
+                    lastNUCAngleTime = millis();
+                    // reply with A= currentAngle
+                    String reply = "A=" + String(currentAngle);   
+                    RJNet::sendData(client, reply);
+                }
+                else {
+                    Serial.println("Invalid message received from NUC");
                 }
             }
             //Do not read Estop here - it is handled below
@@ -336,6 +377,25 @@ void goToPosition(){
     while(isStepperGoing() && millis() - startTime < STEPPER_TIMEOUT)
     {
         stepperPulse();
+    }
+}
+
+void stateMachineForCurrentAngle(){
+    //If we have a recent command from manual, we are in manual mode. Return manual's command.
+    //Else if we have a recent command from NUC but NOT a recent command from manual, we are in autonomous mode.
+    //Else we are stopped; don't change angle
+    unsigned long currentTime = millis();
+    
+    if(currentTime - lastManualAngleTime <= COMMAND_CONNECTION_TIMEOUT_MS){
+        desiredAngle = manualDesiredAngle;
+        whoIsCommandingAngle = MANUAL;
+    }
+    else if(currentTime - lastNUCAngleTime <= COMMAND_CONNECTION_TIMEOUT_MS){
+        desiredAngle = nucDesiredAngle;
+        whoIsCommandingAngle = NUC;
+    }
+    else{
+        whoIsCommandingAngle = NOBODY;
     }
 }
 

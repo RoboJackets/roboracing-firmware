@@ -17,7 +17,7 @@
 
 #define PWM_CH_3_MID 1492
 
-#define MAX_VELOCITY_FORWARD 10 // m/s
+#define MAX_VELOCITY_FORWARD 4 // m/s
 #define MAX_VELOCITY_BACKWARD -2 // m/s
 
 #define MAX_ANGLE 1.0 // radians
@@ -40,12 +40,9 @@ volatile unsigned long prev_time_ch_1 = 0;
 volatile unsigned long prev_time_ch_2 = 0;
 volatile unsigned long prev_time_ch_3 = 0;
 
-bool led_1_state = true;
-bool led_2_state = false;
-
-bool remote_present_state = false;
-bool rx_present_state = false;
-bool rx_prev_state = true;
+bool remote_present_state = false;  //Is remote control talking to receiver
+bool rx_present_state = false;      //Is receiver plugged into board
+bool rx_prev_state = true;          //Was reciever plugged into board on the previous loop
 
 bool rcrx_present_state = false;
 
@@ -54,9 +51,6 @@ bool manual_state = true; // true if RC controlled, false if NUC controlled
 float rc_angle = 0;
 float rc_speed = 0;
 bool rc_control;
-
-float nuc_speed = 0;
-float nuc_angle = 0;
 
 unsigned long lastNUCCommand = 0;
 unsigned long lastDriveReply = 0;
@@ -165,7 +159,6 @@ void evaluate_manual();
 void evaluate_ch_1();
 void evaluate_ch_2();
 void evaluate_ch_3();
-void set_led_1(bool);
 void set_led_2(bool);
 
 void setup(){
@@ -180,13 +173,13 @@ void setup(){
 
     unsigned long loopCounter = 0;
     while(Ethernet.hardwareStatus() == EthernetNoHardware) {
-        set_led_1(loopCounter++ % 4 == 0);
+        digitalWrite(LED_1, (loopCounter++ % 4 == 0));
         Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
         delay(100);
     }
 
     while(Ethernet.linkStatus() == LinkOFF) {
-        set_led_1(loopCounter++ % 4 > 0);
+        digitalWrite(LED_1, loopCounter++ % 4 > 0);
         Serial.println("Ethernet cable is not connected.");
         delay(100);
     }
@@ -208,6 +201,9 @@ void setup(){
 }
 
 void loop() {
+    //Toggle pin for visibility
+    digitalWrite(LED_1, !digitalRead(LED_1));
+    
     wdt_reset();
     readAllNewMessages();
     sendNewMessages();
@@ -217,38 +213,32 @@ void loop() {
         evaluate_ch_1();
         evaluate_ch_2();
         evaluate_ch_3();
-        led_1_state = !led_1_state;
-        set_led_1(led_1_state);
     }
 
     evaluate_state();
     set_led_2(manual_state);
-
-    if(millis() - lastNUCCommand > NUC_TIMEOUT_MS){ // Check fail condition timer
-        nuc_speed = 0;
-        nuc_angle = 0;
-        //Serial.println("NUC timed out");
-    }
 
     //needed to get full pulse
     delay(50);
     
     if(millis() - 500 > lastPrintTime){
         lastPrintTime = millis();
-        if(manual_state){
-            Serial.print("Manual mode. ");
+        Serial.print(rx_present_state ? "Receiver plugged in. " : "Receiver not plugged in. ");
+        Serial.print(remote_present_state ? "Remote connected. " : "No remote. " );
+        Serial.print(rcrx_present_state ? "rcrx_present_state true. " : "rcrx_present_state false. ");
+        Serial.print(manual_state  ? "Manual mode. " : "Autonomous mode - Not sending packets. ");
+        
+        if(!steeringConnected){
+            Serial.print("Steering disconnected. ");
         }
-        else{
-            Serial.print("Autonomous mode. ");
+        if(!driveConnected){
+            Serial.print("Drive disconnected. ");
         }
+
         Serial.print(" RC speed: ");
         Serial.print(rc_speed);
-        Serial.print(" NUC speed: ");
-        Serial.print(nuc_speed);
         Serial.print(" RC angle: ");
-        Serial.print(rc_angle);
-        Serial.print(" NUC angle: ");
-        Serial.println(nuc_angle);
+        Serial.println(rc_angle);
     }
 }
 
@@ -275,20 +265,12 @@ void readAllNewMessages(){
                     }
                     
                     RJNet::sendData(client, fullReply);
-                    lastNUCCommand = millis();
                     Serial.print("Responded with: ");
                     Serial.println(fullReply);
                 }
-                else if (parseValidateSpeedAngleMessage(data) == 0)
-                {  
-                    //New angle + speed command is valid
-                    //parseValidateSpeedAngleMessage sets variables directly
-                    RJNet::sendData(client, ackMsg); // Reply "R"
-                    lastNUCCommand = millis(); // Reset fail condition timer
-                }
                 else
                 {
-                    Serial.print("Invalid message received from NUC");  
+                    Serial.print("Invalid message received from NUC:");  
                 }
             }
             else
@@ -308,27 +290,15 @@ void readAllNewMessages(){
     while (driveBoard.available())  // Check for messages from drive client
     {
         String data = RJNet::readData(driveBoard);
-        if (data.length() == 0 || data.substring(0,1) != ackMsg)
-        {
-            Serial.println("INVALID MESSAGE FROM DRIVE");
-        }
-        else
-        {
-            lastDriveReply = millis();
-        }
+        Serial.print("Message from drive (doing nothing with it): ");
+        Serial.println(data);
     }
 
     while (steeringBoard.available())  // Check for messages from steering client
     {
         String data = RJNet::readData(steeringBoard);
-        if (data.length() == 0 || data.substring(0,1) != ackMsg)
-        {
-            Serial.println("INVALID MESSAGE FROM STEERING");
-        }
-        else
-        {
-            lastSteeringReply = millis();
-        }
+        Serial.print("Message from drive (doing nothing with it): ");
+        Serial.println(data);
     }
 
 }
@@ -342,41 +312,33 @@ void sendNewMessages() {
     }
 
     // Steering message send
-    steeringConnected = steeringBoard.connected();
-    if (!steeringConnected){
-        steeringBoard.connect(steeringIP, PORT);
-       // Serial.println("Lost connection with steering");
+    if(manual_state){
+        steeringConnected = steeringBoard.connected();
+        if (!steeringConnected){
+            steeringBoard.connect(steeringIP, PORT);
+        }
+        else if (millis() > lastSteeringCommand + MIN_MESSAGE_SPACING){
+            // sending a velocity to the steering board from rc only in manual mode
+            lastSteeringCommand = millis();
+            RJNet::sendData(steeringBoard, manualSteeringStringHeader + String(rc_angle));
+        }
+        
+        // Drive message send
+        driveConnected = driveBoard.connected();
+        if (!driveConnected){
+            driveBoard.connect(driveIP, PORT);
+        }
+        else if (millis() > lastDriveCommand + MIN_MESSAGE_SPACING){
+            // sending a velocity to the drivebrake board from rc only in manual mode
+            lastDriveCommand = millis();
+            RJNet::sendData(driveBoard, manualDriveStringHeader + String(rc_speed)); 
+        }
     }
-    else if (millis() > lastSteeringReply + MIN_MESSAGE_SPACING && millis() > lastSteeringCommand + MIN_MESSAGE_SPACING){
-        lastSteeringCommand = millis();
-        RJNet::sendData(steeringBoard, manualSteeringStringHeader + String(manual_state ? rc_angle : nuc_angle));
-    }
-    
-    // Drive message send
-    driveConnected = driveBoard.connected();
-    if (!driveConnected){
-        driveBoard.connect(driveIP, PORT);
-        Serial.println("Lost connection with drive");
-    }
-    else if (millis() > lastDriveReply + MIN_MESSAGE_SPACING && millis() > lastDriveCommand + MIN_MESSAGE_SPACING){
-        lastDriveCommand = millis();
-        RJNet::sendData(driveBoard, manualDriveStringHeader + String(manual_state ? rc_speed : nuc_speed)); // sending a velocity to the drivebrake board from rc
-    }   
-}
-
-// Set status LEDs
-void set_led_1(bool on){
-    digitalWrite(LED_1, on);
 }
 
 void set_led_2(bool on){
     digitalWrite(LED_2, on);
 }
-
-/*  NOT POSSIBLE Manual state not used in this version
-void evaluate_manual_switch(){
-    manual_state = digitalRead(SWITCH);
-} */
 
 
 // Issue with turning the remote off, it sends the last command for CH1 and CH3.
@@ -445,12 +407,7 @@ void rcrx_missing(){
 }
 
 void evaluate_state(){ // Determines if RC-controlled or NUC-controlled
-    if(rx_present_state && rc_control){ 
-        manual_state = true;
-    }
-    else{
-        manual_state = false;
-    }
+    manual_state = !rcrx_present_state || rc_control;
 }
 
 void evaluate_ch_1() {
@@ -503,21 +460,6 @@ void evaluate_ch_2() {
 
 void evaluate_ch_3() {
     rc_control = pwm_rc_control < PWM_CH_3_MID; // manual mode in power-on state
-}
-
-int parseValidateSpeedAngleMessage(const String speedMessage){
-    //takes in message from nuc and sets nuc_angle and nuc_speed
-    //Returns 1 for invalid message, 0 for valid message. If message invalid, does not modify
-    //target speed or angle
-    int message_break_pt = speedMessage.indexOf(nucAngleStringHeader);  //Returns -1 if not present
-    if(speedMessage.substring(0,2).equals(nucDriveStringHeader) && message_break_pt > 0){
-        nuc_speed = speedMessage.substring(2).toFloat();
-        nuc_angle = speedMessage.substring(message_break_pt + 2).toFloat();
-        return 0;
-    }
-    Serial.print("Invalid command message from NUC: ");
-    Serial.println(speedMessage);
-    return 1;
 }
 
 /*  NOT POSSIBLE For manual drive, not used in current version

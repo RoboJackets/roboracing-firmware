@@ -11,8 +11,8 @@
 const static float US_PER_SEC = 1000000.0;
 
 
-#define REPLY_TIMEOUT_MS 4000   //We have to receive a reply from Estop and Brake within this many MS of our message or we are timed out. NOT TCP timeout. Have to 
-#define MIN_MESSAGE_SPACING 100 //Send messages to Brake and request state from e-stop at 10 Hz
+const static unsigned int REPLY_TIMEOUT_MS = 4000;   //We have to receive a reply from Estop and Brake within this many MS of our message or we are timed out. NOT TCP timeout. Have to 
+const static unsigned int COMMAND_CONNECTION_TIMEOUT_MS = 500; //If no message from manual in this long, assume auto mode if a message from NUC in this time
 
 /****************ETHERNET****************/
 // See https://docs.google.com/document/d/10klaJG9QIRAsYD0eMPjk0ImYSaIPZpM_lFxHCxdVRNs/edit#
@@ -43,12 +43,16 @@ const static String estopRequestMsg = "S?";
 const static String speedRequestMsg = "S?";
 
 //Manual RC speed command header
-const static String manualStringHeader = "v=";
+const static String speedCommandHeader = "v=";
 
 //Timestamps of replies from boards in ms
 unsigned long lastEstopReply = 0;
 unsigned long lastBrakeReply = 0;
-unsigned long lastManualCommand = 0;
+
+//Timestamps of the last messages from NUC and manual in MS
+unsigned long lastNUCSpeedTime = 0;
+unsigned long lastManualSpeedTime = 0;
+
 //Timestamps of our last messages to boards in ms
 unsigned long estopRequestSent = 0;
 unsigned long brakeCommandSent = 0;
@@ -98,7 +102,22 @@ bool motorEnabled = false;
 unsigned long lastControllerRunTime = 0;    //Last time the controller and speed estimator was executed
 
 float desired_braking_force = 0;        //Desired braking force in N (should be >=0)
-float softwareDesiredVelocity = 0;      //What Software is commanding us
+
+/* We choose target velocity by using
+ - manual speed if Manual commanded us recently (in manual mode).
+ - NUC speed if NUC commanded us recently and Manual didn't (in autonomous mode).
+ - 0 if neither NUC or Manual commanded us recently.
+*/
+enum currentSpeedCommander{
+    MANUAL,
+    NUC,
+    NOBODY
+};
+currentSpeedCommander whoIsCommandingSpeed = NOBODY;
+
+float targetVelocity = 0;
+float nucTargetVelocity = 0;
+float manualTargetVelocity = 0;
 
 Encoder encoder(ENCODER_A_PIN,ENCODER_B_PIN);
 
@@ -110,36 +129,36 @@ byte desiredPWM = zeroSpeedPwm;   //Throttle setting
 
 void setup(){
     // Ethernet Pins
-	pinMode(ETH_INT_PIN, INPUT);
+    pinMode(ETH_INT_PIN, INPUT);
     pinMode(ETH_RST_PIN, OUTPUT);
     pinMode(ETH_CS_PIN, OUTPUT);
   
     // LED Pins
-	pinMode(LED2_PIN, OUTPUT);
+    pinMode(LED2_PIN, OUTPUT);
     //pinMode(USER_LED_PIN, OUTPUT); TODO doesn't work on v1.0 of board
 
     // Encoder Pins. You must call this to turn off the pullup resistors encoder library enables
-	pinMode(ENCODER_A_PIN, INPUT);
+    pinMode(ENCODER_A_PIN, INPUT);
     pinMode(ENCODER_B_PIN, INPUT);
 
     // Motor Pins
-	pinMode(MOTOR_CNTRL_PIN, OUTPUT);
+    pinMode(MOTOR_CNTRL_PIN, OUTPUT);
     pinMode(FORWARD_OUT_PIN, OUTPUT);
     pinMode(REVERSE_OUT_PIN, OUTPUT);
     writeReversingContactorForward(true); //Start out with reversing contactor going forwards.
 
     // Current Sensing Pins
-	pinMode(CURR_DATA_PIN, INPUT);
+    pinMode(CURR_DATA_PIN, INPUT);
     
     Serial.begin(115200);
 
-	//********** Ethernet Initialization *************//
+    //********** Ethernet Initialization *************//
     resetEthernet();
     
-	Ethernet.init(ETH_CS_PIN); 	// CS pin from eth header
-	Ethernet.begin(driveMAC, driveIP); 	// initialize the ethernet device
+    Ethernet.init(ETH_CS_PIN);  // CS pin from eth header
+    Ethernet.begin(driveMAC, driveIP);  // initialize the ethernet device
     
-	unsigned long loopCounter = 0;
+    unsigned long loopCounter = 0;
     while(Ethernet.hardwareStatus() == EthernetNoHardware) {
         digitalWrite(LED2_PIN, loopCounter++ % 4 == 0);
         Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
@@ -155,7 +174,7 @@ void setup(){
     Ethernet.setRetransmissionCount(ETH_NUM_SENDS); //Set number resends before failure
     Ethernet.setRetransmissionTimeout(ETH_RETRANSMISSION_DELAY_MS);  //Set timeout delay before failure
     
-    server.begin();	// launches OUR server
+    server.begin(); // launches OUR server
     Serial.print("Our address: ");
     Serial.println(Ethernet.localIP());
 
@@ -176,9 +195,9 @@ void loop() {
     wdt_reset();
     digitalWrite(LED2_PIN, !digitalRead(LED2_PIN));
     
-	// Read new messages from WizNet and make necessary replies
+    // Read new messages from WizNet and make necessary replies
     readAllNewMessages();
-	
+    
     //How long since the last controller execution
     unsigned long currTime = micros();
     float loopTimeStep = (currTime - lastControllerRunTime)/US_PER_SEC;
@@ -196,10 +215,23 @@ void loop() {
     
     //Print diagnostics
     if (millis() - lastPrintTime >= printDelayMs){
+        Serial.print("Drive speed from: ");
+        switch (whoIsCommandingSpeed){
+            case MANUAL:
+                Serial.print("Manual. ");
+                break;
+            case NUC:
+                Serial.print("NUC. ");
+                break;
+            case NOBODY:
+                Serial.print("Nobody. ");
+                break;
+        }
+        
         Serial.print("Estop: motor ");
         Serial.print(motorEnabled ? "enabled" : "disabled");
         Serial.print(" Manual cmd speed: ");
-        Serial.print(softwareDesiredVelocity);
+        Serial.print(targetVelocity);
         Serial.print(" Filtered target speed: ");
         Serial.print(get_curr_target_speed());
         Serial.print(" Throttle: ");
@@ -278,21 +310,25 @@ void handleSingleClientMessage(EthernetClient otherBoard){
         }
         else if(otherIP == manualIP){
             //Message from manual board, should be speed command
-            if(data.length() > 2){
-                if(data.substring(0,2).equals(manualStringHeader)){
-                    softwareDesiredVelocity = parseSpeedMessage(data);
-                    lastManualCommand = millis();
-                    
-                    //Acknowledge receipt of message
-                    RJNet::sendData(otherBoard, ackMsg);
-                }
-                else{
-                    Serial.print("Wrong prefix from manual: ");
-                    Serial.println(data);
-                }
+            if(data.length() > 2 && data.substring(0,2).equals(speedCommandHeader)){
+                manualTargetVelocity = parseSpeedMessage(data);
+                lastManualSpeedTime = millis();
             }
             else{
-                Serial.print("Too short message from manual: ");
+                Serial.print("Bad message from manual: ");
+                Serial.println(data);
+            }
+        }
+        else if(otherIP == nucIP){
+            //Message from manual board, should be speed command
+            if(data.length() > 2 && data.substring(0,2).equals(speedCommandHeader)){
+                nucTargetVelocity = parseSpeedMessage(data);
+                lastNUCSpeedTime = millis();
+                //Send back our current speed
+                RJNet::sendData(otherBoard, "v=" + String(get_speed()) + ",I=" + String(motorCurrent));
+            }  
+            else{
+                Serial.print("Wrong message from NUC: ");
                 Serial.println(data);
             }
         }
@@ -376,6 +412,26 @@ void resetEthernet(void){
 // STATE MACHINE FUNCTIONS
 ////
 
+void stateMachineForCurrentSpeed(){
+    //If we have a recent command from manual, we are in manual mode. Return manual's command.
+    //Else if we have a recent command from NUC but NOT a recent command from manual, we are in autonomous mode.
+    //Else we are stopped; don't change angle
+    unsigned long currentTime = millis();
+    
+    if(currentTime - lastManualSpeedTime <= COMMAND_CONNECTION_TIMEOUT_MS){
+        targetVelocity = manualTargetVelocity;
+        whoIsCommandingSpeed = MANUAL;
+    }
+    else if(currentTime - lastNUCSpeedTime <= COMMAND_CONNECTION_TIMEOUT_MS){
+        targetVelocity = nucTargetVelocity;
+        whoIsCommandingSpeed = NUC;
+    }
+    else{
+        whoIsCommandingSpeed = NOBODY;
+        targetVelocity = 0;
+    }
+}
+
 void executeStateMachine(float timeSinceLastLoop){ 
     //Check what state we are in at the moment.
     //We are disabled if the motor is disabled, or any of our clients has timed out 
@@ -399,8 +455,11 @@ void executeStateMachine(float timeSinceLastLoop){
         Serial.println("Estop timed out");
         connectedToAllBoards = false;
     }
-    if(currTime > lastManualCommand + REPLY_TIMEOUT_MS){
-        Serial.println("Manual timed out");
+    
+    //Check who is commanding the speed
+    stateMachineForCurrentSpeed();
+    if(whoIsCommandingSpeed = NOBODY){
+        //Nobody giving valid speed commands
         connectedToAllBoards = false;
     }
     
@@ -409,7 +468,7 @@ void executeStateMachine(float timeSinceLastLoop){
         if(!motorEnabled || !connectedToAllBoards){
             currentState = STATE_DISABLED_FORWARD;
         }
-        else if(softwareDesiredVelocity < -0.1 && abs(get_speed()) < switch_direction_max_speed){
+        else if(targetVelocity < -0.1 && abs(get_speed()) < switch_direction_max_speed){
             currentState = STATE_DRIVING_REVERSE;
             //Reset controller to clear error integral
             reset_controller(0);
@@ -419,7 +478,7 @@ void executeStateMachine(float timeSinceLastLoop){
         if(!motorEnabled || !connectedToAllBoards){
             currentState = STATE_DISABLED_REVERSE;
         }
-        else if(softwareDesiredVelocity > 0 && abs(get_speed()) < switch_direction_max_speed){
+        else if(targetVelocity > 0 && abs(get_speed()) < switch_direction_max_speed){
             currentState = STATE_DRIVING_FORWARD;
             //Reset controller to clear error integral
             reset_controller(0);
@@ -441,24 +500,24 @@ void executeStateMachine(float timeSinceLastLoop){
     }
     
     //Now execute that state
-	switch(currentState) { 
-		case STATE_DISABLED_FORWARD:{
-			runStateDisabled();
-			break;
-		}
+    switch(currentState) { 
+        case STATE_DISABLED_FORWARD:{
+            runStateDisabled();
+            break;
+        }
         case STATE_DISABLED_REVERSE:{
-			runStateDisabled();
-			break;
-		}
-		case STATE_DRIVING_FORWARD:{
-			runStateForward(timeSinceLastLoop);
-			break;
-		}
-		case STATE_DRIVING_REVERSE:{
-			runStateReverse(timeSinceLastLoop);
-			break;
-		}
-	}
+            runStateDisabled();
+            break;
+        }
+        case STATE_DRIVING_FORWARD:{
+            runStateForward(timeSinceLastLoop);
+            break;
+        }
+        case STATE_DRIVING_REVERSE:{
+            runStateReverse(timeSinceLastLoop);
+            break;
+        }
+    }
 }
 
 void runStateDisabled(){
@@ -483,7 +542,7 @@ void runStateForward(float timestep){
     */
     writeReversingContactorForward(true);
     
-    float capped_target_speed = max(0, softwareDesiredVelocity);    //If softwareDesiredVelocity < 0, then this is 0, so we will brake in preparation for going backwards
+    float capped_target_speed = max(0, targetVelocity);    //If targetVelocity < 0, then this is 0, so we will brake in preparation for going backwards
     
     //controls math here
     FloatPair voltage_and_braking_force = gen_control_voltage_brake_force(timestep, get_speed(), capped_target_speed);
@@ -500,7 +559,7 @@ void runStateReverse(float timestep){
     */
     writeReversingContactorForward(false);
     
-    float capped_target_speed = max(0, -softwareDesiredVelocity);    //If softwareDesiredVelocity > 0, then this is 0, so we will brake in preparation for going forwards
+    float capped_target_speed = max(0, -targetVelocity);    //If targetVelocity > 0, then this is 0, so we will brake in preparation for going forwards
     
     //controls math here
     FloatPair voltage_and_braking_force = gen_control_voltage_brake_force(timestep, -get_speed(), capped_target_speed);
