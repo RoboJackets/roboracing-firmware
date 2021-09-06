@@ -28,7 +28,7 @@ static const float k_m_inv_r_to_u = 2.845150612101681;
 static const float k_m_inv_r_dot_to_u = 1.2890625;
 static const float k_m_inv_r_to_x = 1.0;
 
-static const float k_1m = 16; //8.00140061;   //P gain. Puts poles at -4.
+static const float k_1m = 8.00140061;   //P gain. Puts poles at -4.
 static const float k_2m = 0;   //I gain. Setting to 0 disables I for the motor
 
 //Brake feedforward and PI parameters
@@ -36,7 +36,7 @@ static const float k_b_inv_r_to_u = -10.0;
 static const float k_b_inv_r_dot_to_u = -100.0;
 static const float k_b_inv_r_to_x = 1.0;
 
-static const float k_1b = 800; //-410;   //P gain. Puts poles at -4.
+static const float k_1b = -410;   //P gain. Puts poles at -4.
 static const float k_2b = 0;   //I gain. Setting to 0 disables I for the brakes
 
 static const float maxBrakingForce = 900.0;    //In Newtons

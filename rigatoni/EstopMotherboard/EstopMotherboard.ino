@@ -254,6 +254,8 @@ void setup() {
     digitalWrite(STACK_Y, HIGH);
     digitalWrite(STACK_R, HIGH); 
     
+    delay(100);
+    
     Serial.begin(115200);
 
 	//********** Ethernet Initialization *************//
@@ -261,6 +263,8 @@ void setup() {
     // In case your RJ board wires the chip in an odd config,
     // otherwise, leave commented out
     // You can use Ethernet.init(pin) to configure the CS pin
+    
+    delay(10);
 
     Ethernet.init(ETH_CS_PIN);
     Ethernet.begin(estopMAC, estopIP);
@@ -287,7 +291,7 @@ void setup() {
 
     // WATCHDOG TIMER
     wdt_reset();
-    wdt_enable(WDTO_500MS);
+    wdt_enable(WDTO_1S);
 }
 
 void loop() {
