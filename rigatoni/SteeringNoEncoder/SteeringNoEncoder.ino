@@ -28,8 +28,8 @@ static const float GEAR_RATIO = 47*3;
 static const float STEPPER_STEP_SIZE = 2*PI/(STEPS_PER_MOTOR_REV*GEAR_RATIO); //in rads
 
 static const unsigned long STEPPER_TIMEOUT = 50; // ms
-static const int MAX_SPEED_WHILE_HOMING = 30000;
-static const int MAX_SPEED = 150000; // steps per second.
+static const int MAX_SPEED_WHILE_HOMING = 4000;
+static const int MAX_SPEED = 4000; // steps per second.
 static const int ACCEL = 800000; // steps per second per second.
 
 volatile bool limitSwitchCounterClockGood = true;

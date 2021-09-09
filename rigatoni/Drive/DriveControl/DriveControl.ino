@@ -124,8 +124,9 @@ Encoder encoder(ENCODER_A_PIN,ENCODER_B_PIN);
 //Motor translation parameters
 static const float batteryVoltage = 48.0;
 static const byte maxSpeedPwm = 130; // Changed to 130 from 255 to scale for motor controller throttle range
-static const byte zeroSpeedPwm = 0;
-byte desiredPWM = zeroSpeedPwm;   //Throttle setting
+static const byte zeroSpeedPwm = 7;  //This much PWM to turn on motor
+static const byte motorOffPwm = 0;
+byte desiredPWM = motorOffPwm;   //Throttle setting
 
 void setup(){
     // Ethernet Pins
@@ -583,7 +584,7 @@ void writeReversingContactorForward(bool forward){
 ////
 void writeMotorOff(void){
     //Disables the motor by writing correct voltage
-    desiredPWM = zeroSpeedPwm;
+    desiredPWM = motorOffPwm;
     analogWrite(MOTOR_CNTRL_PIN, desiredPWM);
 }
 
@@ -591,11 +592,12 @@ void writeVoltageToMotor(float voltage){
     if(voltage > batteryVoltage){
         desiredPWM = maxSpeedPwm;
     }
-    else if(voltage < 0){
-        desiredPWM = zeroSpeedPwm;
+    else if(voltage < 0.01){
+        //Basically off
+        desiredPWM = motorOffPwm;
     }
     else{
-        desiredPWM = (byte) maxSpeedPwm*voltage/batteryVoltage;
+        desiredPWM = (byte) (maxSpeedPwm - zeroSpeedPwm)*voltage/batteryVoltage + zeroSpeedPwm;
     }
     analogWrite(MOTOR_CNTRL_PIN, desiredPWM);
 }
