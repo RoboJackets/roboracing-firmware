@@ -9,12 +9,12 @@
 static const int MS_AFTER_STARTUP_BEFORE_CLIENT_CONNECT = 3000;
 
 
-static const IPAddress nucIP(192, 168, 0, 2);
-static const IPAddress estopIP(192, 168, 0, 3);
-static const IPAddress driveIP(192, 168, 0, 4);
-static const IPAddress steeringIP(192, 168, 0, 5);
-static const IPAddress manualIP(192, 168, 0, 6);
-static const IPAddress brakeIP(192, 168, 0, 7);
+static const IPAddress nucIP(192, 168, 20, 2);
+static const IPAddress estopIP(192, 168, 20, 3);
+static const IPAddress driveIP(192, 168, 20, 4);
+static const IPAddress steeringIP(192, 168, 20, 5);
+static const IPAddress manualIP(192, 168, 20, 6);
+static const IPAddress brakeIP(192, 168, 20, 7);
 
 const static byte estopMAC[] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0x03};
 const static byte driveMAC[] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0x04};
