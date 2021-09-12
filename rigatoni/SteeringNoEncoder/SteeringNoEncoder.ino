@@ -37,8 +37,9 @@ volatile bool limitSwitchClockGood = true;
 
 // TODO NEED TO SET STEPPER DISTANCE
 // How many steps from limit switch to center on each side
-static const int STEPPER_CCW_LIMIT_TO_ZERO_POS = 15000;
-static const int STEPPER_CW_LIMIT_TO_ZERO_POS = 15000;
+static const int STEPPER_CCW_LIMIT_TO_ZERO_POS = 22000;
+static const int STEPPER_CW_LIMIT_TO_ZERO_POS = 22000;
+static const int HOMING_DISTANCE_TO_CENTER = 15000;
 
 static const float MIN_ANGLE_RADS = -STEPPER_CW_LIMIT_TO_ZERO_POS*STEPPER_STEP_SIZE;
 static const float MAX_ANGLE_RADS = STEPPER_CCW_LIMIT_TO_ZERO_POS*STEPPER_STEP_SIZE;
@@ -325,18 +326,7 @@ bool isStepperGoing(){
 
 void stepperPulse(){ // rotates stepper motor one step in the currently set direction
     // Only allow movement if not in the direction that a limit switch is triggered 
-    if((isCWDirection && limitSwitchClockGood) || (!isCWDirection && limitSwitchCounterClockGood))
-    {
-        stepperMotor.run(); //steps towards relative target position.
-    }
-    else
-    {
-        Serial.println("At extents!");
-        //This call sets the current position to the current position
-        //So we don't change the position but we reset the motor speed to 0
-        //since it isn't moving any more.
-        stepperMotor.setCurrentPosition(stepperMotor.currentPosition());
-    }
+    stepperMotor.run(); //steps towards relative target position.
 }
 
 // Will attempt to home to 0 steering position
@@ -354,7 +344,7 @@ void goToHome(){
     stepperMotor.setCurrentPosition(0);
     
     //setting target position to get to an absolute position 0 (ie center).
-    stepperMotor.moveTo(STEPPER_CW_LIMIT_TO_ZERO_POS);
+    stepperMotor.moveTo(HOMING_DISTANCE_TO_CENTER);
     
     //Steps to the center.
     while(isStepperGoing())
