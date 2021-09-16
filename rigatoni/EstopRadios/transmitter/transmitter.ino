@@ -67,7 +67,7 @@ uint8_t payload[payloadLength];
 #define TRANSMIT_FAILED_PERIOD 20 //wait this long if failed to send a burst (ms)
 //Each time we try to send a packet, try this many times
 #define RETRY_DELAY 50  //how many ms to wait before a retry
-#define RETRIES 0  //Retry how many times before failure. 0 means send only once.
+#define RETRIES 3  //Retry how many times before failure. 0 means send only once.
 
 //Pins
 
