@@ -23,7 +23,6 @@
 // and copyright notices in any redistribution of this code
 // **********************************************************************************
 #include <RFM69.h>         //get it here: https://www.github.com/lowpowerlab/rfm69
-#include <RFM69_ATC.h>     //get it here: https://www.github.com/lowpowerlab/rfm69
 #include <RFM69registers.h>
 #include <SPI.h>           //included with Arduino IDE install (www.arduino.cc)
 #include <avr/wdt.h>
@@ -38,15 +37,7 @@
 #define FREQUENCY     RF69_915MHZ
 
 #define IS_RFM69HW_HCW  //Only for RFM69HW/HCW! Leave out if you have RFM69W/CW!
-//*********************************************************************************************
-//Auto Transmission Control - dials down transmit power to save battery
-//Usually you do not need to always transmit at max output power
-//By reducing TX power even a little you save a significant amount of battery power
-//This setting enables this gateway to work with remote nodes that have ATC enabled to
-//dial their power down to only the required level (ATC_RSSI)
-//#define ENABLE_ATC    //comment out this line to disable AUTO TRANSMISSION CONTROL
-//#define ATC_RSSI      -60
-//*********************************************************************************************
+
 #define SERIAL_BAUD   115200
 
 //MAKE SURE TO KEEP THESE CODES THE SAME AS RECIEVER
@@ -71,23 +62,6 @@ uint8_t payload[payloadLength];
 
 //Pins
 
-#ifdef UNO
-    
-#define LED4_SETUP()  pinMode(13, OUTPUT)
-#define LED4_ON()  digitalWrite(13, HIGH)
-#define LED4_OFF()  digitalWrite(13, LOW)
-
-#define LED3_ON() 
-#define LED3_OFF()
-
-#ifdef ENABLE_ATC
-RFM69_ATC radio;
-#else
-RFM69 radio;
-#endif
-
-#else
-
 #define LED4 1
 #define LED4_SETUP()  pinMode(LED4, OUTPUT)
 #define LED4_ON() digitalWrite(LED4, HIGH)
@@ -96,13 +70,8 @@ RFM69 radio;
 #define LED3_ON() TXLED0
 #define LED3_OFF() TXLED1
 
-#ifdef ENABLE_ATC
-RFM69_ATC radio(RF69_SPI_CS, 3);
-#else
 RFM69 radio(RF69_SPI_CS, 3);
-#endif
 
-#endif
 
 /***************PINS***************/
 //LEDS on the controller
@@ -140,7 +109,7 @@ void setup() {
     digitalWrite(YELLOW_LED, HIGH);
     digitalWrite(RED_LED, HIGH);
     
-    Serial.begin(SERIAL_BAUD);
+    //Serial.begin(SERIAL_BAUD);
     
     pinMode(RADIO_RESET, OUTPUT);
     resetRadio();
@@ -156,22 +125,13 @@ void setup() {
     //radio.setFrequency(919000000); //set frequency to some custom frequency
     LED4_ON();
 
-//Auto Transmission Control - dials down transmit power to save battery (-100 is the noise floor, -90 is still pretty good)
-//For indoor nodes that are pretty static and at pretty stable temperatures (like a MotionMote) -90dBm is quite safe
-//For more variable nodes that can expect to move or experience larger temp drifts a lower margin like -70 to -80 would probably be better
-//Always test your ATC mote in the edge cases in your own environment to ensure ATC will perform as you expect
-#ifdef ENABLE_ATC
-    radio.enableAutoPower(ATC_RSSI);
-    Serial.println("RFM69_ATC Enabled (Auto Transmission Control)\n");
-#endif
-    LED4_ON();
     digitalWrite(BLUE_LED, LOW);
     digitalWrite(GREEN_LED, LOW);
     digitalWrite(YELLOW_LED, LOW);
     digitalWrite(RED_LED, LOW);
 
     wdt_reset();
-    wdt_enable(WDTO_500MS);
+    wdt_enable(WDTO_1S);
 }
 
 bool lastSendSuccessful = false;
@@ -189,24 +149,24 @@ void loop() {
     payload[0] = state;
     
     //Print what we are sending
-    Serial.print("Sending: ");
+    //Serial.print("Sending: ");
     for(byte i = 0; i < payloadLength; i++){
-        Serial.print((char)payload[i]);
+        //Serial.print((char)payload[i]);
     }
     
     //Send the data. If successful, delay.
     startSendingTime = micros();
     if (radio.sendWithRetry(GATEWAYID, payload, payloadLength, RETRIES, RETRY_DELAY)){
-        Serial.print(" ok! RSSI: ");
-        Serial.print(radio.RSSI);
-        Serial.print(". ms to get an ACK: ");
-        Serial.println((micros() - startSendingTime)/1000);
+        //Serial.print(" ok! RSSI: ");
+        //Serial.print(radio.RSSI);
+        //Serial.print(". ms to get an ACK: ");
+        //Serial.println((micros() - startSendingTime)/1000);
         lastSendSuccessful = true;
         delayTime = TRANSMIT_PERIOD;
     }
     else {
-        Serial.print(" SENDING FAILED. ms to FAIL: ");
-        Serial.println((micros() - startSendingTime)/1000);
+        //Serial.print(" SENDING FAILED. ms to FAIL: ");
+        //Serial.println((micros() - startSendingTime)/1000);
         lastSendSuccessful = false;
         delayTime = TRANSMIT_FAILED_PERIOD;
     }
@@ -286,8 +246,8 @@ void showStateOnLEDs(uint8_t curr_state){
     }
     else {
         //Internal code fault
-        Serial.print("WARNING: INVALID STATE");
-        Serial.println(curr_state);
+        //Serial.print("WARNING: INVALID STATE");
+        //Serial.println(curr_state);
         writeToRemoteLEDs(true, true, true);
     }
 }
