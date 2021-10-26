@@ -54,11 +54,10 @@ uint8_t state = eStopCode;
 const static byte payloadLength = 1;
 uint8_t payload[payloadLength];
 
-#define TRANSMIT_PERIOD 200 //wait this long after a successful send (in ms)
+#define TRANSMIT_PERIOD 200 //wait this long after a successful send  to send again (in ms)
 #define TRANSMIT_FAILED_PERIOD 20 //wait this long if failed to send a burst (ms)
-//Each time we try to send a packet, try this many times
-#define RETRY_DELAY 50  //how many ms to wait before a retry
-#define RETRIES 3  //Retry how many times before failure. 0 means send only once.
+#define RETRY_DELAY 50  //how many ms to wait before declaring sending failed and retrying
+#define RETRIES 3  //Retry how many times before failure of a burst. 0 means send only once.
 
 //Pins
 
