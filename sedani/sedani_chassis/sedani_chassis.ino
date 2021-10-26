@@ -49,6 +49,7 @@ const byte buttonEstopPin = 10;
 const byte wirelessPinC = 14;
 const byte wirelessPinB = 15;
 const byte wirelessPinD = 16;
+const byte potentiometerPin = A2;
 
 // Control Limits
 const float maxSpeed = 3; // maximum velocity in m/s 
@@ -181,6 +182,7 @@ void setup() {
     pinMode(steerPin, OUTPUT);
     pinMode(encoderPinA, INPUT);
     pinMode(encoderPinB, INPUT);
+    pinMode(potentiometerPin, INPUT);
     
     esc.attach(escPin);
     steering.attach(steerPin);
@@ -980,4 +982,8 @@ void encoderInterrupt(){
     else{
         currentEncoderPosition++;
     }
+}
+
+int readPotentiometer(){
+  return analogRead(potentiometerPin) * 4;
 }

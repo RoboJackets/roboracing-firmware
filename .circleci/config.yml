@@ -1,3 +1,4 @@
+# Currently, CircleCI does a no-op.
 
 version: 2
 jobs:
@@ -8,5 +9,3 @@ jobs:
     steps:
       - run: apt update -qq && apt install -y git
       - checkout
-      - run: ./util/ubuntu-setup --yes
-      - run: make
