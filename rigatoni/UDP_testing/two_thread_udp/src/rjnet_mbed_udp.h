@@ -60,8 +60,9 @@ class RJNetMbed {
         //Thread to listen for new messages
         Thread udp_receiving_thread;
 
-        //Listens for new messages. Calls process_single_message when it gets a message
-        void listen_for_new_messages();
+        //Listens for new messages. Calls process_single_message when it gets a message.
+        //Has to be implemented as static with the argument as this object pointer because c++ is wierd
+        static void listen_for_new_messages(RJNetMbed *);
 
 
 };

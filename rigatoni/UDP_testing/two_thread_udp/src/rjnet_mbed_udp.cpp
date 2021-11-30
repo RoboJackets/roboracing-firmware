@@ -54,12 +54,7 @@ void RJNetMbed::start_network_and_listening_threads(){
         bound_network_socket = network_socket.bind(RJNET_DEFAULT_PORT);
     }
 
-    //Now start the networking threads
-    //See https://stackoverflow.com/questions/3381829/how-do-i-implement-a-callback-in-c
-    std::function<void()> listen_callback;
-    listen_callback = std::bind(&listen_for_new_messages, &this);
-
-    udp_receiving_thread.start(listen_callback);
+    udp_receiving_thread.start(callback(listen_for_new_messages, this));
 
 }
 
@@ -105,14 +100,14 @@ bool RJNetMbed::are_ip_addrs_equal(const SocketAddress & address_a, const Socket
 //Private functions
 
 //Thread for listening for incoming messages
-void RJNetMbed::listen_for_new_messages(){
+void RJNetMbed::listen_for_new_messages(RJNetMbed * rjnet_obj){
     //Set up buffer for received message
     char udp_message_received[RJNetMbed::MAX_RJNET_MESSAGE_LEN_BYTES] = {0};
 
     while (true){
         //This blocks indefinitely until a message is received
         SocketAddress senders_addr;
-        nsapi_size_or_error_t receive_bytes_read = network_socket.recvfrom(&senders_addr, udp_message_received, MAX_RJNET_MESSAGE_LEN_BYTES);
+        nsapi_size_or_error_t receive_bytes_read = rjnet_obj->network_socket.recvfrom(&senders_addr, udp_message_received, MAX_RJNET_MESSAGE_LEN_BYTES);
 
         //Now process the message received
         if(receive_bytes_read >= 0){
@@ -120,7 +115,7 @@ void RJNetMbed::listen_for_new_messages(){
             //Get the sender's address
             
             printf("Message from %s : %s \n", senders_addr.get_ip_address(), udp_message_received);
-            process_single_message(senders_addr, udp_message_received, receive_bytes_read);
+            rjnet_obj->process_single_message(senders_addr, udp_message_received, receive_bytes_read);
         }
         else{
             //Possible network error types: https://os.mbed.com/docs/mbed-os/v6.15/mbed-os-api-doxy/group__netsocket.html#gac21eb8156cf9af198349069cdc7afeba
