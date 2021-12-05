@@ -11,7 +11,7 @@ const SocketAddress our_ip_addr("192.168.20.5");
 const SocketAddress rjnet_netmask("255.255.255.0");     //Restrict to 192.168.20.*
 const SocketAddress rjnet_default_gateway("0.0.0.0");   //Don't need a gateway since not communicating beyond the LAN.
 
-const SocketAddress other_ip_addr("192.168.20.120", 60802);
+const SocketAddress other_ip_addr("192.168.20.120", RJNET_DEFAULT_PORT);
 
 const Kernel::Clock::duration_u32 TIME_BETWEEN_SENDS = 100ms;
 

@@ -9,16 +9,20 @@
 //Threads and setting flags: https://os.mbed.com/docs/mbed-os/v6.15/apis/thread.html
 //ThisThread and waiting for flags: https://os.mbed.com/docs/mbed-os/v6.15/apis/thisthread.html
 
+//The IPs of all the boards in the system
+const SocketAddress nucIP("192.168.20.120");
+const SocketAddress estopIP("192.168.20.3");
+const SocketAddress driveIP("192.168.20.4");
+const SocketAddress steeringIP("192.168.20.5");
+const SocketAddress manualIP("192.168.20.6");
+const SocketAddress brakeIP("192.168.20.7");
+
 class RJNetMbed {
     //Values of static const constants are in the .cpp file because c++
     public:
-        //The IP addresses for all the boards
-        static const SocketAddress nucIP;
-        static const SocketAddress estopIP;
-        static const SocketAddress driveIP;
-        static const SocketAddress steeringIP;
-        static const SocketAddress manualIP;
-        static const SocketAddress brakeIP;
+
+        static const SocketAddress rjnet_netmask;     //Set the netmask.
+        static const SocketAddress rjnet_default_gateway;   //Can set gateway to 0.0.0.0 since not communicating beyond the LAN.
 
         //Desired time between scheduled message sends
         static const Kernel::Clock::duration_u32 TIME_BETWEEN_SENDS;
@@ -41,21 +45,16 @@ class RJNetMbed {
 
     private:
         //Internal constants
-        static const SocketAddress rjnet_netmask;     //Set the netmask.
-        static const SocketAddress rjnet_default_gateway;   //Can set gateway to 0.0.0.0 since not communicating beyond the LAN.
-
         //Our IP address
         const SocketAddress our_ip_address;
+
+        //Ethernet port and socket
+        static EthernetInterface ethernet_port;
+        static UDPSocket network_socket;
 
         //This is a pointer to the function that gets called whenever we get a new messgae
         //The arguments are (Address of sender, the message as a character array, length of the message)
         void (*process_single_message)(const SocketAddress &, const char[], unsigned int);
-
-        //The Ethernet interface
-        EthernetInterface ethernet_port;
-
-        //UDP socket that will be bound to the port
-        UDPSocket network_socket;
 
         //Thread to listen for new messages
         Thread udp_receiving_thread;

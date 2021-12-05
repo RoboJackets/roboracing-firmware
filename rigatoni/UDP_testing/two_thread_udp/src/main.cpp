@@ -10,24 +10,25 @@
 //ThisThread and waiting for flags: https://os.mbed.com/docs/mbed-os/v6.15/apis/thisthread.html
 
 //Function header
-void process_single_message(const SocketAddress &, const char[], unsigned in);
+void process_single_message(const SocketAddress &, const char[], unsigned int);
 
 //Create the networking class
-RJNetMbed rjnet_udp(RJNetMbed::driveIP, & process_single_message);
+RJNetMbed rjnet_udp(driveIP, & process_single_message);
 
 void process_single_message(const SocketAddress & senders_address, const char incoming_udp_message[], unsigned int num_bytes_in_message){
     //Parses a UDP message we just recieved. Places any received data in global variables.
     //Do parsing later, just print for now.
     
-    if(rjnet_udp.are_ip_addrs_equal(RJNetMbed::nucIP, senders_address)){
+    if(rjnet_udp.are_ip_addrs_equal(nucIP, senders_address)){
         //Parse speed from message. Doing incoming_message + 2 ignores the first two characters
         float new_speed;
         sscanf(incoming_udp_message + 2, "%f", &new_speed);
         //Reply to NUC at once
         char outgoing_message [64];
         sprintf(outgoing_message, "Got speed = %f", new_speed);
-        rjnet_udp.send_single_message(outgoing_message, RJNetMbed::nucIP);
+        rjnet_udp.send_single_message(outgoing_message, nucIP);
     }
+    printf("Message from %s : %s \n", senders_address.get_ip_address(), incoming_udp_message);
 }
 
 //Deal with sending messages
@@ -39,7 +40,7 @@ void send_messages_udp_thread(){
         const unsigned int message_max_len = 32;
         char to_send[message_max_len];
         snprintf(to_send, message_max_len, "Scheduled message %d", i++);
-        rjnet_udp.send_single_message(to_send, RJNetMbed::nucIP);
+        rjnet_udp.send_single_message(to_send, nucIP);
 
         //Reset timer for scheduled messages
         ThisThread::sleep_for(RJNetMbed::TIME_BETWEEN_SENDS);

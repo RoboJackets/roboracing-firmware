@@ -2,13 +2,9 @@
 #include "EthernetInterface.h"
 #include "rjnet_mbed_udp.h"
 
-//The IPs of all the boards in the system
-const SocketAddress RJNetMbed::nucIP("192.168.0.2");
-const SocketAddress RJNetMbed::estopIP("192.168.0.3");
-const SocketAddress RJNetMbed::driveIP("192.168.0.4");
-const SocketAddress RJNetMbed::steeringIP("192.168.0.5");
-const SocketAddress RJNetMbed::manualIP("192.168.0.6");
-const SocketAddress RJNetMbed::brakeIP("192.168.0.7");
+//Initialize static members
+EthernetInterface RJNetMbed::ethernet_port;
+UDPSocket RJNetMbed::network_socket;
 
 //Time between sends
 const Kernel::Clock::duration_u32 RJNetMbed::TIME_BETWEEN_SENDS = 100ms;
@@ -24,6 +20,7 @@ RJNetMbed::RJNetMbed(const SocketAddress & our_ip_addr, void (*process_one_messa
 }
 
 void RJNetMbed::start_network_and_listening_threads(){
+    
     //Sets static IP and implicitly disables DHCP
     ethernet_port.set_network(our_ip_address, rjnet_netmask, rjnet_default_gateway);
     ethernet_port.set_blocking(false);  //Don't block so we can print while waiting to connect
@@ -32,10 +29,11 @@ void RJNetMbed::start_network_and_listening_threads(){
     //Wait for connection to come up
     nsapi_connection_status_t eth_connection_status = ethernet_port.get_connection_status();
     while(!(eth_connection_status == NSAPI_STATUS_LOCAL_UP || eth_connection_status == NSAPI_STATUS_GLOBAL_UP)){
-        printf("Ethernet link not connected\n");
-        ThisThread::sleep_for(50ms);
+        printf("Ethernet not connected. Our IP: %s Error code: %d\n", our_ip_address.get_ip_address(), eth_connection_status);
+        ThisThread::sleep_for(100ms);
         eth_connection_status = ethernet_port.get_connection_status();
     }
+    
 
     printf("Got ethernet link connection. Our IP: %s\n", our_ip_address.get_ip_address());
 
@@ -107,14 +105,12 @@ void RJNetMbed::listen_for_new_messages(RJNetMbed * rjnet_obj){
     while (true){
         //This blocks indefinitely until a message is received
         SocketAddress senders_addr;
-        nsapi_size_or_error_t receive_bytes_read = rjnet_obj->network_socket.recvfrom(&senders_addr, udp_message_received, MAX_RJNET_MESSAGE_LEN_BYTES);
+        nsapi_size_or_error_t receive_bytes_read = network_socket.recvfrom(&senders_addr, udp_message_received, MAX_RJNET_MESSAGE_LEN_BYTES);
 
         //Now process the message received
         if(receive_bytes_read >= 0){
             //Got a valid message
             //Get the sender's address
-            
-            printf("Message from %s : %s \n", senders_addr.get_ip_address(), udp_message_received);
             rjnet_obj->process_single_message(senders_addr, udp_message_received, receive_bytes_read);
         }
         else{
