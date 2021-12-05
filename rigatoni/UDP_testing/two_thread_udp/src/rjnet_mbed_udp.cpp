@@ -7,7 +7,7 @@ EthernetInterface RJNetMbed::ethernet_port;
 UDPSocket RJNetMbed::network_socket;
 
 //Time between sends
-const Kernel::Clock::duration_u32 RJNetMbed::TIME_BETWEEN_SENDS = 100ms;
+const Kernel::Clock::duration_u32 RJNetMbed::TIME_BETWEEN_SENDS = 50ms;
 
 //Private Constants
 const SocketAddress RJNetMbed::rjnet_netmask("255.255.255.0");

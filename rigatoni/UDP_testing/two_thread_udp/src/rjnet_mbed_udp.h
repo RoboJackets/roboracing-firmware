@@ -10,7 +10,9 @@
 //ThisThread and waiting for flags: https://os.mbed.com/docs/mbed-os/v6.15/apis/thisthread.html
 
 //The IPs of all the boards in the system
-const SocketAddress nucIP("192.168.20.120");
+//These CANNOT be part of the class if they are passed to the constructor
+//or your code will compile but the address will be uninitialized
+const SocketAddress nucIP("192.168.20.2");
 const SocketAddress estopIP("192.168.20.3");
 const SocketAddress driveIP("192.168.20.4");
 const SocketAddress steeringIP("192.168.20.5");
@@ -29,7 +31,7 @@ class RJNetMbed {
         //RJNet messages must be shorter than this:
         static const uint16_t MAX_RJNET_MESSAGE_LEN_BYTES = 1460;
         //The default port for RJNET messages
-        static const uint16_t RJNET_DEFAULT_PORT = 2847;
+        static const uint16_t RJNET_DEFAULT_PORT = 8888;
 
         //Constructor. First arg is our IP address, next arg is the function to call whenever we get a message
         RJNetMbed(const SocketAddress &, void (*) (const SocketAddress &, const char[], unsigned int));
