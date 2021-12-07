@@ -18,9 +18,11 @@ const SocketAddress driveIP("192.168.20.4");
 const SocketAddress steeringIP("192.168.20.5");
 const SocketAddress manualIP("192.168.20.6");
 const SocketAddress brakeIP("192.168.20.7");
+//Send to this address to send a broadcast message
+const SocketAddress broadcastIP("192.168.20.255");
 
 class RJNetMbed {
-    //Values of static const constants are in the .cpp file because c++
+    //Values of static const constants are in the .cpp file because c++ syntax
     public:
 
         static const SocketAddress rjnet_netmask;     //Set the netmask.
@@ -37,6 +39,7 @@ class RJNetMbed {
         RJNetMbed(const SocketAddress &, void (*) (const SocketAddress &, const char[], unsigned int));
 
         //Call this ONCE. Sets up interfaces, binds socket, and starts listening thread
+        //Blocks until Ethernet link connected
         void start_network_and_listening_threads();
 
         //Sends a UDP message to the target IP address. Make sure the message is not too long

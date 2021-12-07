@@ -7,7 +7,7 @@ EthernetInterface RJNetMbed::ethernet_port;
 UDPSocket RJNetMbed::network_socket;
 
 //Time between sends
-const Kernel::Clock::duration_u32 RJNetMbed::TIME_BETWEEN_SENDS = 50ms;
+const Kernel::Clock::duration_u32 RJNetMbed::TIME_BETWEEN_SENDS = 100ms;
 
 //Private Constants
 const SocketAddress RJNetMbed::rjnet_netmask("255.255.255.0");
@@ -58,6 +58,7 @@ void RJNetMbed::start_network_and_listening_threads(){
 
 bool RJNetMbed::send_single_message(string message, SocketAddress send_to){
     //Send string message to the IP address send_to. Blocks until message send or socket error.
+    //Does not block or throw an error if the IP address is not connected to the network.
     send_to.set_port(RJNET_DEFAULT_PORT);  //Set right port
 
     int num_bytes_to_send = message.length();
@@ -97,7 +98,8 @@ bool RJNetMbed::are_ip_addrs_equal(const SocketAddress & address_a, const Socket
 
 //Private functions
 
-//Thread for listening for incoming messages
+//Thread for listening for incoming messages. Calls process_single_message
+//when message recieved.
 void RJNetMbed::listen_for_new_messages(RJNetMbed * rjnet_obj){
     //Set up buffer for received message
     char udp_message_received[RJNetMbed::MAX_RJNET_MESSAGE_LEN_BYTES] = {0};

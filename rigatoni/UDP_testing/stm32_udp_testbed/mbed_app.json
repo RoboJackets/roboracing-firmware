@@ -1,9 +1,0 @@
-{
-    "target_overrides": {
-        "*": {
-            "platform.stdio-baud-rate": 115200,
-            "target.printf_lib": "std",
-            "platform.stdio-buffered-serial": 1
-        }
-    }
-}

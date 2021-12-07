@@ -43,7 +43,8 @@ void send_messages_udp_thread(){
         const unsigned int message_max_len = 32;
         char to_send[message_max_len];
         snprintf(to_send, message_max_len, "Scheduled message %d", i++);
-        rjnet_udp.send_single_message(to_send, laptopIP);
+        rjnet_udp.send_single_message(to_send, broadcastIP);
+        printf("Sent: %s\n", to_send);
 
         //Reset timer for scheduled messages
         ThisThread::sleep_for(RJNetMbed::TIME_BETWEEN_SENDS);
@@ -54,12 +55,14 @@ void send_messages_udp_thread(){
 Thread udp_sending_thread;
 
 int main() {
-
+    //Call this to start the networking stuff. Blocks until Ethernet connected.
     rjnet_udp.start_network_and_listening_threads();
+
+    //Send messages in another thread
     udp_sending_thread.start(send_messages_udp_thread);
 
     while(1) {
-
+        //Application code goes here.
         ThisThread::sleep_for(1s);
 
     }
