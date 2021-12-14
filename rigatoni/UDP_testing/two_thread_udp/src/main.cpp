@@ -43,7 +43,10 @@ void send_messages_udp_thread(){
         const unsigned int message_max_len = 32;
         char to_send[message_max_len];
         snprintf(to_send, message_max_len, "Scheduled message %d", i++);
-        rjnet_udp.send_single_message(to_send, broadcastIP);
+        //These appear in different packets, received in the same millisecond.
+        //So delimiting messages via packets seems to be working
+        rjnet_udp.send_single_message(to_send, laptopIP);
+        rjnet_udp.send_single_message(to_send, laptopIP);
         printf("Sent: %s\n", to_send);
 
         //Reset timer for scheduled messages
