@@ -1,8 +1,9 @@
 #include "RigatoniNetwork.h"
 #include <avr/wdt.h>
-#include <Ethernet.h>
 #include "EstopMotherboard.h"
-#include "RJNet.h"
+#include <Ethernet.h>
+#include <EthernetUdp.h>
+#include "RJNetUDP.h"
 
 
 const static String stopMsg = "D";
@@ -19,7 +20,6 @@ const static String genRequestStateMsg = "S?";
 //If we receive this, indicates a hardware failure and we should permanently stop
 const static String hardwareFailure = "FAIL";
 
-IPAddress hardwareFaultIP;   //IP address of thing that sent hardware fault
 bool isPermanentlyStopped = false;
 byte currentState = STOP;  // default state is STOP
 
@@ -29,18 +29,21 @@ byte steeringIn;          // steering input from radio board
 byte driveIn;             // drive input from radio board
 byte remoteState = STOP;  
 
+IPAddress otherip(192, 168, 20, 255); 
 
-EthernetServer server(PORT);
-
+//EthernetServer server(PORT);
 // NUC 
 const int timeToNucTimeoutMS = 500;
 unsigned long lastNUCReply = 0;
 bool nucConnected = false;
 
 unsigned long lastTimePrintedStatus = 0;
-unsigned long timeAtEndOfStartup = 0;
+//unsigned long timeAtEndOfStartup = 0;
+unsigned long start_time = 0;
 
 byte nucState = GO; // Default state GO to operate without NUC connected 
+
+EthernetUDP Udp;
 
 
 void stackLights(byte green, byte yellow, byte red) {
@@ -97,7 +100,7 @@ void writeOutCurrentState() {  // CHANGE, STATUS NEEDS TO GO THROUGH NUC FIRST
 }
 
 
-void respondToClient() {
+/*void respondToClient() {
     EthernetClient client = server.available();
     while (client) {
         client.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);   //Set connection delay so we don't hang
@@ -142,23 +145,16 @@ void respondToClient() {
         client = server.available();
     }
 }
+*/
 
-void sendStateToClient(EthernetClient the_client){
-    if(the_client.connected())
-    {
-        switch(currentState) {
-            case GO:    // everything enabled
-                RJNet::sendData(the_client, goMsg); 
-                break; 
-            case STOP:    // everything disabled
-                RJNet::sendData(the_client, stopMsg);
-                break;
-            case LIMITED:    // steering enabled, drive disabled
-                RJNet::sendData(the_client, limitedMsg);
-                break;
-        }
-    }
+void broadcastState() {
+  if (millis() - start_time >= 100) {
+    RJNetUDP::sendMessage(currentState, Udp, otherip);
+    start_time = millis();
+  }
 }
+
+
 
 
 void resetEthernet(void){
@@ -285,7 +281,8 @@ void setup() {
     Ethernet.setRetransmissionCount(ETH_NUM_SENDS); //Set number resends before failure
     Ethernet.setRetransmissionTimeout(ETH_RETRANSMISSION_DELAY_MS);  //Set timeout delay before failure
 
-    server.begin();
+    //server.begin();
+    Udp.begin(RJNetUDP::RJNET_PORT);
     Serial.print("Our address: ");
     Serial.println(Ethernet.localIP());
 
@@ -301,7 +298,9 @@ void loop() {
     digitalWrite(LED1, !digitalRead(LED1));
 
     writeOutCurrentState();
-    respondToClient();
+    broadcastState();
+    //respondToClient();
+    
     
     nucConnected = millis() - lastNUCReply < timeToNucTimeoutMS; 
     
@@ -309,7 +308,7 @@ void loop() {
         lastTimePrintedStatus = millis();
         if(isPermanentlyStopped){
             Serial.print("HARDWARE FAULT ON ");
-            Serial.print(hardwareFaultIP);
+            //Serial.print(hardwareFaultIP);
         }
         
         if(!nucConnected){
