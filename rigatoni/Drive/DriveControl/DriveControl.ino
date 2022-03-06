@@ -7,7 +7,6 @@
 #include "controller_estimator.h"
 #include <Ethernet.h>
 
-#define NUM_MAGNETS 9
 const static float US_PER_SEC = 1000000.0;
 
 
