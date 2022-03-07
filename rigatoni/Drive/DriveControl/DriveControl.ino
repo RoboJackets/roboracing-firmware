@@ -1,67 +1,52 @@
 #define ENCODER_OPTIMIZE_INTERRUPTS
 #include <Encoder.h>
-#include "RigatoniNetwork.h"
 #include <avr/wdt.h>
 #include "DriveControl.h"
-#include "RJNet.h"
 #include "controller_estimator.h"
 #include <Ethernet.h>
+#include <EthernetUdp.h>
+#include "RJNetUDP.h"
+#include "RigatoniNetworkUDP.h"
 
 const static float US_PER_SEC = 1000000.0;
 
 
-const static unsigned int REPLY_TIMEOUT_MS = 4000;   //We have to receive a reply from Estop and Brake within this many MS of our message or we are timed out. NOT TCP timeout. Have to 
+const static unsigned int REPLY_TIMEOUT_MS = BOARD_RESPONSE_TIMEOUT_MS;   //We have to receive a reply from Estop and Brake within this many MS of our message or we are timed out. NOT TCP timeout.
 const static unsigned int COMMAND_CONNECTION_TIMEOUT_MS = 500; //If no message from manual in this long, assume auto mode if a message from NUC in this time
 
 /****************ETHERNET****************/
-// See https://docs.google.com/document/d/10klaJG9QIRAsYD0eMPjk0ImYSaIPZpM_lFxHCxdVRNs/edit#
+// This is the UDP version.
+// See https://docs.google.com/document/d/1oRHm5xBQiod_YXESQ9omFy5joJqMfeQjY3NCvdzRTjk/edit
 ////
 
-
-
-EthernetServer server(PORT);
-
-// Drive connects to Brake and Estop as a client (Brake and Estop are servers): 
-EthernetClient brakeBoard; 
-EthernetClient estopBoard;
+EthernetUDP Udp;
 
 /****************Messages from clients****************/
-//Universal acknowledge message
-const static String ackMsg = "R";
 
 //Brake special acknowledge with current braking force
-const static String brakeAckHeader = "R=";
+const static String brakeForceHeader = "F=";
 
 //Possible messages from e-stop
 const static String estopStopMsg = "D";
 const static String estopLimitedMsg = "L";
 const static String estopGoMsg = "G";
-const static String estopRequestMsg = "S?";
 
-//Speed request message
-const static String speedRequestMsg = "S?";
-
-//Manual RC speed command header
+//Manual message expected format
 const static String speedCommandHeader = "v=";
+const static String manualStateCommandHeader = "M=";
+const static char autoModeCommand = 'A';
+const static char manualModeCommand = 'M';
 
-//Timestamps of replies from boards in ms
-unsigned long lastEstopReply = 0;
-unsigned long lastBrakeReply = 0;
+//Timestamps of messages from boards in ms
+unsigned long lastEstopMessage = 0;
+unsigned long lastBrakeMessage = 0;
 
 //Timestamps of the last messages from NUC and manual in MS
 unsigned long lastNUCSpeedTime = 0;
 unsigned long lastManualSpeedTime = 0;
 
 //Timestamps of our last messages to boards in ms
-unsigned long estopRequestSent = 0;
 unsigned long brakeCommandSent = 0;
-
-//End of startup. Needed so we don't connect for X seconds
-unsigned long endOfStartupTime = 0;
-
-//TCP Connection status to brake and estop
-bool estopConnected = false;
-bool brakeConnected = false;
 
 /****************Current Sensing****************/
 // Current Sensing
@@ -103,16 +88,16 @@ unsigned long lastControllerRunTime = 0;    //Last time the controller and speed
 float desired_braking_force = 0;        //Desired braking force in N (should be >=0)
 
 /* We choose target velocity by using
- - manual speed if Manual commanded us recently (in manual mode).
- - NUC speed if NUC commanded us recently and Manual didn't (in autonomous mode).
- - 0 if neither NUC or Manual commanded us recently.
+ - manual speed if in manual mode
+ - NUC speed if in autonomous mode
+ - 0 if in neither state (shouldn't happen)
 */
 enum currentSpeedCommander{
     MANUAL,
     NUC,
     NOBODY
 };
-currentSpeedCommander whoIsCommandingSpeed = NOBODY;
+currentSpeedCommander whoIsCommandingSpeed = MANUAL;
 
 float targetVelocity = 0;
 float nucTargetVelocity = 0;
@@ -171,17 +156,16 @@ void setup(){
         delay(100);
     }
     
-    Ethernet.setRetransmissionCount(ETH_NUM_SENDS); //Set number resends before failure
-    Ethernet.setRetransmissionTimeout(ETH_RETRANSMISSION_DELAY_MS);  //Set timeout delay before failure
-    
-    server.begin(); // launches OUR server
+    //If you don't set retransmission to 0, the WIZNET will retry 8 times if it cannot resolve the
+    //MAC address of the destination using ARP and block for a long time.
+    //With this as 0, will only block for ETH_RETRANSMISSION_DELAY_MS
+    Ethernet.setRetransmissionCount(0);
+    Ethernet.setRetransmissionTimeout(ETH_RETRANSMISSION_DELAY_MS);  //Set timeout delay before failure of ARP
+
+    //server.begin();
+    Udp.begin(RJNetUDP::RJNET_PORT);
     Serial.print("Our address: ");
     Serial.println(Ethernet.localIP());
-
-    estopBoard.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);
-    brakeBoard.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);
-    
-    endOfStartupTime = millis();
     
     // WATCHDOG TIMER
     wdt_reset();
@@ -195,7 +179,7 @@ void loop() {
     wdt_reset();
     digitalWrite(LED2_PIN, !digitalRead(LED2_PIN));
     
-    // Read new messages from WizNet and make necessary replies
+    // Read new messages from WizNet
     readAllNewMessages();
     
     //How long since the last controller execution
@@ -212,6 +196,9 @@ void loop() {
     totalEncoderTicks += encoderTicksSinceLastLoop;
 
     executeStateMachine(loopTimeStep);
+    
+    //Now write braking force to brake
+    sendToBrake();
     
     //Print diagnostics
     if (millis() - lastPrintTime >= printDelayMs){
@@ -247,16 +234,13 @@ void loop() {
         
         lastPrintTime = millis();
     }
-    
-    //Now make requests to estop and brake
-    sendToBrakeEstop();
 }
 
 ////
 // ETHERNET FUNCTIONS
 ////
 
-bool parseEstopMessage(const String msg){
+bool parseEstopMessage(const String & msg){
     /*
     Parse a message from the estop board and determine if the drive motor is enabled or disabled.
     If state is GO, motor enabled; in all other cases, motor is disabled.
@@ -264,139 +248,84 @@ bool parseEstopMessage(const String msg){
     return msg.equals(estopGoMsg);
 }
 
-float parseSpeedMessage(const String speedMessage){
+float parseSpeedMessage(const String & speedMessage, unsigned int startOfSpeed){
     //takes in message from manual and converts it to a float desired speed.
-    return speedMessage.substring(2).toFloat();
-}
-
-void handleSingleClientMessage(EthernetClient otherBoard){
-    /*
-    Handles a single client with new data. We make no initial distinction about who the otherBoard is - it could be a server connection OR 
-    a reply from Estop or Brake where WE have the EthernetClient object
-    
-    If it is a request for the current speed, reply with the speed.
-    Else, see if it is Estop telling us the state
-    or Manual telling us the velocity
-    or Brake acknowledging a command
-    */
-    String data = RJNet::readData(otherBoard);  //RJNet handles getting complete message
-    otherBoard.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);   //Set connection delay so we don't hang
-    
-    IPAddress otherIP = otherBoard.remoteIP();
-        
-    if(data.length() != 0){  //Got valid data - string will be empty if message not valid
-        
-        if(data.equals(speedRequestMsg)){  //Somebody's asking for our speed
-            //Send back our current speed
-            RJNet::sendData(otherBoard, "v=" + String(get_speed()) + ",I=" + String(motorCurrent));
-            Serial.print("Speed request from: ");
-            Serial.println(otherIP);
-        }
-        else if(otherIP == estopIP){
-            //Message from Estop board
-            motorEnabled = parseEstopMessage(data);
-            lastEstopReply = millis();
-        }
-        else if(otherIP == brakeIP){
-            //Message from brake board, should be acknoweldge
-            //Is in form "R=$float", 
-            if(data.substring(0,1).equals(ackMsg)){
-                lastBrakeReply = millis();
-            }
-            else{
-                Serial.print("Invalid message from brake: ");
-                Serial.println(data);
-            }
-        }
-        else if(otherIP == manualIP){
-            //Message from manual board, should be speed command
-            if(data.length() > 2 && data.substring(0,2).equals(speedCommandHeader)){
-                manualTargetVelocity = parseSpeedMessage(data);
-                lastManualSpeedTime = millis();
-            }
-            else{
-                Serial.print("Bad message from manual: ");
-                Serial.println(data);
-            }
-        }
-        else if(otherIP == nucIP){
-            //Message from manual board, should be speed command
-            if(data.length() > 2 && data.substring(0,2).equals(speedCommandHeader)){
-                nucTargetVelocity = parseSpeedMessage(data);
-                lastNUCSpeedTime = millis();
-                //Send back our current speed
-                RJNet::sendData(otherBoard, "v=" + String(get_speed()) + ",I=" + String(motorCurrent));
-            }  
-            else{
-                Serial.print("Wrong message from NUC: ");
-                Serial.println(data);
-            }
-        }
-    }
-    else{
-        Serial.print("Empty/invalid message received from: ");
-        Serial.println(otherIP);
-    }
+    //startOfSpeed is the index of the start of the floating-point number representing the speed.
+    return atof(speedMessage.c_str() + startOfSpeed);
 }
 
 void readAllNewMessages(){
     /*
     Checks the server, brake, and Estop for new messages and deals with them
     */
-    EthernetClient client = server.available();  //if there is a new message from client create client object, otherwise new client object null
-    // These look for clients
-    while(client){
-        handleSingleClientMessage(client);
-        client = server.available();  //Go to next message
-    }
-
-    // These look for message bytes
-    while(brakeBoard.available()){
-        handleSingleClientMessage(brakeBoard);
-    }
-    
-    while(estopBoard.available()){
-        handleSingleClientMessage(estopBoard);
+    Message incomingMessage = RJNetUDP::receiveMessage(Udp);
+    while(incomingMessage.received) {
+        if(incomingMessage.ipaddress == estopIP){
+            //Message from Estop board
+            motorEnabled = parseEstopMessage(incomingMessage.message);
+            lastEstopMessage = millis();
+        }
+        else if(incomingMessage.ipaddress == brakeIP){
+            //Message from brake board, should be brake force
+            if(incomingMessage.message.startsWith(brakeForceHeader)){
+                lastBrakeMessage = millis();
+            }
+            else{
+                Serial.print("Invalid message from brake: ");
+                Serial.println(incomingMessage.message);
+            }
+        }
+        else if(incomingMessage.ipaddress == manualIP){
+            //Message from manual board, should be speed command
+            //We know the message is of the form "M=%c v=%f", where %c is the character that defines the mode.
+            //Message is known length until the float
+            unsigned int startOfSpeedCommand = manualStateCommandHeader.length() + 1;
+            if(incomingMessage.message.startsWith(manualStateCommandHeader) && incomingMessage.message.substring(startOfSpeedCommand, startOfSpeedCommand + speedCommandHeader.length()).equals(speedCommandHeader)){
+                //Message from manual is valid
+                
+                //Parse current mode
+                if(incomingMessage.message.charAt(manualStateCommandHeader.length()) == autoModeCommand){
+                    whoIsCommandingSpeed = NUC;
+                }
+                else{
+                    //Manual mode
+                    whoIsCommandingSpeed = MANUAL;
+                }
+                
+                //Parse current speed. We use pointer arithmetic to get a pointer to the start of the floating-point number
+                manualTargetVelocity = parseSpeedMessage(incomingMessage.message, manualStateCommandHeader.length() + speedCommandHeader.length() + 2);
+                
+                lastManualSpeedTime = millis();
+            }
+            else{
+                Serial.print("Bad message from manual: ");
+                Serial.println(incomingMessage.message);
+            }
+        }
+        else if(incomingMessage.ipaddress == nucIP){
+            //Message from nuc, should be speed command
+            if(incomingMessage.message.startsWith(manualStateCommandHeader)){
+                nucTargetVelocity = parseSpeedMessage(incomingMessage.message, speedCommandHeader.length());
+                lastNUCSpeedTime = millis();
+            }  
+            else{
+                Serial.print("Wrong message from NUC: ");
+                Serial.println(incomingMessage.message);
+            }
+        }
+        
+        //Get a new message
+        Message incomingMessage = RJNetUDP::receiveMessage(Udp);
     }
 }
 
-void sendToBrakeEstop(void){
+void sendToBrake(void){
     /*
-    Checks our connection to the brake and estop and attempts to reconnect if we are disconnected.
-    If we are connected and sufficient time has elapsed both from our last request and their last reply, send new request to estop/brake
+    If sufficient time has elapsed both from our last request and their last reply, send new command to brake
     */
-    if(millis() - endOfStartupTime < MS_AFTER_STARTUP_BEFORE_CLIENT_CONNECT){
-        //Do nothing before MS_AFTER_STARTUP_BEFORE_CLIENT_CONNECT
-        estopConnected = false;
-        brakeConnected = false;
-        return;
-    }
-    
-    brakeConnected = brakeBoard.connected();
-    if(!brakeConnected){
-        //Lost TCP connection with the brake board. Takes 10 seconds for TCP connection to fail after disconnect.
-        //Takes a very long time to time out
-        brakeBoard.connect(brakeIP, PORT);
-        Serial.println("Lost connection with brakes");
-    }
-    else{
-        if(millis() > lastBrakeReply + MIN_MESSAGE_SPACING && millis() > brakeCommandSent + MIN_MESSAGE_SPACING){
-            RJNet::sendData(brakeBoard, "B=" + String(desired_braking_force));
-            brakeCommandSent = millis();
-        }
-    }
-    
-    estopConnected = estopBoard.connected();
-    if(!estopConnected){
-        //Lost TCP connection with the estop board
-        estopBoard.connect(estopIP, PORT);
-        Serial.println("Lost connection with estop");
-    }
-    else{
-        if(millis() > lastEstopReply + MIN_MESSAGE_SPACING && millis() > estopRequestSent + MIN_MESSAGE_SPACING){
-            RJNet::sendData(estopBoard, estopRequestMsg);
-            estopRequestSent = millis();
-        }
+    if(millis() > lastBrakeMessage + MIN_MESSAGE_SPACING && millis() > brakeCommandSent + MIN_MESSAGE_SPACING){
+        RJNetUDP::sendMessage("B=" + String(desired_braking_force), Udp, brakeIP);
+        brakeCommandSent = millis();
     }
 }
 
@@ -412,26 +341,6 @@ void resetEthernet(void){
 // STATE MACHINE FUNCTIONS
 ////
 
-void stateMachineForCurrentSpeed(){
-    //If we have a recent command from manual, we are in manual mode. Return manual's command.
-    //Else if we have a recent command from NUC but NOT a recent command from manual, we are in autonomous mode.
-    //Else we are stopped; don't change angle
-    unsigned long currentTime = millis();
-    
-    if(currentTime - lastManualSpeedTime <= COMMAND_CONNECTION_TIMEOUT_MS){
-        targetVelocity = manualTargetVelocity;
-        whoIsCommandingSpeed = MANUAL;
-    }
-    else if(currentTime - lastNUCSpeedTime <= COMMAND_CONNECTION_TIMEOUT_MS){
-        targetVelocity = nucTargetVelocity;
-        whoIsCommandingSpeed = NUC;
-    }
-    else{
-        whoIsCommandingSpeed = NOBODY;
-        targetVelocity = 0;
-    }
-}
-
 void executeStateMachine(float timeSinceLastLoop){ 
     //Check what state we are in at the moment.
     //We are disabled if the motor is disabled, or any of our clients has timed out 
@@ -439,25 +348,17 @@ void executeStateMachine(float timeSinceLastLoop){
     
     //Check if we are connected to all boards
     bool connectedToAllBoards = true;
-    if(!brakeConnected){
-        Serial.println("Lost brake TCP connection");
-        connectedToAllBoards = false;
-    }
-    else if(currTime > lastBrakeReply + REPLY_TIMEOUT_MS){
+
+    if(currTime > lastBrakeMessage + REPLY_TIMEOUT_MS){
         Serial.println("Brake timed out");
         connectedToAllBoards = false;
     }
-    if(!estopConnected){
-        Serial.println("Lost estop TCP connection");
-        connectedToAllBoards = false;
-    }
-    else if(currTime > lastEstopReply + REPLY_TIMEOUT_MS){
+    
+    if(currTime > lastEstopMessage + REPLY_TIMEOUT_MS){
         Serial.println("Estop timed out");
         connectedToAllBoards = false;
     }
     
-    //Check who is commanding the speed
-    stateMachineForCurrentSpeed();
     if(whoIsCommandingSpeed == NOBODY){
         //Nobody giving valid speed commands
         connectedToAllBoards = false;

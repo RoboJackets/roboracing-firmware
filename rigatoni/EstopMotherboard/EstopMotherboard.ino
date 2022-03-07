@@ -1,21 +1,14 @@
-#include "RigatoniNetworkUDP.h"
 #include <avr/wdt.h>
 #include "EstopMotherboard.h"
 #include <Ethernet.h>
 #include <EthernetUdp.h>
 #include "RJNetUDP.h"
+#include "RigatoniNetworkUDP.h"
 
 
-const static String stopMsg = "D";
-const static String limitedMsg = "L";
-const static String goMsg = "G";
-const static String nucRequestStateMsg = "S?";
-
-const static String nucResponseGo = "G";
-const static String nucResponseHalt = "H";
-
-
-const static String genRequestStateMsg = "S?";
+const static char stopMsg[] = "D";
+const static char limitedMsg[] = "L";
+const static char goMsg[] = "G";
 
 //If we receive this, indicates a hardware failure and we should permanently stop
 const static String hardwareFailure = "FAIL";
@@ -91,10 +84,25 @@ void writeOutCurrentState() {  // CHANGE, STATUS NEEDS TO GO THROUGH NUC FIRST
 }
 
 void broadcastState() {
-  if (millis() - start_time >= MIN_MESSAGE_SPACING) {
-    RJNetUDP::sendMessage(currentState, Udp, broadcastIP);
-    start_time = millis();
-  }
+    if (millis() - start_time >= MIN_MESSAGE_SPACING) {
+        //So we are treating the C-style string as a pointer here because it
+        //decays to a pointer when we pass it into a function.
+        const char * currentStateMessage;
+        switch(currentState) {
+            case GO:    // everything enabled
+                currentStateMessage = goMsg;
+                break; 
+            case STOP:    // everything disabled
+                currentStateMessage = limitedMsg;
+                break;
+            case LIMITED:    // steering enabled, drive disabled
+                currentStateMessage = stopMsg;
+                break;
+            }
+
+        RJNetUDP::sendMessage(currentStateMessage, Udp, broadcastIP);
+        start_time = millis();
+    }
 }
 
 void checkAllMessages(){
