@@ -1,0 +1,23 @@
+.pio\build\nucleo_h743zi\FrameworkMbedstorage\blockdevice\source\ReadOnlyBlockDevice.o: \
+ C:\Users\Peter\.platformio\packages\framework-mbed\storage\blockdevice\source\ReadOnlyBlockDevice.cpp \
+ .pio\build\nucleo_h743zi/mbed_config.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/storage/BLOCKD~1/include/blockdevice/ReadOnlyBlockDevice.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/storage/BLOCKD~1/include/blockdevice/BlockDevice.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/PlatformMutex.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/NonCopyable.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/rtos/include/rtos/Mutex.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/rtos/include/rtos/mbed_rtos_types.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/cmsis/CMSIS_5/CMSIS/RTOS2/Include/cmsis_os2.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/rtos/include/rtos/internal/mbed_rtos1_types.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/cmsis/CMSIS_5/CMSIS/RTOS2/RTX/Include1/cmsis_os.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/cmsis/CMSIS_5/CMSIS/RTOS2/RTX/Include/rtx_os.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/rtos/include/rtos/internal/mbed_rtos_storage.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/cmsis/device/rtos/include/mbed_rtx_storage.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/cmsis/device/rtos/include/mbed_rtx_conf.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/targets/TAE5D3~1/mbed_rtx.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/rtos/include/rtos/Kernel.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/mbed_toolchain.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/mbed_preprocessor.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/ScopedLock.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/mbed_error.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/mbed_retarget.h

@@ -1,0 +1,22 @@
+.pio\build\nucleo_h743zi\FrameworkMbedconnectivity\nanostack\coap-service\source\coap_message_handler.o: \
+ C:\Users\Peter\.platformio\packages\framework-mbed\connectivity\nanostack\coap-service\source\coap_message_handler.c \
+ .pio\build\nucleo_h743zi/mbed_config.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/LIBRAR~1/NANOST~1/MBED-C~1/nsdynmemLIB.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/LIBRAR~1/NANOST~1/MBED-C~1/ns_types.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/LIBRAR~1/NANOST~1/MBED-C~1/nsdynmem_tracker.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/NANOST~1/COAP-S~1/source/include/coap_service_api_internal.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/NANOST~1/COAP-S~1/source/include/coap_message_handler.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/LIBRAR~1/MBED-C~1/mbed-coap/sn_coap_header.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/LIBRAR~1/NANOST~1/MBED-C~1/ns_list.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/NANOST~1/COAP-S~1/source/include/coap_message_handler.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/LIBRAR~1/MBED-C~1/mbed-coap/sn_coap_protocol.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/LIBRAR~1/MBED-C~1/mbed-coap/sn_coap_header.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/LIBRAR~1/MBED-C~1/source/include/sn_coap_protocol_internal.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/LIBRAR~1/MBED-C~1/source/include/sn_coap_header_internal.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/LIBRAR~1/MBED-C~1/mbed-coap/sn_config.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/NANOST~1/SAL-ST~1/NANOST~1/socket_api.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/NANOST~1/SAL-ST~1/NANOST~1/ns_address.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/LIBRAR~1/NANOST~1/MBED-C~1/ns_types.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/LIBRAR~1/NANOST~1/MBED-C~1/ns_trace.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/MBED-T~1/include/mbed-trace/mbed_trace.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/randlib/include/MBED-C~1/randLIB.h
