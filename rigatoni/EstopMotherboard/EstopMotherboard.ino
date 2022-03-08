@@ -22,7 +22,6 @@ byte remoteState = STOP;
 
 
 unsigned long lastTimePrintedStatus = 0;
-//unsigned long timeAtEndOfStartup = 0;
 unsigned long start_time = 0;
 
 byte nucState = GO; // Default state GO to operate without NUC connected 
