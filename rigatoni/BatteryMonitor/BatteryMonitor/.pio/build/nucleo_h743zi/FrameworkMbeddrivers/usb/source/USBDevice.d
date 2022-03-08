@@ -1,0 +1,26 @@
+.pio\build\nucleo_h743zi\FrameworkMbeddrivers\usb\source\USBDevice.o: \
+ C:\Users\Peter\.platformio\packages\framework-mbed\drivers\usb\source\USBDevice.cpp \
+ .pio\build\nucleo_h743zi/mbed_config.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/drivers/usb/include/usb/internal/USBDevice.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/drivers/usb/include/usb/internal/USBDevice_Types.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/hal/usb/include/usb/USBPhy.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/hal/usb/include/usb/USBPhyTypes.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/hal/usb/include/usb/USBPhyEvents.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/mbed_critical.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/Callback.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/CXXSUP~1/mstd_cstddef \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/CXXSUP~1/mstd_new \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/mbed_assert.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/mbed_toolchain.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/mbed_preprocessor.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/CXXSUP~1/mstd_type_traits \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/CXXSUP~1/mstd_functional \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/CXXSUP~1/mstd_memory \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/CXXSUP~1/mstd_utility \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/CXXSUP~1/mstd_iterator \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/drivers/usb/include/usb/internal/USBDescriptor.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/hal/usb/include/usb/usb_phy_api.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/hal/usb/include/usb/USBPhy.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/mbed_assert.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/mbed_error.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/mbed_retarget.h

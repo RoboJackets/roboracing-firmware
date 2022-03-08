@@ -1,0 +1,33 @@
+.pio\build\nucleo_h743zi\FrameworkMbedconnectivity\nfc\source\NFCRemoteInitiator.o: \
+ C:\Users\Peter\.platformio\packages\framework-mbed\connectivity\nfc\source\NFCRemoteInitiator.cpp \
+ .pio\build\nucleo_h743zi/mbed_config.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/nfc/include/nfc/NFCRemoteInitiator.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/nfc/include/nfc/NFCDefinitions.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/nfc/LIBRAR~1/stack/nfc_errors.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/nfc/LIBRAR~1/acore/acore/ac_buffer.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/nfc/include/nfc/NFCRemoteEndpoint.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/nfc/include/nfc/NFCNDEFCapable.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/Span.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/mbed_assert.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/mbed_toolchain.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/mbed_preprocessor.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/nfc/LIBRAR~1/stack/ndef/ndef.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/nfc/LIBRAR~1/stack/nfc_common.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/nfc/LIBRAR~1/stack/nfc_errors.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/nfc/LIBRAR~1/stack/platform/nfc_debug.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/nfc/LIBRAR~1/acore/acore/ac_macros.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/nfc/LIBRAR~1/acore/acore/ac_buffer_reader.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/nfc/LIBRAR~1/acore/acore/ac_buffer_builder.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/nfc/LIBRAR~1/acore/acore/ac_stream.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/nfc/LIBRAR~1/acore/acore/ac_buffer.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/nfc/LIBRAR~1/acore/acore/ac_buffer_reader.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/nfc/LIBRAR~1/acore/acore/ac_buffer_builder.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/nfc/LIBRAR~1/stack/tech/iso7816/iso7816_app.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/nfc/LIBRAR~1/stack/tech/iso7816/iso7816.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/nfc/LIBRAR~1/stack/transceiver/protocols.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/nfc/LIBRAR~1/stack/tech/isodep/isodep_target.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/nfc/LIBRAR~1/stack/transceiver/transceiver.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/nfc/LIBRAR~1/stack/transceiver/protocols.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/nfc/LIBRAR~1/stack/platform/nfc_transport.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/nfc/LIBRAR~1/stack/platform/nfc_scheduler.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/nfc/LIBRAR~1/stack/tech/isodep/isodep.h
