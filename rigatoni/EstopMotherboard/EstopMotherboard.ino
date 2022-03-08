@@ -91,15 +91,16 @@ void broadcastState() {
             case GO:    // everything enabled
                 currentStateMessage = goMsg;
                 break; 
-            case STOP:    // everything disabled
+            case LIMITED:    // everything disabled
                 currentStateMessage = limitedMsg;
                 break;
-            case LIMITED:    // steering enabled, drive disabled
+            default:    // steering enabled, drive disabled
                 currentStateMessage = stopMsg;
                 break;
             }
 
         RJNetUDP::sendMessage(currentStateMessage, Udp, broadcastIP);
+        Serial.println("Sending message");
         start_time = millis();
     }
 }
