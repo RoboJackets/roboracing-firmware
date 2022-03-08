@@ -1,0 +1,36 @@
+.pio\build\nucleo_h743zi\FrameworkMbedconnectivity\netsocket\source\NetworkStack.o: \
+ C:\Users\JMACHALE\.platformio\packages\framework-mbed\connectivity\netsocket\source\NetworkStack.cpp \
+ .pio\build\nucleo_h743zi/mbed_config.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/CONNEC~1/NETSOC~1/include/netsocket/NetworkStack.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/CONNEC~1/NETSOC~1/include/netsocket/nsapi_types.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/CONNEC~1/NETSOC~1/include/netsocket/SocketAddress.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/platform/include/platform/mbed_toolchain.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/platform/include/platform/mbed_preprocessor.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/CONNEC~1/NETSOC~1/include/netsocket/NetworkInterface.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/CONNEC~1/NETSOC~1/include/netsocket/nsapi_types.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/platform/include/platform/Callback.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/platform/CXXSUP~1/mstd_cstddef \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/platform/CXXSUP~1/mstd_new \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/platform/include/platform/mbed_assert.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/platform/include/platform/mbed_toolchain.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/platform/CXXSUP~1/mstd_type_traits \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/platform/CXXSUP~1/mstd_functional \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/platform/CXXSUP~1/mstd_memory \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/platform/CXXSUP~1/mstd_utility \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/platform/CXXSUP~1/mstd_iterator \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/CONNEC~1/NETSOC~1/include/netsocket/DNS.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/CONNEC~1/NETSOC~1/include/netsocket/nsapi_dns.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/events/include/events/EventQueue.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/events/include/events/equeue.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/events/include/events/internal/equeue_platform.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/cmsis/CMSIS_5/CMSIS/RTOS2/Include/cmsis_os2.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/rtos/include/rtos/internal/mbed_rtos_storage.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/cmsis/device/rtos/include/mbed_rtx_storage.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/cmsis/CMSIS_5/CMSIS/RTOS2/RTX/Include/rtx_os.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/cmsis/device/rtos/include/mbed_rtx_conf.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/targets/TAE5D3~1/mbed_rtx.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/platform/include/platform/Callback.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/platform/include/platform/NonCopyable.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/events/include/events/mbed_shared_queues.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/platform/include/platform/mbed_error.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/platform/include/platform/mbed_retarget.h

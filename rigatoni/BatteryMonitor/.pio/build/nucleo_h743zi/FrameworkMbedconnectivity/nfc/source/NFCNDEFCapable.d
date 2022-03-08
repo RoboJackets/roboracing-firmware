@@ -1,0 +1,23 @@
+.pio\build\nucleo_h743zi\FrameworkMbedconnectivity\nfc\source\NFCNDEFCapable.o: \
+ C:\Users\JMACHALE\.platformio\packages\framework-mbed\connectivity\nfc\source\NFCNDEFCapable.cpp \
+ .pio\build\nucleo_h743zi/mbed_config.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/CONNEC~1/nfc/include/nfc/NFCNDEFCapable.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/platform/include/platform/Span.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/platform/include/platform/mbed_assert.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/platform/include/platform/mbed_toolchain.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/platform/include/platform/mbed_preprocessor.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/CONNEC~1/nfc/include/nfc/NFCDefinitions.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/CONNEC~1/nfc/LIBRAR~1/stack/nfc_errors.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/CONNEC~1/nfc/LIBRAR~1/acore/acore/ac_buffer.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/CONNEC~1/nfc/LIBRAR~1/stack/ndef/ndef.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/CONNEC~1/nfc/LIBRAR~1/stack/nfc_common.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/CONNEC~1/nfc/LIBRAR~1/stack/nfc_errors.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/CONNEC~1/nfc/LIBRAR~1/stack/platform/nfc_debug.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/CONNEC~1/nfc/LIBRAR~1/acore/acore/ac_macros.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/CONNEC~1/nfc/LIBRAR~1/acore/acore/ac_buffer_reader.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/CONNEC~1/nfc/LIBRAR~1/acore/acore/ac_buffer_builder.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/CONNEC~1/nfc/LIBRAR~1/acore/acore/ac_stream.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/CONNEC~1/nfc/LIBRAR~1/acore/acore/ac_buffer.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/CONNEC~1/nfc/LIBRAR~1/acore/acore/ac_buffer_reader.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/CONNEC~1/nfc/LIBRAR~1/acore/acore/ac_buffer_builder.h \
+ C:\Users\JMACHALE\PLATFO~1\packages\FRAMEW~1/CONNEC~1/nfc/LIBRAR~1/stack/ndef/ndef.h
