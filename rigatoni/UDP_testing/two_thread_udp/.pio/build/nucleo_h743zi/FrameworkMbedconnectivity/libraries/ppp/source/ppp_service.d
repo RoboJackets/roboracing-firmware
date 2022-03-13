@@ -173,7 +173,6 @@
  C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/NETSOC~1/include/netsocket/EthInterface.h \
  C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/NETSOC~1/include/netsocket/WiFiInterface.h \
  C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/NETSOC~1/include/netsocket/WiFiAccessPoint.h \
- C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/NETSOC~1/include/netsocket/CellularInterface.h \
  C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/NETSOC~1/include/netsocket/MeshInterface.h \
  C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/NETSOC~1/include/netsocket/Socket.h \
  C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/NETSOC~1/include/netsocket/UDPSocket.h \
