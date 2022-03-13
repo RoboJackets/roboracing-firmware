@@ -1,7 +1,5 @@
 #include "RJNetUDP.h"
 
-void RJNetUDP() {}
-
 const unsigned int RJNetUDP::RJNET_PORT = 8888;
 Message RJNetUDP::receiveMessage(EthernetUDP &Udp)
 {

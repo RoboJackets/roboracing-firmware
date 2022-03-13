@@ -97,7 +97,7 @@ enum currentSpeedCommander{
     NUC,
     NOBODY
 };
-currentSpeedCommander whoIsCommandingSpeed = MANUAL;
+currentSpeedCommander whoIsCommandingSpeed = NUC;
 
 float targetVelocity = 0;
 float nucTargetVelocity = 0;
@@ -232,6 +232,7 @@ void loop() {
         Serial.print(" Motor Current: ");
         Serial.println(motorCurrent);
         
+        
         lastPrintTime = millis();
     }
 }
@@ -304,18 +305,25 @@ void readAllNewMessages(){
         }
         else if(incomingMessage.ipaddress == nucIP){
             //Message from nuc, should be speed command
-            if(incomingMessage.message.startsWith(manualStateCommandHeader)){
+            if(incomingMessage.message.startsWith(speedCommandHeader)){
                 nucTargetVelocity = parseSpeedMessage(incomingMessage.message, speedCommandHeader.length());
                 lastNUCSpeedTime = millis();
+                Serial.print("NUC speed: ");
+                Serial.println(nucTargetVelocity);
             }  
             else{
                 Serial.print("Wrong message from NUC: ");
                 Serial.println(incomingMessage.message);
             }
         }
-        
+        else{
+            Serial.print("Ignoring message from: ");
+            Serial.print(incomingMessage.ipaddress);
+            Serial.print(": ");
+            Serial.println(incomingMessage.message);
+        }
         //Get a new message
-        Message incomingMessage = RJNetUDP::receiveMessage(Udp);
+        incomingMessage = RJNetUDP::receiveMessage(Udp);
     }
 }
 
@@ -324,7 +332,8 @@ void sendToBrake(void){
     If sufficient time has elapsed both from our last request and their last reply, send new command to brake
     */
     if(millis() > lastBrakeMessage + MIN_MESSAGE_SPACING && millis() > brakeCommandSent + MIN_MESSAGE_SPACING){
-        RJNetUDP::sendMessage("B=" + String(desired_braking_force), Udp, brakeIP);
+        String to_send = "B=" + String(desired_braking_force);
+        RJNetUDP::sendMessage(to_send, Udp, brakeIP);
         brakeCommandSent = millis();
     }
 }
@@ -341,7 +350,20 @@ void resetEthernet(void){
 // STATE MACHINE FUNCTIONS
 ////
 
-void executeStateMachine(float timeSinceLastLoop){ 
+void executeStateMachine(float timeSinceLastLoop){
+    //This checks to see what our target speed is
+    switch (whoIsCommandingSpeed){
+        case MANUAL:
+            targetVelocity = manualTargetVelocity;
+            break;
+        case NUC:
+            targetVelocity = nucTargetVelocity;
+            break;
+        default:
+            targetVelocity = 0;
+            break;
+        }
+    
     //Check what state we are in at the moment.
     //We are disabled if the motor is disabled, or any of our clients has timed out 
     unsigned long currTime = millis();
@@ -349,10 +371,12 @@ void executeStateMachine(float timeSinceLastLoop){
     //Check if we are connected to all boards
     bool connectedToAllBoards = true;
 
+    /*
     if(currTime > lastBrakeMessage + REPLY_TIMEOUT_MS){
         Serial.println("Brake timed out");
         connectedToAllBoards = false;
     }
+    */
     
     if(currTime > lastEstopMessage + REPLY_TIMEOUT_MS){
         Serial.println("Estop timed out");

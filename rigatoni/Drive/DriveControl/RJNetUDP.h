@@ -17,7 +17,6 @@ struct Message {
 class RJNetUDP 
 {
     public:
-        RJNet();
         static void sendMessage(const String &message, EthernetUDP &Udp, const IPAddress &remoteIP);  //Sends message in Arduino String format
         static void sendMessage(const char message[], EthernetUDP &Udp, const IPAddress &remoteIP);   //Sends message in C-stye char[] format
         static void sendMessage(float num, EthernetUDP &Udp, const IPAddress &remoteIP);
