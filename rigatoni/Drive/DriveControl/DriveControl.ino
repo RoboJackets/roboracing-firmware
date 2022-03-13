@@ -351,18 +351,6 @@ void resetEthernet(void){
 ////
 
 void executeStateMachine(float timeSinceLastLoop){
-    //This checks to see what our target speed is
-    switch (whoIsCommandingSpeed){
-        case MANUAL:
-            targetVelocity = manualTargetVelocity;
-            break;
-        case NUC:
-            targetVelocity = nucTargetVelocity;
-            break;
-        default:
-            targetVelocity = 0;
-            break;
-        }
     
     //Check what state we are in at the moment.
     //We are disabled if the motor is disabled, or any of our clients has timed out 
@@ -378,15 +366,32 @@ void executeStateMachine(float timeSinceLastLoop){
     }
     */
     
-    if(currTime > lastEstopMessage + REPLY_TIMEOUT_MS){
+    if(currTime - lastEstopMessage > REPLY_TIMEOUT_MS){
         Serial.println("Estop timed out");
         connectedToAllBoards = false;
     }
     
-    if(whoIsCommandingSpeed == NOBODY){
-        //Nobody giving valid speed commands
-        connectedToAllBoards = false;
-    }
+        //This checks to see what our target speed is
+    switch (whoIsCommandingSpeed){
+        case MANUAL:
+            targetVelocity = manualTargetVelocity;
+            if(currTime - lastManualSpeedTime > REPLY_TIMEOUT_MS){
+                Serial.println("Manual commanding and timed out");
+                connectedToAllBoards = false;
+            }
+            break;
+        case NUC:
+            targetVelocity = nucTargetVelocity;
+            if(currTime - lastNUCSpeedTime > REPLY_TIMEOUT_MS){
+                Serial.println("NUC commanding and timed out");
+                connectedToAllBoards = false;
+            }
+            break;
+        default:
+            connectedToAllBoards = false;
+            targetVelocity = 0;
+            break;
+        }
     
     //State transitions. See .gv file.
     if(currentState == STATE_DRIVING_FORWARD){
