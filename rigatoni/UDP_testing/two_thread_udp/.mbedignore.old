@@ -1,0 +1,9 @@
+connectivity/drivers/802.15.4_RF
+connectivity/drivers/wifi
+connectivity/drivers/cellular
+connectivity/drivers/nfc
+connectivity/drivers/mbedtls
+connectivity/cellular
+connectivity/lorawan
+connectivity/nfc
+storage/

@@ -230,20 +230,6 @@
  C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/events/include/events/Event.h \
  C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/events/include/events/UserAllocatedEvent.h \
  C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/events/include/events/mbed_shared_queues.h \
- C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/storage/FILESY~1/include/filesystem/mbed_filesystem.h \
- C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/storage/FILESY~1/include/filesystem/FileSystem.h \
- C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/FileBase.h \
- C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/FileHandle.h \
- C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/DirHandle.h \
- C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/FileSystemLike.h \
- C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/FileSystemHandle.h \
- C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/storage/BLOCKD~1/include/blockdevice/BlockDevice.h \
- C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/storage/FILESY~1/include/filesystem/File.h \
- C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/storage/FILESY~1/include/filesystem/Dir.h \
- C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/storage/BLOCKD~1/include/blockdevice/ChainingBlockDevice.h \
- C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/storage/BLOCKD~1/include/blockdevice/BlockDevice.h \
- C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/storage/BLOCKD~1/include/blockdevice/SlicingBlockDevice.h \
- C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/storage/BLOCKD~1/include/blockdevice/HeapBlockDevice.h \
  C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/mbed_application.h \
  C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/mbed_interface.h \
  C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/mbed_debug.h \
@@ -285,6 +271,7 @@
  C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/drivers/include/drivers/UnbufferedSerial.h \
  C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/drivers/include/drivers/SerialBase.h \
  C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/hal/include/hal/serial_api.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/FileHandle.h \
  C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/drivers/include/drivers/BufferedSerial.h \
  C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/drivers/include/drivers/InterruptIn.h \
  C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/hal/include/hal/gpio_irq_api.h \
@@ -318,6 +305,8 @@
  C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/hal/include/hal/sleep_api.h \
  C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/mbed_rtc_time.h \
  C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/ATCmdParser.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/FileSystemHandle.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/DirHandle.h \
  C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/CriticalSectionLock.h \
  C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/DeepSleepLock.h \
  C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/ScopedRomWriteLock.h \
@@ -327,6 +316,7 @@
  C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/mbed_stats.h \
  C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/Stream.h \
  C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/FileLike.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/FileBase.h \
  C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/NETSOC~1/include/NETSOC~1/EthernetInterface.h \
  C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/NETSOC~1/include/NETSOC~1/nsapi.h \
  C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/CONNEC~1/NETSOC~1/include/NETSOC~1/EMACInterface.h \

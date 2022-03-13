@@ -51,47 +51,6 @@
 #define MBED_CONF_EVENTS_SHARED_HIGHPRIO_STACKSIZE                            1024                                                                                             // set by library:events
 #define MBED_CONF_EVENTS_SHARED_STACKSIZE                                     2048                                                                                             // set by library:events
 #define MBED_CONF_EVENTS_USE_LOWPOWER_TIMER_TICKER                            0                                                                                                // set by library:events
-#define MBED_CONF_FAT_CHAN_FFS_DBG                                            0                                                                                                // set by library:fat_chan
-#define MBED_CONF_FAT_CHAN_FF_CODE_PAGE                                       437                                                                                              // set by library:fat_chan
-#define MBED_CONF_FAT_CHAN_FF_FS_EXFAT                                        0                                                                                                // set by library:fat_chan
-#define MBED_CONF_FAT_CHAN_FF_FS_HEAPBUF                                      1                                                                                                // set by library:fat_chan
-#define MBED_CONF_FAT_CHAN_FF_FS_LOCK                                         0                                                                                                // set by library:fat_chan
-#define MBED_CONF_FAT_CHAN_FF_FS_MINIMIZE                                     0                                                                                                // set by library:fat_chan
-#define MBED_CONF_FAT_CHAN_FF_FS_NOFSINFO                                     0                                                                                                // set by library:fat_chan
-#define MBED_CONF_FAT_CHAN_FF_FS_NORTC                                        0                                                                                                // set by library:fat_chan
-#define MBED_CONF_FAT_CHAN_FF_FS_READONLY                                     0                                                                                                // set by library:fat_chan
-#define MBED_CONF_FAT_CHAN_FF_FS_REENTRANT                                    0                                                                                                // set by library:fat_chan
-#define MBED_CONF_FAT_CHAN_FF_FS_RPATH                                        1                                                                                                // set by library:fat_chan
-#define MBED_CONF_FAT_CHAN_FF_FS_TIMEOUT                                      1000                                                                                             // set by library:fat_chan
-#define MBED_CONF_FAT_CHAN_FF_FS_TINY                                         1                                                                                                // set by library:fat_chan
-#define MBED_CONF_FAT_CHAN_FF_LFN_BUF                                         255                                                                                              // set by library:fat_chan
-#define MBED_CONF_FAT_CHAN_FF_LFN_UNICODE                                     0                                                                                                // set by library:fat_chan
-#define MBED_CONF_FAT_CHAN_FF_MAX_LFN                                         255                                                                                              // set by library:fat_chan
-#define MBED_CONF_FAT_CHAN_FF_MAX_SS                                          4096                                                                                             // set by library:fat_chan
-#define MBED_CONF_FAT_CHAN_FF_MIN_SS                                          512                                                                                              // set by library:fat_chan
-#define MBED_CONF_FAT_CHAN_FF_MULTI_PARTITION                                 0                                                                                                // set by library:fat_chan
-#define MBED_CONF_FAT_CHAN_FF_NORTC_MDAY                                      1                                                                                                // set by library:fat_chan
-#define MBED_CONF_FAT_CHAN_FF_NORTC_MON                                       1                                                                                                // set by library:fat_chan
-#define MBED_CONF_FAT_CHAN_FF_NORTC_YEAR                                      2017                                                                                             // set by library:fat_chan
-#define MBED_CONF_FAT_CHAN_FF_SFN_BUF                                         12                                                                                               // set by library:fat_chan
-#define MBED_CONF_FAT_CHAN_FF_STRF_ENCODE                                     3                                                                                                // set by library:fat_chan
-#define MBED_CONF_FAT_CHAN_FF_STR_VOLUME_ID                                   0                                                                                                // set by library:fat_chan
-#define MBED_CONF_FAT_CHAN_FF_SYNC_T                                          HANDLE                                                                                           // set by library:fat_chan
-#define MBED_CONF_FAT_CHAN_FF_USE_CHMOD                                       0                                                                                                // set by library:fat_chan
-#define MBED_CONF_FAT_CHAN_FF_USE_EXPAND                                      0                                                                                                // set by library:fat_chan
-#define MBED_CONF_FAT_CHAN_FF_USE_FASTSEEK                                    0                                                                                                // set by library:fat_chan
-#define MBED_CONF_FAT_CHAN_FF_USE_FIND                                        0                                                                                                // set by library:fat_chan
-#define MBED_CONF_FAT_CHAN_FF_USE_FORWARD                                     0                                                                                                // set by library:fat_chan
-#define MBED_CONF_FAT_CHAN_FF_USE_LABEL                                       0                                                                                                // set by library:fat_chan
-#define MBED_CONF_FAT_CHAN_FF_USE_LFN                                         3                                                                                                // set by library:fat_chan
-#define MBED_CONF_FAT_CHAN_FF_USE_MKFS                                        1                                                                                                // set by library:fat_chan
-#define MBED_CONF_FAT_CHAN_FF_USE_STRFUNC                                     0                                                                                                // set by library:fat_chan
-#define MBED_CONF_FAT_CHAN_FF_USE_TRIM                                        1                                                                                                // set by library:fat_chan
-#define MBED_CONF_FAT_CHAN_FF_VOLUMES                                         4                                                                                                // set by library:fat_chan
-#define MBED_CONF_FAT_CHAN_FF_VOLUME_STRS                                     "RAM","NAND","CF","SD","SD2","USB","USB2","USB3"                                                 // set by library:fat_chan
-#define MBED_CONF_FAT_CHAN_FLUSH_ON_NEW_CLUSTER                               0                                                                                                // set by library:fat_chan
-#define MBED_CONF_FAT_CHAN_FLUSH_ON_NEW_SECTOR                                1                                                                                                // set by library:fat_chan
-#define MBED_CONF_FILESYSTEM_PRESENT                                          1                                                                                                // set by library:filesystem
 #define MBED_CONF_FLASHIAP_BLOCK_DEVICE_BASE_ADDRESS                          0xFFFFFFFF                                                                                       // set by library:flashiap-block-device
 #define MBED_CONF_FLASHIAP_BLOCK_DEVICE_SIZE                                  0                                                                                                // set by library:flashiap-block-device
 #define MBED_CONF_LWIP_ADDR_TIMEOUT                                           5                                                                                                // set by library:lwip
@@ -253,32 +212,6 @@
 #define MBED_CONF_STM32_EMAC_ETH_RXBUFNB                                      4                                                                                                // set by library:stm32-emac
 #define MBED_CONF_STM32_EMAC_ETH_TXBUFNB                                      10                                                                                               // set by library:stm32-emac[STM32H7]
 #define MBED_CONF_STM32_EMAC_THREAD_STACKSIZE                                 1024                                                                                             // set by library:stm32-emac
-#define MBED_CONF_STORAGE_DEFAULT_KV                                          kv                                                                                               // set by library:storage
-#define MBED_CONF_STORAGE_FILESYSTEM_BLOCKDEVICE                              default                                                                                          // set by library:storage_filesystem
-#define MBED_CONF_STORAGE_FILESYSTEM_EXTERNAL_BASE_ADDRESS                    0                                                                                                // set by library:storage_filesystem
-#define MBED_CONF_STORAGE_FILESYSTEM_EXTERNAL_SIZE                            0                                                                                                // set by library:storage_filesystem
-#define MBED_CONF_STORAGE_FILESYSTEM_FILESYSTEM                               default                                                                                          // set by library:storage_filesystem
-#define MBED_CONF_STORAGE_FILESYSTEM_FOLDER_PATH                              kvstore                                                                                          // set by library:storage_filesystem
-#define MBED_CONF_STORAGE_FILESYSTEM_INTERNAL_BASE_ADDRESS                    0                                                                                                // set by library:storage_filesystem
-#define MBED_CONF_STORAGE_FILESYSTEM_MOUNT_POINT                              kv                                                                                               // set by library:storage_filesystem
-#define MBED_CONF_STORAGE_FILESYSTEM_NO_RBP_BLOCKDEVICE                       default                                                                                          // set by library:storage_filesystem_no_rbp
-#define MBED_CONF_STORAGE_FILESYSTEM_NO_RBP_EXTERNAL_BASE_ADDRESS             0                                                                                                // set by library:storage_filesystem_no_rbp
-#define MBED_CONF_STORAGE_FILESYSTEM_NO_RBP_EXTERNAL_SIZE                     0                                                                                                // set by library:storage_filesystem_no_rbp
-#define MBED_CONF_STORAGE_FILESYSTEM_NO_RBP_FILESYSTEM                        default                                                                                          // set by library:storage_filesystem_no_rbp
-#define MBED_CONF_STORAGE_FILESYSTEM_NO_RBP_FOLDER_PATH                       kvstore                                                                                          // set by library:storage_filesystem_no_rbp
-#define MBED_CONF_STORAGE_FILESYSTEM_NO_RBP_MOUNT_POINT                       kv                                                                                               // set by library:storage_filesystem_no_rbp
-#define MBED_CONF_STORAGE_FILESYSTEM_RBP_INTERNAL_SIZE                        0                                                                                                // set by library:storage_filesystem
-#define MBED_CONF_STORAGE_STORAGE_TYPE                                        TDB_INTERNAL                                                                                     // set by library:storage[NUCLEO_H743ZI2]
-#define MBED_CONF_STORAGE_TDB_EXTERNAL_BLOCKDEVICE                            default                                                                                          // set by library:storage_tdb_external
-#define MBED_CONF_STORAGE_TDB_EXTERNAL_EXTERNAL_BASE_ADDRESS                  0                                                                                                // set by library:storage_tdb_external
-#define MBED_CONF_STORAGE_TDB_EXTERNAL_EXTERNAL_SIZE                          0                                                                                                // set by library:storage_tdb_external
-#define MBED_CONF_STORAGE_TDB_EXTERNAL_INTERNAL_BASE_ADDRESS                  0                                                                                                // set by library:storage_tdb_external
-#define MBED_CONF_STORAGE_TDB_EXTERNAL_NO_RBP_BLOCKDEVICE                     default                                                                                          // set by library:storage_tdb_external_no_rbp
-#define MBED_CONF_STORAGE_TDB_EXTERNAL_NO_RBP_EXTERNAL_BASE_ADDRESS           0                                                                                                // set by library:storage_tdb_external_no_rbp
-#define MBED_CONF_STORAGE_TDB_EXTERNAL_NO_RBP_EXTERNAL_SIZE                   0                                                                                                // set by library:storage_tdb_external_no_rbp
-#define MBED_CONF_STORAGE_TDB_EXTERNAL_RBP_INTERNAL_SIZE                      0                                                                                                // set by library:storage_tdb_external
-#define MBED_CONF_STORAGE_TDB_INTERNAL_INTERNAL_BASE_ADDRESS                  0                                                                                                // set by library:storage_tdb_internal
-#define MBED_CONF_STORAGE_TDB_INTERNAL_INTERNAL_SIZE                          0                                                                                                // set by library:storage_tdb_internal
 #define MBED_CONF_TARGET_BOOT_STACK_SIZE                                      0x400                                                                                            // set by library:rtos[*]
 #define MBED_CONF_TARGET_CONSOLE_UART                                         1                                                                                                // set by target:Target
 #define MBED_CONF_TARGET_CUSTOM_TICKERS                                       1                                                                                                // set by target:Target
@@ -298,29 +231,15 @@
 #define MBED_CONF_TARGET_TICKLESS_FROM_US_TICKER                              0                                                                                                // set by target:Target
 #define MBED_CONF_TARGET_XIP_ENABLE                                           0                                                                                                // set by target:Target
 #define MBED_CRC_TABLE_SIZE                                                   16                                                                                               // set by library:drivers
-#define MBED_LFS2_BLOCK_CYCLES                                                1024                                                                                             // set by library:littlefs2
-#define MBED_LFS2_BLOCK_SIZE                                                  512                                                                                              // set by library:littlefs2
-#define MBED_LFS2_CACHE_SIZE                                                  64                                                                                               // set by library:littlefs2
-#define MBED_LFS2_ENABLE_INFO                                                 0                                                                                                // set by library:littlefs2
-#define MBED_LFS2_INTRINSICS                                                  1                                                                                                // set by library:littlefs2
-#define MBED_LFS2_LOOKAHEAD_SIZE                                              64                                                                                               // set by library:littlefs2
-#define MBED_LFS_BLOCK_SIZE                                                   512                                                                                              // set by library:littlefs
-#define MBED_LFS_ENABLE_INFO                                                  0                                                                                                // set by library:littlefs
-#define MBED_LFS_INTRINSICS                                                   1                                                                                                // set by library:littlefs
-#define MBED_LFS_LOOKAHEAD                                                    512                                                                                              // set by library:littlefs
-#define MBED_LFS_PROG_SIZE                                                    64                                                                                               // set by library:littlefs
-#define MBED_LFS_READ_SIZE                                                    64                                                                                               // set by library:littlefs
 #define MBED_STACK_DUMP_ENABLED                                               0                                                                                                // set by library:platform
 #define MEM_ALLOC                                                             malloc                                                                                           // set by library:mbed-trace
 #define MEM_FREE                                                              free                                                                                             // set by library:mbed-trace
 #define PPP_DEBUG                                                             0                                                                                                // set by library:ppp
 #define STM32_D11_SPI_ETHERNET_PIN                                            PB_5                                                                                             // set by target:NUCLEO_H743ZI2
 // Macros
-#define MBEDTLS_CIPHER_MODE_CTR                                                                                                                                                // defined by library:SecureStore
 #define NSAPI_PPP_AVAILABLE                                                   (MBED_CONF_PPP_ENABLED || MBED_CONF_LWIP_PPP_ENABLED)                                            // defined by library:ppp
 #define NSDYNMEM_TRACKER_ENABLED                                              MBED_CONF_NANOSTACK_LIBSERVICE_NSDYNMEM_TRACKER_ENABLED                                          // defined by library:nanostack-libservice
 #define NS_USE_EXTERNAL_MBED_TLS                                                                                                                                               // defined by library:nanostack
-#define UNITY_INCLUDE_CONFIG_H                                                                                                                                                 // defined by library:utest
 #define _RTE_                                                                                                                                                                  // defined by library:rtos
 
 #endif
