@@ -1,0 +1,35 @@
+.pio\build\nucleo_h743zi\FrameworkMbedrtos\source\Thread.o: \
+ C:\Users\Peter\.platformio\packages\framework-mbed\rtos\source\Thread.cpp \
+ .pio\build\nucleo_h743zi/mbed_config.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/rtos/include/rtos/Thread.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/rtos/include/rtos/mbed_rtos_types.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/cmsis/CMSIS_5/CMSIS/RTOS2/Include/cmsis_os2.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/rtos/include/rtos/internal/mbed_rtos1_types.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/cmsis/CMSIS_5/CMSIS/RTOS2/RTX/Include1/cmsis_os.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/cmsis/CMSIS_5/CMSIS/RTOS2/RTX/Include/rtx_os.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/rtos/include/rtos/internal/mbed_rtos_storage.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/cmsis/device/rtos/include/mbed_rtx_storage.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/cmsis/device/rtos/include/mbed_rtx_conf.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/targets/TAE5D3~1/mbed_rtx.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/Callback.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/CXXSUP~1/mstd_cstddef \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/CXXSUP~1/mstd_new \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/mbed_assert.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/mbed_toolchain.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/mbed_preprocessor.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/CXXSUP~1/mstd_type_traits \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/CXXSUP~1/mstd_functional \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/CXXSUP~1/mstd_memory \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/CXXSUP~1/mstd_utility \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/CXXSUP~1/mstd_iterator \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/NonCopyable.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/rtos/include/rtos/Semaphore.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/rtos/include/rtos/Kernel.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/rtos/include/rtos/Mutex.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/ScopedLock.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/rtos/include/rtos/ThisThread.h \
+ C:\Users\Peter\.platformio\packages\framework-mbed\rtos\source\rtos_idle.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/mbed_toolchain.h \
+ C:\Users\Peter\.platformio\packages\framework-mbed\rtos\source\rtos_handlers.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/mbed_error.h \
+ C:\Users\Peter\PLATFO~1\packages\FRAMEW~2/platform/include/platform/mbed_retarget.h

@@ -11,7 +11,7 @@
 const static float US_PER_SEC = 1000000.0;
 
 
-const static unsigned int REPLY_TIMEOUT_MS = BOARD_RESPONSE_TIMEOUT_MS;   //We have to receive a reply from Estop and Brake within this many MS of our message or we are timed out. NOT TCP timeout.
+const static unsigned int REPLY_TIMEOUT_MS = 20000; //BOARD_RESPONSE_TIMEOUT_MS;   //We have to receive a reply from Estop and Brake within this many MS of our message or we are timed out. NOT TCP timeout.
 const static unsigned int COMMAND_CONNECTION_TIMEOUT_MS = 500; //If no message from manual in this long, assume auto mode if a message from NUC in this time
 
 /****************ETHERNET****************/
@@ -160,7 +160,7 @@ void setup(){
     //MAC address of the destination using ARP and block for a long time.
     //With this as 0, will only block for ETH_RETRANSMISSION_DELAY_MS
     Ethernet.setRetransmissionCount(0);
-    Ethernet.setRetransmissionTimeout(ETH_RETRANSMISSION_DELAY_MS);  //Set timeout delay before failure of ARP
+    //Ethernet.setRetransmissionTimeout(ETH_RETRANSMISSION_DELAY_MS);  //Set timeout delay before failure of ARP
 
     //server.begin();
     Udp.begin(RJNetUDP::RJNET_PORT);
@@ -217,7 +217,7 @@ void loop() {
         
         Serial.print("Estop: motor ");
         Serial.print(motorEnabled ? "enabled" : "disabled");
-        Serial.print(" Manual cmd speed: ");
+        Serial.print(" Command speed: ");
         Serial.print(targetVelocity);
         Serial.print(" Filtered target speed: ");
         Serial.print(get_curr_target_speed());
@@ -261,10 +261,18 @@ void readAllNewMessages(){
     */
     Message incomingMessage = RJNetUDP::receiveMessage(Udp);
     while(incomingMessage.received) {
+        //For reasons that I don't understand, the UDP stuff seems to work better
+        //when these print statements are here.
+        Serial.print("Message from: ");
+        Serial.print(incomingMessage.ipaddress);
+        Serial.print(": ");
+        Serial.println(incomingMessage.message);
         if(incomingMessage.ipaddress == estopIP){
             //Message from Estop board
             motorEnabled = parseEstopMessage(incomingMessage.message);
             lastEstopMessage = millis();
+            //Serial.print("Got message from Estop. Motor enabled: ");
+            //Serial.println(motorEnabled);
         }
         else if(incomingMessage.ipaddress == brakeIP){
             //Message from brake board, should be brake force
