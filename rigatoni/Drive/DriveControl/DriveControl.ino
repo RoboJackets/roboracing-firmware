@@ -535,6 +535,7 @@ void writeVoltageToMotor(float voltage){
 
 ////
 // CURRENT SENSE FUNCTIONS
+// Currently current sensor not connected so thid does nothing.
 ////
 
 float getMotorCurrent(){
