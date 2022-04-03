@@ -1,7 +1,8 @@
 clearvars;
 syms delta_t positive
 syms gamma_1m gamma_2m gamma_2b tau L_pos L_vel real
-syms a b c real
+syms motor_V brake_force enc_pos old_enc_pos real
+syms est_pos est_vel real
 
 L = [L_pos; L_vel];
 C_e = [1, 0];
@@ -21,13 +22,16 @@ exp_m = exp(-delta_t*(L_pos + gamma_1m - d)/2);
 B_estimator_hat = [0, 0, L_pos; gamma_2m, gamma_2b, L_vel];
 C_estimator_hat = [0, 1];
 
-%coefficient_for_u = simplify(int(expm(A_estimator*(delta_t - tau))*B_estimator_hat, tau, [0, delta_t]))
+u_term = simplify(int(expm(A_estimator_hat*(delta_t - tau))*B_estimator_hat * [motor_V; brake_force; enc_pos], tau, [0, delta_t]));
+
+x_new_delta_t = simplify(exp_A_t * [est_pos; est_vel] + u_term)
 
 
 %% Trapeziodal version
 %We do all this math factoring out the determinant of the inverse
 syms est_xi_1 est_xi_2 real
-syms motor_V brake_force enc_pos real
+
+disp("============ Trapezoidal ============")
 
 determinant_inv = simplify(det(eye(2) - delta_t*A_estimator_hat/2))
 inv_not_det = simplify(determinant_inv * inv(eye(2) - delta_t*A_estimator_hat/2));

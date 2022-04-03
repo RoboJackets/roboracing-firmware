@@ -2,7 +2,7 @@
 #include <Encoder.h>
 #include <avr/wdt.h>
 #include "DriveControl.h"
-#include "controller_estimator.h"
+#include "controller_simple_estimator_no_current.h"
 #include <Ethernet.h>
 #include <EthernetUdp.h>
 #include "RJNetUDP.h"
@@ -61,8 +61,6 @@ float motorCurrent = 0;                 //Current passing through the motor (can
 const static int printDelayMs = 300;
 unsigned long lastPrintTime = 0;
 
-//For printing only
-long totalEncoderTicks = 0;
 /*
 State Machine
 
@@ -104,6 +102,7 @@ float nucTargetVelocity = 0;
 float manualTargetVelocity = 0;
 
 Encoder encoder(ENCODER_A_PIN,ENCODER_B_PIN);
+long lastLoopEncoderTicks = 0;
 
 //Motor translation parameters
 static const float batteryVoltage = 48.0;
@@ -187,13 +186,10 @@ void loop() {
     float loopTimeStep = (currTime - lastControllerRunTime)/US_PER_SEC;
     lastControllerRunTime = currTime;
     
-    //Calculate current speed
-    motorCurrent = getMotorCurrent();
     
-    long encoderTicksSinceLastLoop = encoder.read();
-    encoder.write(0);
-    estimate_vel(loopTimeStep, motorCurrent, desired_braking_force, encoderTicksSinceLastLoop);
-    totalEncoderTicks += encoderTicksSinceLastLoop;
+    long encoderTicksNow = encoder.read();
+    estimate_vel(loopTimeStep, encoderTicksNow - lastLoopEncoderTicks);
+    lastLoopEncoderTicks = encoderTicksNow;
 
     executeStateMachine(loopTimeStep);
     
@@ -215,22 +211,20 @@ void loop() {
                 break;
         }
         
-        Serial.print("Estop: motor ");
+        Serial.print("Estop: ");
         Serial.print(motorEnabled ? "enabled" : "disabled");
-        Serial.print(" Command speed: ");
+        Serial.print(" Cmd vel: ");
         Serial.print(targetVelocity);
-        Serial.print(" Filtered target speed: ");
+        Serial.print(" Filtered tgt vel: ");
         Serial.print(get_curr_target_speed());
         Serial.print(" Throttle: ");
         Serial.print(desiredPWM);
         Serial.print(" Brake force: ");
         Serial.print(desired_braking_force);
-        Serial.print(" Current speed: ");
+        Serial.print(" Curr vel: ");
         Serial.print(get_speed());
-        Serial.print(" Encoder ticks:");
-        Serial.print(totalEncoderTicks);
-        Serial.print(" Motor Current: ");
-        Serial.println(motorCurrent);
+        Serial.print(" Enc ticks:");
+        Serial.println(encoder.read());
         
         
         lastPrintTime = millis();
