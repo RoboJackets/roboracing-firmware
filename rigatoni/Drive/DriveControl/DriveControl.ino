@@ -60,6 +60,7 @@ float motorCurrent = 0;                 //Current passing through the motor (can
 //Printing timing
 const static int printDelayMs = 300;
 unsigned long lastPrintTime = 0;
+byte nextSectionToPrint = 0;
 
 /*
 State Machine
@@ -159,27 +160,27 @@ void setup(){
     //MAC address of the destination using ARP and block for a long time.
     //With this as 0, will only block for ETH_RETRANSMISSION_DELAY_MS
     Ethernet.setRetransmissionCount(0);
-    //Ethernet.setRetransmissionTimeout(ETH_RETRANSMISSION_DELAY_MS);  //Set timeout delay before failure of ARP
+    Ethernet.setRetransmissionTimeout(ETH_RETRANSMISSION_DELAY_MS);  //Set timeout delay before failure of ARP
 
     //server.begin();
     Udp.begin(RJNetUDP::RJNET_PORT);
     Serial.print("Our address: ");
     Serial.println(Ethernet.localIP());
     
-    // WATCHDOG TIMER
-    wdt_reset();
-    wdt_enable(WDTO_500MS);
-    
     //Reset encoder
     encoder.write(0);
+    
+    // WATCHDOG TIMER
+    wdt_reset();
+    wdt_enable(WDTO_1S);
 }
 
 void loop() {
-    wdt_reset();
+    //wdt_reset();
     digitalWrite(LED2_PIN, !digitalRead(LED2_PIN));
     
-    // Read new messages from WizNet
-    readAllNewMessages();
+    // Read new message from WizNet
+    readNewMessage();
     
     //How long since the last controller execution
     unsigned long currTime = micros();
@@ -198,36 +199,54 @@ void loop() {
     
     //Print diagnostics
     if (millis() - lastPrintTime >= printDelayMs){
-        Serial.print("Drive speed from: ");
-        switch (whoIsCommandingSpeed){
-            case MANUAL:
-                Serial.print("Manual. ");
+        //This big switch statement is so we don't block for a really long time
+        //The idea is you have one loop execution between each of these switch statements
+        switch (nextSectionToPrint){
+            case 0:
+                Serial.print("Speed from: ");
+                switch (whoIsCommandingSpeed){
+                    case MANUAL:
+                        Serial.print("Manual. ");
+                        break;
+                    case NUC:
+                        Serial.print("NUC. ");
+                        break;
+                    case NOBODY:
+                        Serial.print("Nobody. ");
+                        break;
+                }
+                
+                Serial.print("Estop: ");
+                Serial.print(motorEnabled ? "on" : "off");
                 break;
-            case NUC:
-                Serial.print("NUC. ");
+                
+            case 1:
+                Serial.print(" Cmd vel: ");
+                Serial.print(targetVelocity);
+                Serial.print(" Filter tgt vel: ");
+                Serial.print(get_curr_target_speed());
                 break;
-            case NOBODY:
-                Serial.print("Nobody. ");
+            
+            case 2:
+                Serial.print(" Throttle: ");
+                Serial.print(desiredPWM);
+                Serial.print(" Brake force: ");
+                Serial.print(desired_braking_force);
                 break;
+                
+            default:
+                Serial.print(" Curr vel: ");
+                Serial.print(get_speed());
+                Serial.print(" Enc ticks:");
+                Serial.println(encoder.read());
+                
+                lastPrintTime = millis();
+                break; 
         }
-        
-        Serial.print("Estop: ");
-        Serial.print(motorEnabled ? "enabled" : "disabled");
-        Serial.print(" Cmd vel: ");
-        Serial.print(targetVelocity);
-        Serial.print(" Filtered tgt vel: ");
-        Serial.print(get_curr_target_speed());
-        Serial.print(" Throttle: ");
-        Serial.print(desiredPWM);
-        Serial.print(" Brake force: ");
-        Serial.print(desired_braking_force);
-        Serial.print(" Curr vel: ");
-        Serial.print(get_speed());
-        Serial.print(" Enc ticks:");
-        Serial.println(encoder.read());
-        
-        
-        lastPrintTime = millis();
+        nextSectionToPrint++; 
+    }
+    else{
+        nextSectionToPrint = 0;
     }
 }
 
@@ -249,18 +268,21 @@ float parseSpeedMessage(const String & speedMessage, unsigned int startOfSpeed){
     return atof(speedMessage.c_str() + startOfSpeed);
 }
 
-void readAllNewMessages(){
+void readNewMessage(){
     /*
     Checks the server, brake, and Estop for new messages and deals with them
     */
     Message incomingMessage = RJNetUDP::receiveMessage(Udp);
-    while(incomingMessage.received) {
+    if(incomingMessage.received) {
+        wdt_reset();  //We only feed watchdong when we recieve Ethernet message so Drive resets if Ethernet fails.
         //For reasons that I don't understand, the UDP stuff seems to work better
         //when these print statements are here.
+        /*
         Serial.print("Message from: ");
         Serial.print(incomingMessage.ipaddress);
         Serial.print(": ");
         Serial.println(incomingMessage.message);
+        */
         if(incomingMessage.ipaddress == estopIP){
             //Message from Estop board
             motorEnabled = parseEstopMessage(incomingMessage.message);
@@ -342,6 +364,7 @@ void sendToBrake(void){
 
 void resetEthernet(void){
     //Resets the Ethernet shield
+    delay(501);
     digitalWrite(ETH_RST_PIN, LOW);
     delay(1);
     digitalWrite(ETH_RST_PIN, HIGH);
