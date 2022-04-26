@@ -2,12 +2,12 @@
 #include "ODriveMbed.h"
 #include <cstring>
 
-BufferedSerial odrive_serial(D1, D0, 115200);  //tx, rx, baud
+BufferedSerial odrive_serial(D14, D15, 115200);  //tx, rx, baud
 
 //ODriveMbed odrive(odrive_serial);
 
 /*Important Note:
-DO NOT put any printf() statements as it messes the ODrive serial data being sent.
+You cannot use D0, D1 for the serial port. Printf messes with those.
 */
 
 void writeToOdrive(char to_send[]){
@@ -28,39 +28,33 @@ void requestState(AxisState requested_state){
     writeToOdrive(to_send);
 }
 
-void closedLoopControl() {
-    requestState(AXIS_STATE_CLOSED_LOOP_CONTROL);
-    ThisThread::sleep_for(3s);
-}
-
-void positionTestMove() {
-    printf("Executing test move");
-    writeToOdrive("w axis0.controller.input_pos -3\n");
-    ThisThread::sleep_for(30000ms);
-    clearErrors();
-    writeToOdrive("w axis0.controller.input_pos -10\n");
-    ThisThread::sleep_for(30000ms);
-
+void setTargetPosition(float targetPosition){
+    char to_send[60];
+    sprintf(to_send, "w axis0.controller.input_pos %f\n", targetPosition);
+    writeToOdrive(to_send);
 }
 
 // main() runs in its own thread in the OS
 int main()
 {
     ThisThread::sleep_for(500ms);
-    odrive_serial.write("sc\n",strlen("sc\n"));
-    ThisThread::sleep_for(5000ms);
-    //printf("OdriveMbed Calibrating\n");
-    odrive_serial.write("w axis0.requested_state 3\n", strlen("w axis0.requested_state 3\n"));
-    //printf("Finished callibration\n");
-    ThisThread::sleep_for(30000ms);
-    odrive_serial.write("sc\n",strlen("sc\n"));
-    ThisThread::sleep_for(5000ms);
-    //printf("Entering closed loop control");
-    odrive_serial.write("w axis0.requested_state 8\n", strlen("w axis0.requested_state 8\n"));
-    ThisThread::sleep_for(30000ms);
-    writeToOdrive("w axis0.controller.input_pos -3\n");
-    ThisThread::sleep_for(3000ms);
-    writeToOdrive("w axis0.controller.input_pos -10\n");
+    clearErrors();
+
+    printf("OdriveMbed Calibrating\n");
+    requestState(AXIS_STATE_FULL_CALIBRATION_SEQUENCE);
+    ThisThread::sleep_for(35s);
+
+    printf("Clearing error\n");
+    clearErrors();
+
+    printf("Entering closed loop control\n");
+    requestState(AXIS_STATE_CLOSED_LOOP_CONTROL);
+    ThisThread::sleep_for(500ms);
+
+    //Test move
+    setTargetPosition(-3);
+    ThisThread::sleep_for(1s);
+    setTargetPosition(3);
     /*printf("Entered main function\n");
     ThisThread::sleep_for(500ms);
     clearErrors();
