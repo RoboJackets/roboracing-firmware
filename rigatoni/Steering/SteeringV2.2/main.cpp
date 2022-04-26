@@ -21,10 +21,8 @@ void clearErrors(void){
 }
 
 void requestState(AxisState requested_state){
-    char to_send[] = "w axis0.requested_state _\n";
-    //Now replace the _ with the ascii value of the number of the requested state
-    uint16_t length_of_message = strlen(to_send);
-    to_send[length_of_message - 2] = (char) requested_state + '0';
+    char to_send[60];
+    sprintf(to_send, "w axis0.requested_state %d\n", (int) requested_state);
     writeToOdrive(to_send);
 }
 
@@ -47,14 +45,18 @@ int main()
     printf("Clearing error\n");
     clearErrors();
 
+    printf("OdriveMbed Homing\n");
+    requestState(AXIS_STATE_HOMING);
+    ThisThread::sleep_for(12s);
+
     printf("Entering closed loop control\n");
     requestState(AXIS_STATE_CLOSED_LOOP_CONTROL);
     ThisThread::sleep_for(500ms);
 
     //Test move
-    setTargetPosition(-3);
+    setTargetPosition(10.5);
     ThisThread::sleep_for(1s);
-    setTargetPosition(3);
+    setTargetPosition(7);
     /*printf("Entered main function\n");
     ThisThread::sleep_for(500ms);
     clearErrors();
