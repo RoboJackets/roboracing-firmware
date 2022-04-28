@@ -113,7 +113,7 @@ void process_single_message(const SocketAddress & senders_address, const char in
         printf("New braking force: %.2f Motor turns: %.2f\n", requested_braking_force, motor_turns_target);
     }
     else{
-        printf("Message from %s : %s \n", senders_address.get_ip_address(), incoming_udp_message);
+        //printf("Message from %s : %s \n", senders_address.get_ip_address(), incoming_udp_message);
     }
 }
 
@@ -139,7 +139,7 @@ int main()
     red_led = LED_ON;
     printf("OdriveMbed Homing\n");
     requestState(AXIS_STATE_HOMING);
-    ThisThread::sleep_for(12s);
+    ThisThread::sleep_for(8s);
 
     printf("Entering closed loop control\n");
     requestState(AXIS_STATE_CLOSED_LOOP_CONTROL);
