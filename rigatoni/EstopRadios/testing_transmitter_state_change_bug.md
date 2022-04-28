@@ -20,3 +20,5 @@ The remote then changed state to Limited instead of Stop. Additionally, we saw i
 Remote showed the 4-led flash at random intervals, but in some circumstances as short as a few seconds. Unsure of battery state of charge.
 
 ## =================== Updated arduino to 1.8.13, Updated radio library, removed serial prints, extended watchdog timeout =============
+
+
