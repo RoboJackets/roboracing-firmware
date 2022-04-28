@@ -1,14 +1,79 @@
 #include "mbed.h"
 #include "ODriveMbed.h"
+#include <cstdio>
 #include <cstring>
+#include <rjnet_mbed_udp.h>
+#include <string>
+#include "EthernetInterface.h"
+
+/*Important Notes:
+1. DO NOT use D1 and D0 for the UART pins as this impacts the ability
+to use printf due to how MbedOS handles things internally.*/
+
 
 BufferedSerial odrive_serial(D14, D15, 115200);  //tx, rx, baud
 
-//ODriveMbed odrive(odrive_serial);
+void process_single_message(const SocketAddress &, const char[], unsigned int);
 
-/*Important Note:
-You cannot use D0, D1 for the serial port. Printf messes with those.
-*/
+RJNetMbed rjnet_udp(steeringIP, & process_single_message);
+
+Thread udp_steering_sending_thread;
+
+float desired_angle;
+
+/*Important Note: The laptop IP set here is only used for testing
+and is something you need to set manually on your laptop when plugged in with ethernet
+to your Steering board.*/
+
+/*For instructions on how to UDP Testing with your laptop, refer to the file:
+"UDP_Steering_Networking_Testing_Tutorial.md" in the Steering V2.2 folder*/
+
+const SocketAddress laptopIP("192.168.20.12");
+
+//Constants
+
+//Change these 3 constants if physically on the ground it seems that the positions are off.
+#define CENTER_POSITION 8.5
+#define MIN_POSITION 0
+#define MAX_POSITION 17
+
+//Linear approximation constant to convert from Software's Steering Angle input in radians to Firmware Physical Steering Angle
+#define STEERING_CONVERSION_CONSTANT 34
+
+void process_single_message(const SocketAddress & senders_address, const char incoming_udp_message[], unsigned int num_bytes_in_message){
+    //Parses a UDP message we just recieved. Places any received data in global variables.
+    //Do parsing later, just print for now.
+    
+    if(rjnet_udp.are_ip_addrs_equal(laptopIP, senders_address)){
+        //Parse speed from message. Doing incoming_message + 2 ignores the first two characters
+        sscanf(incoming_udp_message + 2, "%f", &desired_angle);
+        //Reply to NUC at once
+        char outgoing_message [64];
+        sprintf(outgoing_message, "Got angle = %f", desired_angle);
+        rjnet_udp.send_single_message(outgoing_message, laptopIP);
+    }
+    //printf("Message from %s : %s \n", senders_address.get_ip_address(), incoming_udp_message);
+}
+
+//Handles sending messages
+void send_messages_udp_thread(){
+    //This thread handles sending messages at a scheduled interval
+    int i = 0;
+    while (true){
+        //Message sending loop. Sends scheduled messages every 100ms
+        const unsigned int message_max_len = 32;
+        char to_send[message_max_len];
+        snprintf(to_send, message_max_len, "Scheduled message %d", i++);
+        //These appear in different packets, received in the same millisecond.
+        //So delimiting messages via packets seems to be working
+        rjnet_udp.send_single_message(to_send, steeringIP);
+        rjnet_udp.send_single_message(to_send, steeringIP);
+        printf("Sent: %s\n", to_send);
+
+        //Reset timer for scheduled messages
+        ThisThread::sleep_for(RJNetMbed::TIME_BETWEEN_SENDS);
+    }
+}
 
 void writeToOdrive(char to_send[]){
     odrive_serial.write(to_send, strlen(to_send));
@@ -26,53 +91,63 @@ void requestState(AxisState requested_state){
     writeToOdrive(to_send);
 }
 
+/*Sets and Executes a target position for the steering motor to move to. The
+CENTER_POSITION Constant is what we believe to be the aboslute encoder's zero position physically.
+However, software expects "0" to refer to center position. As such, we add an offset that is "CENTER_POSITION".
+Ex:
+Software sends "0" -> Our firmware does 8.5 + 0 -> ODrive receives 8.5 -> Go to Physical Center
+*/
 void setTargetPosition(float targetPosition){
     char to_send[60];
-    sprintf(to_send, "w axis0.controller.input_pos %f\n", targetPosition);
+    sprintf(to_send, "w axis0.controller.input_pos %f\n", CENTER_POSITION + targetPosition);
     writeToOdrive(to_send);
+}
+
+//Converts from Software's radians to our physical position input for ODrive.
+float calculatePhysicalInput(float desired_input) {
+    return desired_input * STEERING_CONVERSION_CONSTANT;
 }
 
 // main() runs in its own thread in the OS
 int main()
 {
+    char buffer[80] = {0};
+    rjnet_udp.start_network_and_listening_threads();
+
+    udp_steering_sending_thread.start(send_messages_udp_thread);
+
     ThisThread::sleep_for(500ms);
     clearErrors();
+    printf("Initial Error Clearing\n");
+    odrive_serial.write("sc\n", strlen("sc\n"));
 
     printf("OdriveMbed Calibrating\n");
     requestState(AXIS_STATE_FULL_CALIBRATION_SEQUENCE);
     ThisThread::sleep_for(35s);
 
     printf("Clearing error\n");
-    clearErrors();
+    odrive_serial.write("sc\n", strlen("sc\n"));
 
     printf("OdriveMbed Homing\n");
     requestState(AXIS_STATE_HOMING);
     ThisThread::sleep_for(12s);
 
-    printf("Entering closed loop control\n");
+    writeToOdrive("w axis0.encoder.set_linear_count(0)\n");
+    ThisThread::sleep_for(500ms);    
+
+    printf("Entered closed loop control\n");
     requestState(AXIS_STATE_CLOSED_LOOP_CONTROL);
     ThisThread::sleep_for(500ms);
 
-    //Test move
-    setTargetPosition(10.5);
-    ThisThread::sleep_for(1s);
-    setTargetPosition(7);
-    /*printf("Entered main function\n");
-    ThisThread::sleep_for(500ms);
-    clearErrors();
-    printf("ODriveMbed calibrating\n");
-    requestState(AXIS_STATE_FULL_CALIBRATION_SEQUENCE);
-    printf("Finished callibration\n");
-    ThisThread::sleep_for(30000ms);
-    clearErrors();
-    printf("Entering closed loop control");
-    requestState(AXIS_STATE_CLOSED_LOOP_CONTROL);
-    ThisThread::sleep_for(60000ms);
-    clearErrors();
-    /*positionTestMove();*/
+    ThisThread::sleep_for(3000ms);
+    setTargetPosition(0);
+
+    printf("Setup has finished.\n");
+
 
     while (true) {
-        
+        ThisThread::sleep_for(100ms);
+        float input_position = calculatePhysicalInput(desired_angle);
+        setTargetPosition(input_position);
     }
 }
-
