@@ -23,9 +23,6 @@ EthernetUDP Udp;
 
 /****************Messages from clients****************/
 
-//Brake special acknowledge with current braking force
-const static String brakeForceHeader = "F=";
-
 //Possible messages from e-stop
 const static String estopStopMsg = "D";
 const static String estopLimitedMsg = "L";
@@ -39,7 +36,6 @@ const static char manualModeCommand = 'M';
 
 //Timestamps of messages from boards in ms
 unsigned long lastEstopMessage = 0;
-unsigned long lastBrakeMessage = 0;
 
 //Timestamps of the last messages from NUC and manual in MS
 unsigned long lastNUCSpeedTime = 0;
@@ -290,16 +286,6 @@ void readNewMessage(){
             //Serial.print("Got message from Estop. Motor enabled: ");
             //Serial.println(motorEnabled);
         }
-        else if(incomingMessage.ipaddress == brakeIP){
-            //Message from brake board, should be brake force
-            if(incomingMessage.message.startsWith(brakeForceHeader)){
-                lastBrakeMessage = millis();
-            }
-            else{
-                Serial.print("Invalid message from brake: ");
-                Serial.println(incomingMessage.message);
-            }
-        }
         else if(incomingMessage.ipaddress == manualIP){
             //Message from manual board, should be speed command
             //We know the message is of the form "M=%c v=%f", where %c is the character that defines the mode.
@@ -353,9 +339,9 @@ void readNewMessage(){
 
 void sendToBrake(void){
     /*
-    If sufficient time has elapsed both from our last request and their last reply, send new command to brake
+    If sufficient time has elapsed from our last command send new command to brake
     */
-    if(millis() > lastBrakeMessage + MIN_MESSAGE_SPACING && millis() > brakeCommandSent + MIN_MESSAGE_SPACING){
+    if(millis() > brakeCommandSent + MIN_MESSAGE_SPACING){
         String to_send = "B=" + String(desired_braking_force);
         RJNetUDP::sendMessage(to_send, Udp, brakeIP);
         brakeCommandSent = millis();
@@ -383,20 +369,13 @@ void executeStateMachine(float timeSinceLastLoop){
     
     //Check if we are connected to all boards
     bool connectedToAllBoards = true;
-
-    /*
-    if(currTime > lastBrakeMessage + REPLY_TIMEOUT_MS){
-        Serial.println("Brake timed out");
-        connectedToAllBoards = false;
-    }
-    */
     
     if(currTime - lastEstopMessage > REPLY_TIMEOUT_MS){
         Serial.println("Estop timed out");
         connectedToAllBoards = false;
     }
     
-        //This checks to see what our target speed is
+    //This checks to see what our target speed is
     switch (whoIsCommandingSpeed){
         case MANUAL:
             targetVelocity = manualTargetVelocity;

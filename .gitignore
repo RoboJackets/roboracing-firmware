@@ -5,11 +5,12 @@
 # build files (makefile can/should be generated each time)
 *~
 /Makefile
-/BUILD/
+BUILD/
 
 # libraries (everything except the zip archives)
 /mbed-libs/*
 !/mbed-libs/*.zip
+mbed-os
 
 # sublime-text
 *.sublime-workspace
