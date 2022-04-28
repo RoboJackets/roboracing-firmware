@@ -1,6 +1,7 @@
 #include <mbed.h>
 #include "EthernetInterface.h"
 #include "rjnet_mbed_udp.h"
+#include <string>
 
 //Initialize static members
 EthernetInterface RJNetMbed::ethernet_port;
