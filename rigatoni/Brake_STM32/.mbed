@@ -1,6 +1,3 @@
 ROOT=.
-<<<<<<< HEAD
 TARGET=NUCLEO_H743ZI2
 TARGET_CODE=0836
-=======
->>>>>>> competition-2022

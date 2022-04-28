@@ -1,4 +1,4 @@
-#include "controller_estimator.h"
+#include "controller_simple_estimator_no_current.h"
 
 #ifndef max
 #define min(a,b) ((a)<(b)?(a):(b))
@@ -39,36 +39,21 @@ float filtered_target_accel = 0;
 // See ipython notebook
 ////
 
-float estimate_vel(float delta_t, float motor_current, float brake_force, long currEncoderCount){
+float estimate_vel(float delta_t, long deltaEncoderCount){
     //All float arguments are in SI units
-    //currEncoderCount is in encoder ticks
+    //deltaEncoderCount is encoder ticks since last call of this function.
     //This updates the global velocity estimate, currentSpeed
-    //Use the Forward Euler method
     //Call this ONCE and ONLY ONCE per loop. Use get_speed() if you want to get the speed again.
     //Beware of max() and min(), which expand to have multiple function calls!
-    //If you are going in reverse, you have to negate brake_force. We assume braking force makes velocity
-    //more negative and motor current makes the velocity more positive
-    /*
-    You MUST zero your encoder count externally when calling this function, ex:
-    long currEncoderCount = myEnc.read();
-    myEnc.write(0);
-    est_speed = estimate_vel(float, float, float, currEncoderCount);
-    */
-    float SI_encoder_pos = currEncoderCount * meters_per_encoder_tick;
-    float change_in_position = SI_encoder_pos - est_pos;
     
-    //To prevent floating-point overflow, subtract encoder count from both encoder count AND current position (i.e. shift start point forward by currEncoderCount
-    est_pos -= SI_encoder_pos;
-    
-    if(est_vel < 0){
-        //Going backwards, so brakes accelerate not decelerate
-        brake_force = -brake_force;
-    }
+    //This function estimates the speed via the finite difference method then filters
+    //the speed with an exponential filter.
 
-    float new_est_pos = est_pos + delta_t * (est_vel + L_pos*change_in_position);
-    float new_est_vel = est_vel + delta_t * (-d/m*est_vel + Gr*Kt/(m*rw)*motor_current - 1.0/m*brake_force + L_vel*change_in_position);
-    est_pos = new_est_pos;
-    est_vel = new_est_vel;
+    float SI_encoder_pos = deltaEncoderCount * meters_per_encoder_tick;
+
+    float finite_difference_speed = SI_encoder_pos / delta_t;
+    //You need the min() call here because you cannot have an alpha > 1 in an exponential filter.
+    est_vel += min(1, approximate_ct_alpha_for_exp_filter*delta_t) * (finite_difference_speed - est_vel);
     return est_vel;
 }
 

@@ -21,7 +21,7 @@ static const float switch_direction_max_speed = 0.1;    //Will switch directions
 
 static const float controller_decel_limit = 6;      //maximum deceleration in m/s^2
 static const float controller_accel_limit = 4.5;    //max accel in m/s^2
-static const float velocity_filter_bandwidth = 10;   //Lowpass filter on command velocity. This controls how aggressive the car's response is
+static const float velocity_filter_bandwidth = 5;   //Lowpass filter on command velocity. This controls how aggressive the car's response is
 
 //Motor feedforward and PI parameters
 static const float k_m_inv_r_to_u = 2.845150612101681;
@@ -42,19 +42,12 @@ static const float k_2b = 0;   //I gain. Setting to 0 disables I for the brakes
 static const float maxBrakingForce = 900.0;    //In Newtons
 
 /*Estimator*/
-//Gain matricies
-static const float L_pos = 39.91;
-static const float L_vel = 396.209;
+static const float approximate_ct_alpha_for_exp_filter = 10;  //Approximate bandwidth of the velocity filter. Increasing this reduces delay but increases discretization noise.
+static const int num_magnets_on_shaft = 1024; //Number of encoder ticks per revolution
 
-//Car physics parameters. THIS ONLY AFFECTS PART OF THE ESTIMATOR. Go back to the ipython notebook and recalculate ALL the gains in this file if you change these.
-static const float d = 10.0;        //Drag in N/(m/s)
+//Car physics parameters. THIS ONLY AFFECTS THE ESTIMATOR.
 static const float Gr = 64.0/22.0;  //Gear ratio
-static const float m = 100.0;         //Car mass in kg
 static const float rw = 0.27/2;     //Tire radius in m
-static const float Kt = 0.1260;      //Nm/Amp
-
-static const int num_magnets_on_shaft = 16; //Number of encoder ticks per revolution
-
 static const float meters_per_encoder_tick = 2*pi*rw/num_magnets_on_shaft;
 
 //Replacement for std::pair only good for floats
@@ -65,7 +58,7 @@ extern "C" struct FloatPair{
 
 /*Function headers. There are many helper functions not listed here - you don't need to call them!*/
 //Encoder
-extern "C" float estimate_vel(float, float, float, long);     //Estimates velocity. Call this once per loop. Can handle a timestep of 0.0
+extern "C" float estimate_vel(float, long);     //Estimates velocity. Call this once per loop. Can handle a timestep of 0.0
 extern "C" float get_speed();                                  //Getter function that returns the current velocity
 
 //Controller
