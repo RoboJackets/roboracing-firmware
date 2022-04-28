@@ -5,6 +5,8 @@
 # build files (makefile can/should be generated each time)
 *~
 /Makefile
+/BUILD/
+/BUILD/*
 BUILD/**
 
 # libraries (everything except the zip archives)
