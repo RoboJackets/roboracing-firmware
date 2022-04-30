@@ -32,7 +32,8 @@
 #define NODEID        1    //unique for each node on same network
 #define NETWORKID     101  //the same on all nodes that talk to each other
 //Match frequency to the hardware version of the radio:
-#define FREQUENCY     RF69_915MHZ
+#define FREQUENCY     RF69_915MHZ   //This identifies what module we have - 868 or 915MHz
+#define FREQ_ADJUST   928000000     //This is the carrier frequency we want
 
 //exactly the same 16 characters/bytes on all nodes!
 //Currently disabled, as no point to encryption
@@ -132,6 +133,7 @@ void setup() {
     
     radio.initialize(FREQUENCY,NODEID,NETWORKID);
     radio.setHighPower(); //must include this only for RFM69HW/HCW!
+    radio.setFrequency(FREQ_ADJUST);
     
     //Dial down transmit speed for increased range.
     //Causes sporadic connection losses
