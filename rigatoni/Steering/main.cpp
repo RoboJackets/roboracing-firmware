@@ -5,6 +5,7 @@
 #include <rjnet_mbed_udp.h>
 #include <string>
 #include "EthernetInterface.h"
+#include <algorithm>
 
 /*Important Notes:
 1. DO NOT use D1 and D0 for the UART pins as this impacts the ability
@@ -21,36 +22,25 @@ Thread udp_steering_sending_thread;
 
 float desired_angle;
 
-/*Important Note: The laptop IP set here is only used for testing
-and is something you need to set manually on your laptop when plugged in with ethernet
-to your Steering board.*/
-
-/*For instructions on how to UDP Testing with your laptop, refer to the file:
-"UDP_Steering_Networking_Testing_Tutorial.md" in the Steering V2.2 folder*/
-
 const SocketAddress laptopIP("192.168.20.12");
 
-//Constants
-
-//Change these 3 constants if physically on the ground it seems that the positions are off.
 #define CENTER_POSITION 8.5
 #define MIN_POSITION 0
 #define MAX_POSITION 17
 
-//Linear approximation constant to convert from Software's Steering Angle input in radians to Firmware Physical Steering Angle
 #define STEERING_CONVERSION_CONSTANT 34
 
 void process_single_message(const SocketAddress & senders_address, const char incoming_udp_message[], unsigned int num_bytes_in_message){
     //Parses a UDP message we just recieved. Places any received data in global variables.
     //Do parsing later, just print for now.
     
-    if(rjnet_udp.are_ip_addrs_equal(laptopIP, senders_address)){
+    if(rjnet_udp.are_ip_addrs_equal(nucIP, senders_address)){
         //Parse speed from message. Doing incoming_message + 2 ignores the first two characters
         sscanf(incoming_udp_message + 2, "%f", &desired_angle);
         //Reply to NUC at once
         char outgoing_message [64];
         sprintf(outgoing_message, "Got angle = %f", desired_angle);
-        rjnet_udp.send_single_message(outgoing_message, laptopIP);
+        rjnet_udp.send_single_message(outgoing_message, nucIP);
     }
     //printf("Message from %s : %s \n", senders_address.get_ip_address(), incoming_udp_message);
 }
@@ -91,20 +81,14 @@ void requestState(AxisState requested_state){
     writeToOdrive(to_send);
 }
 
-/*Sets and Executes a target position for the steering motor to move to. The
-CENTER_POSITION Constant is what we believe to be the aboslute encoder's zero position physically.
-However, software expects "0" to refer to center position. As such, we add an offset that is "CENTER_POSITION".
-Ex:
-Software sends "0" -> Our firmware does 8.5 + 0 -> ODrive receives 8.5 -> Go to Physical Center
-*/
 void setTargetPosition(float targetPosition){
     char to_send[60];
     sprintf(to_send, "w axis0.controller.input_pos %f\n", CENTER_POSITION + targetPosition);
     writeToOdrive(to_send);
 }
 
-//Converts from Software's radians to our physical position input for ODrive.
 float calculatePhysicalInput(float desired_input) {
+    desired_input = std::min(0.25, ((-0.25 < desired_input) ? desired_input:-0.25));
     return desired_input * STEERING_CONVERSION_CONSTANT;
 }
 
@@ -139,6 +123,7 @@ int main()
     requestState(AXIS_STATE_CLOSED_LOOP_CONTROL);
     ThisThread::sleep_for(500ms);
 
+    printf("Moving to center position\n");
     ThisThread::sleep_for(3000ms);
     setTargetPosition(0);
 
@@ -149,5 +134,8 @@ int main()
         ThisThread::sleep_for(100ms);
         float input_position = calculatePhysicalInput(desired_angle);
         setTargetPosition(input_position);
+        if (input_position != 0) {
+            printf("UDP Steering Info Works, Data: %f\n",input_position);
+        }
     }
 }
