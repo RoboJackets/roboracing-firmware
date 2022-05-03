@@ -12,7 +12,6 @@ const static float US_PER_SEC = 1000000.0;
 
 
 const static unsigned int REPLY_TIMEOUT_MS = 20000; //BOARD_RESPONSE_TIMEOUT_MS;   //We have to receive a reply from Estop and Brake within this many MS of our message or we are timed out. NOT TCP timeout.
-const static unsigned int COMMAND_CONNECTION_TIMEOUT_MS = 500; //If no message from manual in this long, assume auto mode if a message from NUC in this time
 
 /****************ETHERNET****************/
 // This is the UDP version.
@@ -190,8 +189,8 @@ void loop() {
 
     executeStateMachine(loopTimeStep);
     
-    //Now write braking force to brake
-    sendToBrake();
+    //Now write braking force to brake and speed to nuc
+    sendToBrakeAndNuc();
     
     //Print diagnostics
     if (millis() - lastPrintTime >= printDelayMs){
@@ -337,14 +336,26 @@ void readNewMessage(){
     }
 }
 
-void sendToBrake(void){
+void sendToBrakeAndNuc(void){
     /*
-    If sufficient time has elapsed from our last command send new command to brake
+    If sufficient time has elapsed from our last command send new command to brake or nuc
+    the reason for this complicated if statement is to ensure we  don't try to send two packets
+    back to back too soon. That might make the Wiznet mad. Does it help? We don't know. But it works. (Kind of.)
     */
-    if(millis() > brakeCommandSent + MIN_MESSAGE_SPACING){
-        String to_send = "B=" + String(desired_braking_force);
-        RJNetUDP::sendMessage(to_send, Udp, brakeIP);
-        brakeCommandSent = millis();
+    static bool sentToBrakeLast = false;
+    static unsigned long lastMessageSent = 0;
+    if(millis() - MIN_MESSAGE_SPACING/2 > lastMessageSent){
+        if(sentToBrakeLast){
+            String to_send = "v=" + String(get_speed());
+            RJNetUDP::sendMessage(to_send, Udp, nucIP);
+            sentToBrakeLast = false;
+        }
+        else{
+            String to_send = "B=" + String(desired_braking_force);
+            RJNetUDP::sendMessage(to_send, Udp, brakeIP);
+            sentToBrakeLast = true;
+        }
+        lastMessageSent = millis();
     }
 }
 

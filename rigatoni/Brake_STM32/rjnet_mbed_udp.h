@@ -1,6 +1,7 @@
 #pragma once
 #include <mbed.h>
 #include "EthernetInterface.h"
+#include <string>
 
 //Possible network error types: https://os.mbed.com/docs/mbed-os/v6.15/mbed-os-api-doxy/group__netsocket.html#gac21eb8156cf9af198349069cdc7afeba
 //UDPSocket reference: https://os.mbed.com/docs/mbed-os/v6.15/apis/udpsocket.html

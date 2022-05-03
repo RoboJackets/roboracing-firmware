@@ -22,6 +22,8 @@ DigitalOut green_led(LED1);
 DigitalOut red_led(LED3);
 
 float motor_turns_target;  //How many turns from home to get the target braking force.
+uint32_t last_force_command;
+uint32_t start_time;
 
 /*
 Functions for the Odrive
@@ -111,15 +113,36 @@ void process_single_message(const SocketAddress & senders_address, const char in
         sscanf(incoming_udp_message + 2, "%f", &requested_braking_force);
         motor_turns_target = motorTurnsFromHomeForForce(requested_braking_force);
         printf("New braking force: %.2f Motor turns: %.2f\n", requested_braking_force, motor_turns_target);
+        last_force_command = time(NULL) - start_time;
     }
     else{
         //printf("Message from %s : %s \n", senders_address.get_ip_address(), incoming_udp_message);
     }
 }
 
+//Handles sending messages. Only sends debug messages 1x a second
+Thread udp_sending_thread;
+void send_messages_udp_thread(){
+    //This thread handles sending messages at a scheduled interval
+    int i = 0;
+    while (true){
+        //Message sending loop. Sends debug messages.
+        const unsigned int message_max_len = 80;
+        char to_send[message_max_len];
+        snprintf(to_send, message_max_len, "Motor turns target: %.2f Command time: %d\n", motor_turns_target, last_force_command);
+        //These appear in different packets, received in the same millisecond.
+        //So delimiting messages via packets seems to be working
+        rjnet_udp.send_single_message(to_send, broadcastIP);
+
+        //Reset timer for scheduled messages
+        ThisThread::sleep_for(1s);
+    }
+}
+
 // main() runs in its own thread in the OS
 int main()
 {
+    start_time = time(NULL);
     red_led = LED_OFF;
     yellow_led = LED_OFF;
     green_led = LED_OFF;
@@ -148,6 +171,7 @@ int main()
     //Set up Ethernet. This should probably be done in a parallel thread for efficiency
     green_led = LED_ON;
     rjnet_udp.start_network_and_listening_threads();
+    udp_sending_thread.start(send_messages_udp_thread);
 
     red_led = LED_OFF;
     yellow_led = LED_OFF;
