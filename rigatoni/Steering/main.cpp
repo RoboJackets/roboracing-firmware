@@ -24,11 +24,11 @@ float desired_angle;
 
 const SocketAddress laptopIP("192.168.20.12");
 
-#define CENTER_POSITION 8.5
+#define CENTER_POSITION 7.5
 #define MIN_POSITION 0
-#define MAX_POSITION 17
+#define MAX_POSITION 15
 
-#define STEERING_CONVERSION_CONSTANT 34
+#define STEERING_CONVERSION_CONSTANT 60
 
 void process_single_message(const SocketAddress & senders_address, const char incoming_udp_message[], unsigned int num_bytes_in_message){
     //Parses a UDP message we just recieved. Places any received data in global variables.
@@ -116,6 +116,9 @@ int main()
     requestState(AXIS_STATE_HOMING);
     ThisThread::sleep_for(12s);
 
+    printf("Clearing error\n");
+    odrive_serial.write("sc\n", strlen("sc\n"));
+
     writeToOdrive("w axis0.encoder.set_linear_count(0)\n");
     ThisThread::sleep_for(500ms);    
 
@@ -139,3 +142,4 @@ int main()
         }
     }
 }
+
