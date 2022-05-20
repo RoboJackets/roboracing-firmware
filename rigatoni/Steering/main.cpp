@@ -77,18 +77,18 @@ void clearErrors(void){
 
 void requestState(AxisState requested_state){
     char to_send[60];
-    sprintf(to_send, "w axis0.requested_state %d\n", (int) requested_state);
+    sprintf(to_send, "w axis1.requested_state %d\n", (int) requested_state);
     writeToOdrive(to_send);
 }
 
 void setTargetPosition(float targetPosition){
     char to_send[60];
-    sprintf(to_send, "w axis0.controller.input_pos %f\n", CENTER_POSITION + targetPosition);
+    sprintf(to_send, "w axis1.controller.input_pos %f\n", CENTER_POSITION + targetPosition);
     writeToOdrive(to_send);
 }
 
 float calculatePhysicalInput(float desired_input) {
-    desired_input = std::min(0.25, ((-0.25 < desired_input) ? desired_input:-0.25));
+    desired_input = std::min(0.25, ((-0.25 < desired_input) ? desired_input:-0.208));
     return desired_input * STEERING_CONVERSION_CONSTANT;
 }
 
@@ -119,7 +119,7 @@ int main()
     printf("Clearing error\n");
     odrive_serial.write("sc\n", strlen("sc\n"));
 
-    writeToOdrive("w axis0.encoder.set_linear_count(0)\n");
+    writeToOdrive("w axis1.encoder.set_linear_count(0)\n");
     ThisThread::sleep_for(500ms);    
 
     printf("Entered closed loop control\n");
@@ -129,6 +129,8 @@ int main()
     printf("Moving to center position\n");
     ThisThread::sleep_for(3000ms);
     setTargetPosition(0);
+    ThisThread::sleep_for(3000ms);
+    setTargetPosition(7.5);
 
     printf("Setup has finished.\n");
 

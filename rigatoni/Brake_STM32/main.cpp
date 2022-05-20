@@ -43,13 +43,13 @@ void clearErrors(void){
 
 void requestState(AxisState requested_state){
     char to_send[60];
-    sprintf(to_send, "w axis0.requested_state %d\n", (int) requested_state);
+    sprintf(to_send, "w axis1.requested_state %d\n", (int) requested_state);
     writeToOdrive(to_send);
 }
 
 void setTargetPosition(float targetPosition){
     char to_send[60];
-    sprintf(to_send, "w axis0.controller.input_pos %f\n", targetPosition);
+    sprintf(to_send, "w axis1.controller.input_pos %f\n", targetPosition);
     writeToOdrive(to_send);
 }
 
