@@ -8,8 +8,8 @@
 #define LED2_PIN 6   // ATMEGA32u4 pin PD7, Leonardo pin D6
 
 #define MOTOR_CNTRL_PIN 9	  // ATMEGA32u4 pin PB5, Leonardo pin IO9
-#define REVERSE_OUT_PIN 19  // ATMEGA32u4 pin PF6, Leonardo pin A1
-#define FORWARD_OUT_PIN 20  // ATMEGA32u4 pin PF5, Leonardo pin A2
+#define REVERSE_OUT_PIN 20  // ATMEGA32u4 pin PF6, Leonardo pin A1
+#define FORWARD_OUT_PIN 19  // ATMEGA32u4 pin PF5, Leonardo pin A2
 
 #define BRAKE_EN_PIN 5	    // ATMEGA32u4 pin PC6, Leonardo pin D5
 #define BRAKE_PWM_PIN 13	  // ATMEGA32u4 pin PC7, Leonardo pin IO13
