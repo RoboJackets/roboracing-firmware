@@ -15,7 +15,7 @@ VescUart the_vesc;
 
 
 // Blinking rate in milliseconds
-#define BLINKING_RATE     100ms
+#define BLINKING_RATE     500ms
 
 
 int main()
@@ -29,6 +29,7 @@ int main()
 
     while (true) {
         led = !led;
+        the_vesc.setRPM(1500);
         the_vesc.getVescValues();
         the_vesc.printVescValues();
         ThisThread::sleep_for(BLINKING_RATE);
