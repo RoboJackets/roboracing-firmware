@@ -35,3 +35,15 @@ int main()
         ThisThread::sleep_for(BLINKING_RATE);
     }
 }
+
+/*
+Diameter of rear wheel is about 27 cm (not confirmed)
+3:1 gear ratio from rear axle to drive motor shaft
+speed coming in from software has units of m/s
+circumference of rear wheel is PI * 27 cm
+m/s * (60 s)/(1 min) * (1 axle revolution)/(PI * .27 m) * (3 motor shaft revolutions)/(1 axle revolution) * (Num of pole pairs)/(1 shaft)
+*/
+float getDesiredERPMFromSpeed(float speed) {
+    return speed * 60 / (3.14159 * .27) * 3 * numPolePairs; // numPolePairs not known yet
+}
+
