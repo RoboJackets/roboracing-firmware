@@ -1,6 +1,6 @@
 .build
 .mbed
 mbed-os
-BUILD
+BUILD/
 projectfiles
 *.py*

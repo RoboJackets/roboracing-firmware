@@ -8,7 +8,6 @@
 
 class VescUart
 {
-
 	/** Struct to store the telemetry data returned by the VESC */
 	struct dataPackage {
        float avgMotorCurrent;
@@ -183,7 +182,7 @@ class VescUart
 
 	private: 
 
-		/** Variabel to hold the reference to the Serial object to use for UART */
+		/** Variable to hold the reference to the Serial object to use for UART */
 		mbed::BufferedSerial* serialPort = NULL;
 
 		/** Variabel to hold the reference to the Serial object to use for debugging. 
