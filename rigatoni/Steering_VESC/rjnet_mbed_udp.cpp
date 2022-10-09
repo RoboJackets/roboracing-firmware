@@ -52,7 +52,7 @@ void RJNetMbed::start_network_and_listening_threads() {
     }
 
     //Thread to listen for new messages
-    udp_receiving_thread.start(callback(listen_for_new_messages, this));
+    udp_receiving_thread.start([this]() { this->listen_for_new_messages(); });
 }
 
 bool RJNetMbed::send_single_message(string message, SocketAddress send_to) {
@@ -99,7 +99,7 @@ bool RJNetMbed::are_ip_addrs_equal(const SocketAddress & address_a, const Socket
 
 //Thread for listening for incoming messages. Calls process_single_message
 //when message recieved.
-void RJNetMbed::listen_for_new_messages(RJNetMbed * rjnet_obj) {
+void RJNetMbed::listen_for_new_messages() {
     //Set up buffer for received message
     char udp_message_received[RJNetMbed::MAX_RJNET_MESSAGE_LEN_BYTES] = {0};
 
@@ -112,7 +112,7 @@ void RJNetMbed::listen_for_new_messages(RJNetMbed * rjnet_obj) {
         if(receive_bytes_read >= 0) {
             //Got a valid message
             //Get the sender's address
-            rjnet_obj->process_single_message(senders_addr, udp_message_received, receive_bytes_read);
+            process_single_message(senders_addr, udp_message_received, receive_bytes_read);
         }
         else {
             //Possible network error types: https://os.mbed.com/docs/mbed-os/v6.15/mbed-os-api-doxy/group__netsocket.html#gac21eb8156cf9af198349069cdc7afeba

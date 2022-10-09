@@ -60,6 +60,5 @@ class RJNetMbed {
         void (*process_single_message)(const SocketAddress &, const char[], unsigned int);
 
         //Listens for new messages. Calls process_single_message when it gets a message.
-        //Has to be implemented as static with the argument as this object pointer because c++ is wierd
-        static void listen_for_new_messages(RJNetMbed *);
+        void listen_for_new_messages();
 };

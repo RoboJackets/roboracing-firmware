@@ -7,6 +7,7 @@
 #include "rjnet_mbed_udp.h"
 #include <VescUart.h>
 #include <atomic>
+#include <cstdint>
 
 /*
 Setup for the Vesc
@@ -21,6 +22,7 @@ constexpr float DEGREE_RATIO = 360.0 / TICKS_PER_REV;
 constexpr unsigned int kP = 150;
 constexpr unsigned int MAX_RPM = 30000;
 constexpr unsigned int MIN_RPM = 1500;
+constexpr float POT_ELECTRICAL_RANGE = 270;
 
 constexpr Kernel::Clock::duration_u32 REFRESH_RATE = 10ms;
 constexpr int WATCHDOG_TIMEOUT = 50;
@@ -44,9 +46,11 @@ void process_single_message(const SocketAddress & senders_address, const char in
             char outgoing_message [64];
             sprintf(outgoing_message, "Got angle = %f", temp);
             rjnet_udp.send_single_message(outgoing_message, nucIP);
-            desired_angle.store(temp);
+            desired_angle.store(fmod(fmod(temp, 360.0) + 360.0, 360.0));
         } else if (incoming_udp_message[0] == 'R') {
             NVIC_SystemReset();
+        } else {
+            while (true);
         }
     }
 }
@@ -74,6 +78,10 @@ void watchdog_kick_thread() {
 }
 
 int main() {
+    Watchdog::get_instance().start(WATCHDOG_TIMEOUT);
+    Thread watchdog_thread(osPriorityLow);
+    watchdog_thread.start(&watchdog_kick_thread);
+
     DigitalOut led1(LED1);
     DigitalOut led2(LED2);
     AnalogIn pot(A0);
@@ -86,18 +94,25 @@ int main() {
         led2 = false;
     }
 
-    rjnet_udp.start_network_and_listening_threads();
+    Thread network_start(osPriorityLow);
+    network_start.start([&]() { rjnet_udp.start_network_and_listening_threads(); });
     
-    Watchdog::get_instance().start(WATCHDOG_TIMEOUT);
-    Thread watchdog_thread(osPriorityLow);
-    watchdog_thread.start(&watchdog_kick_thread);
+    float pot_init_avg = 0;
+    for (int i = 0; i < 100; ++i) {
+        pot_init_avg += pot.read();
+        ThisThread::sleep_for(2ms);
+    }
+    pot_init_avg /= 100;
+
+    desired_angle.store(pot_init_avg * POT_ELECTRICAL_RANGE);
 
     //Set the Vesc's serial port
     vesc.setDebugEnable(false);
     vesc.setSerialPort(&vesc_serial);
     vesc.getVescValues();
 
-    const long TACH_OFFSET = vesc.data.tachometer;
+
+    const long TACH_OFFSET = vesc.data.tachometer - (long)((pot_init_avg * POT_ELECTRICAL_RANGE)/360.0f * TICKS_PER_REV);
     float pos = ((vesc.data.tachometer - TACH_OFFSET) % TICKS_PER_REV + TICKS_PER_REV) % TICKS_PER_REV * DEGREE_RATIO;
 
     while (true) {
