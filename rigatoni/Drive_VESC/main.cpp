@@ -3,8 +3,21 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#if !DEVICE_FLASH
+#error [NOT_SUPPORTED] Flash API not supported for this target.
+#endif
+
 #include "mbed.h"
+#include "unity/unity.h"
+#include "greentea-client/test_env.h"
 #include <VescUart.h>
+#include <FlashIAP.h>
+
+#ifndef __STDC_FORMAT_MACROS
+#define __STDC_FORMAT_MACROS
+#endif
+
+#include <inttypes.h>
 
 /*
 Setup for the Vesc
@@ -12,11 +25,45 @@ You cannot use D0, D1 for the serial port. Printf messes with those.
 */
 BufferedSerial vesc_serial(D14, D15, 115200);  //tx, rx, baud
 VescUart the_vesc;
+FlashIAP flash;
+int numPolePairs;
 
 
 // Blinking rate in milliseconds
 #define BLINKING_RATE     500ms
 
+void mbed_stress_test_erase_flash(void)
+{
+    int result;
+
+    printf("Initialzie FlashIAP\r\n");
+
+    result = flash.init();
+    TEST_ASSERT_EQUAL_INT_MESSAGE(0, result, "failed to initialize FlashIAP");
+
+    uint32_t flash_start = flash.get_flash_start();
+    printf("start address: %" PRIX32 "\r\n", flash_start);
+    TEST_ASSERT_MESSAGE(MBED_FLASH_INVALID_SIZE != flash_start, "invalid start address");
+
+    uint32_t flash_size = flash.get_flash_size();
+    printf("flash size: %" PRIX32 "\r\n", flash_size);
+    TEST_ASSERT_MESSAGE(MBED_FLASH_INVALID_SIZE != flash_size, "invalid flash size");
+
+    uint32_t page_size = flash.get_page_size();
+    printf("page size: %" PRIu32 "\r\n", page_size);
+    TEST_ASSERT_MESSAGE(MBED_FLASH_INVALID_SIZE != page_size, "invalid page size");
+
+    uint32_t last_sector_size = flash.get_sector_size(flash_start + flash_size - 1);
+    printf("last sector size: %" PRIu32 "\r\n", last_sector_size);
+    TEST_ASSERT_MESSAGE(MBED_FLASH_INVALID_SIZE != last_sector_size, "invalid sector size");
+/*
+    uint32_t start_address = flash_start + MBED_CONF_APP_ESTIMATED_APPLICATION_SIZE;
+    uint32_t erase_size = flash_size - MBED_CONF_APP_ESTIMATED_APPLICATION_SIZE;
+    printf("Erase flash: %" PRIX32 " %" PRIX32 "\r\n", start_address, erase_size);
+
+    result = flash.erase(start_address, erase_size);
+    TEST_ASSERT_EQUAL_INT_MESSAGE(0, result, "failed to erase flash");*/
+}
 
 int main()
 {
