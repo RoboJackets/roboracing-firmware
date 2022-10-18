@@ -8,9 +8,11 @@
 #endif
 
 #include "mbed.h"
+#include "rjnet_mbed_udp.h"
 #include "unity/unity.h"
 #include "greentea-client/test_env.h"
 #include <VescUart.h>
+#include <atomic>
 #include <FlashIAP.h>
 
 #ifndef __STDC_FORMAT_MACROS
@@ -19,21 +21,51 @@
 
 #include <inttypes.h>
 
+void process_single_message(const SocketAddress & senders_address, const char incoming_udp_message[], unsigned int num_bytes_in_message);
+float getDesiredERPMFromSpeed(float speed);
+
 /*
 Setup for the Vesc
 You cannot use D0, D1 for the serial port. Printf messes with those.
 */
 BufferedSerial vesc_serial(D14, D15, 115200);  //tx, rx, baud
 VescUart the_vesc;
+RJNetMbed rjnet_udp(driveIP, &process_single_message);
 FlashIAP flash;
-int numPolePairs;
 
+const static int numPolePairs = 7; // not actually known yet
+const static string estopGoMsg = "G";
+
+bool motorEnabled = false;
+float nucTargetVelocity = 0;
+
+void process_single_message(const SocketAddress & senders_address, const char incoming_udp_message[], unsigned int num_bytes_in_message) {
+    //Parses a UDP message we just recieved. Places any received data in global variables.
+    if (rjnet_udp.are_ip_addrs_equal(estopIP, senders_address)) {
+        motorEnabled = (estopGoMsg == incoming_udp_message);
+    }
+    else if(rjnet_udp.are_ip_addrs_equal(nucIP, senders_address)) {
+        //Parse angle from message. Doing incoming_message + 2 ignores the first two characters
+        if (incoming_udp_message[0] == 'v') {
+
+            printf("Nuc Target Velocity: %f\n", nucTargetVelocity);
+            sscanf(incoming_udp_message + 2, "%f", &nucTargetVelocity);
+            //Reply to NUC at once
+            char outgoing_message [64];
+            sprintf(outgoing_message, "Got speed = %f", nucTargetVelocity);
+            rjnet_udp.send_single_message(outgoing_message, nucIP);
+        } else if (incoming_udp_message[0] == 'R') {
+            NVIC_SystemReset();
+        } else {
+            while (true);
+        }
+    }
+}
 
 // Blinking rate in milliseconds
 #define BLINKING_RATE     500ms
 
-void mbed_stress_test_erase_flash(void)
-{
+void mbed_stress_test_erase_flash(void) {
     int result;
 
     printf("Initialzie FlashIAP\r\n");
@@ -65,8 +97,7 @@ void mbed_stress_test_erase_flash(void)
     TEST_ASSERT_EQUAL_INT_MESSAGE(0, result, "failed to erase flash");*/
 }
 
-int main()
-{
+int main() {
     // Initialise the digital pin LED1 as an output
     DigitalOut led(LED1);
 
@@ -74,9 +105,13 @@ int main()
     the_vesc.setDebugEnable(true);
     the_vesc.setSerialPort(&vesc_serial);
 
+    Thread network_start(osPriorityLow);
+    network_start.start([&]() { rjnet_udp.start_network_and_listening_threads(); });
+
     while (true) {
         led = !led;
-        the_vesc.setRPM(1500);
+        float targetVelocity = getDesiredERPMFromSpeed(nucTargetVelocity);
+        the_vesc.setRPM(targetVelocity);
         the_vesc.getVescValues();
         the_vesc.printVescValues();
         ThisThread::sleep_for(BLINKING_RATE);
