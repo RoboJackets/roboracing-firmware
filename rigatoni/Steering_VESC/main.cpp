@@ -47,10 +47,6 @@ void process_single_message(const SocketAddress & senders_address, const char in
             sprintf(outgoing_message, "Got angle = %f", temp);
             rjnet_udp.send_single_message(outgoing_message, nucIP);
             desired_angle.store(fmod(fmod(temp, 360.0) + 360.0, 360.0));
-        } else if (incoming_udp_message[0] == 'R') {
-            NVIC_SystemReset();
-        } else {
-            while (true);
         }
     }
 }
