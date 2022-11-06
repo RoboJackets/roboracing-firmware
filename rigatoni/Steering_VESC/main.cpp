@@ -23,7 +23,7 @@ constexpr unsigned int kP = 10;
 constexpr unsigned int MAX_RPM = 30000;
 constexpr unsigned int MIN_RPM = 1500;
 constexpr float POT_ELECTRICAL_RANGE = 270;
-constexpr float POT_OFFSET = 180;
+constexpr float POT_OFFSET = 0;
 
 constexpr float MAX_ANGLE = 70;
 
@@ -107,7 +107,7 @@ int main() {
     // }
     pot_init_avg /= 100;
 
-    // desired_angle.store(pot_init_avg * POT_ELECTRICAL_RANGE - 180.0f + POT_OFFSET);
+    // desired_angle.store(pot_init_avg * POT_ELECTRICAL_RANGE - POT_OFFSET);
     desired_angle.store(0.0);
 
     //Set the Vesc's serial port
@@ -115,20 +115,18 @@ int main() {
     vesc.setSerialPort(&vesc_serial);
     vesc.getVescValues();
 
-
-    const long TACH_OFFSET = vesc.data.tachometer - (long)(((pot_init_avg * POT_ELECTRICAL_RANGE)/360.0f - 180.0f + POT_OFFSET) * TICKS_PER_REV);
-    float pos = ((vesc.data.tachometer - TACH_OFFSET) % TICKS_PER_REV + TICKS_PER_REV) % TICKS_PER_REV * DEGREE_RATIO;
+    // "Zero Position" = current tachometer position - (current pot angle in degrees - pot angle at center )* scale to ticks
+    const long TACH_OFFSET = vesc.data.tachometer - (long)(((pot_init_avg * POT_ELECTRICAL_RANGE)/360.0f - POT_OFFSET) * TICKS_PER_REV);
+    float pos = ((vesc.data.tachometer - TACH_OFFSET) % TICKS_PER_REV + TICKS_PER_REV) % TICKS_PER_REV * DEGREE_RATIO - 180.0f;
 
     uint32_t print_counter = 0;
     while (true) {
-        desired_angle.store(abs_max_bound(desired_angle.load(), MAX_ANGLE));
         vesc.getVescValues();
-        pos = ((vesc.data.tachometer - TACH_OFFSET) % TICKS_PER_REV + TICKS_PER_REV) % TICKS_PER_REV * DEGREE_RATIO;
-        float command = kP * (desired_angle - pos);
+        pos = ((vesc.data.tachometer - TACH_OFFSET) % TICKS_PER_REV + TICKS_PER_REV) % TICKS_PER_REV * DEGREE_RATIO - 180.0f;
+        float command = kP * (abs_max_bound(desired_angle.load(), MAX_ANGLE) - pos);
         command = abs_max_bound<float>(command, MAX_RPM);
         if (abs(desired_angle - pos) > 1) command = abs_min_bound<float>(command, MIN_RPM);
         vesc.setRPM(command);
-
         if(print_counter == 25){
             printf("Position: %f Command: %f Desired: %f\n", pos, command, desired_angle.load());
             print_counter = 0;
