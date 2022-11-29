@@ -17,12 +17,13 @@ constexpr int BAUD_RATE = 115200;
 constexpr PinName TX = D14;
 constexpr PinName RX = D15;
 
-constexpr float kP = 1;
-constexpr float kI = 0.01;
-constexpr float kD = 1;
-constexpr unsigned int MAX_AMPS = 20;
+constexpr float kP = 2.8;
+constexpr float kI = 0.02;
+constexpr float kD = 16;
+constexpr float kF = 0.25;
+constexpr unsigned int MAX_AMPS = 50;
 constexpr float POT_ELECTRICAL_RANGE = 260;
-constexpr float POT_OFFSET = 0.68;
+constexpr float POT_OFFSET = 0.76;
 
 constexpr float MAX_ANGLE = 60;
 
@@ -33,6 +34,7 @@ void process_single_message(const SocketAddress & senders_address, const char in
 
 VescUart vesc;
 BufferedSerial vesc_serial(TX, RX, BAUD_RATE);
+AnalogIn pot(A0);
 RJNetMbed rjnet_udp(steeringIP, &process_single_message);
 
 std::atomic<float> desired_angle;
@@ -73,7 +75,6 @@ void watchdog_kick_thread() {
 }
 
 inline float sample_pot() {
-    static AnalogIn pot(A4);
     float pot_read = 0;
     for (int i = 0; i < 100; ++i) {
         pot_read += pot.read();
@@ -114,15 +115,15 @@ int main() {
         auto time = Kernel::Clock::now();
         pos = (sample_pot() - POT_OFFSET) * POT_ELECTRICAL_RANGE;
 
-        // desired angle MUST be bounded AT READ TIME due to race conditions
-        float err = (abs_max_bound(desired_angle.load(), MAX_ANGLE) - pos);
+        float err = (desired_angle - pos);
         I += err;
-        float command = kP * err + kD * (prevPos - pos) + abs_max_bound(kI * I, 45.0f);
+        I = abs_max_bound(I, 20.0f/kI);
+        float command = kP * err + kD * (prevPos - pos) + kI * I + kF * desired_angle;
         command = abs_max_bound<float>(command, MAX_AMPS);
 
         // potentiometer and motor positive are reversed
         vesc.setCurrent(-command);
-        printf("Position: %f Command: %f Desired: %f\n", pos, command, desired_angle.load());
+        printf("Position: %f Command: %f Desired: %f I: %f\n", pos, command, desired_angle.load(), kI * I);
         prevPos = pos;
         ThisThread::sleep_until(time + REFRESH_RATE);
     }
