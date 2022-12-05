@@ -87,11 +87,11 @@ bool RJNetMbed::are_ip_addrs_equal(const SocketAddress & address_a, const Socket
     if (__builtin_expect(a_ip.version == NSAPI_IPv4, 1)) {
         int32_t *a_bytes = (int32_t *)&a_ip.bytes;
         int32_t *b_bytes = (int32_t *)&b_ip.bytes;
-        return !(*a_bytes ^ *b_bytes);
+        return ~(*a_bytes ^ *b_bytes);
     } else {
         int64_t *a_bytes = (int64_t *)&a_ip.bytes;
         int64_t *b_bytes = (int64_t *)&b_ip.bytes;
-        return !((*a_bytes ^ *b_bytes) | (a_bytes[1] ^ a_bytes[1]));
+        return ~((*a_bytes ^ *b_bytes) | (a_bytes[1] ^ a_bytes[1]));
     }
 }
 
