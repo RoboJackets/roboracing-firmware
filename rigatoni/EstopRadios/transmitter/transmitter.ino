@@ -34,7 +34,8 @@
 #define NETWORKID     101  //the same on all nodes that talk to each other (range up to 255)
 #define GATEWAYID     1
 //Match frequency to the hardware version of the radio:
-#define FREQUENCY     RF69_915MHZ
+#define FREQUENCY     RF69_915MHZ   //This identifies what module we have - 868 or 915MHz
+#define FREQ_ADJUST   928000000     //This is the carrier frequency we want
 
 #define IS_RFM69HW_HCW  //Only for RFM69HW/HCW! Leave out if you have RFM69W/CW!
 
@@ -43,22 +44,22 @@
 //MAKE SURE TO KEEP THESE CODES THE SAME AS RECIEVER
 
 const static uint8_t dieCode = 'd';
-const static uint8_t eStopCode = 's';
-const static uint8_t limitedCode = 'l';
+const static uint8_t stationaryCode = 's';
+const static uint8_t eStopCode = 'e';
+const static uint8_t resetCode = 'r';
 const static uint8_t goCode = 'g';
 const static byte expectedMessageLength = 1;
 
-uint8_t state = eStopCode;
+uint8_t state = resetCode; // initial state is reset
 
 //Payload is the code (go or stop) to send with the radio.
 const static byte payloadLength = 1;
 uint8_t payload[payloadLength];
 
-#define TRANSMIT_PERIOD 200 //wait this long after a successful send (in ms)
+#define TRANSMIT_PERIOD 200 //wait this long after a successful send  to send again (in ms)
 #define TRANSMIT_FAILED_PERIOD 20 //wait this long if failed to send a burst (ms)
-//Each time we try to send a packet, try this many times
-#define RETRY_DELAY 50  //how many ms to wait before a retry
-#define RETRIES 3  //Retry how many times before failure. 0 means send only once.
+#define RETRY_DELAY 50  //how many ms to wait before declaring sending failed and retrying
+#define RETRIES 3  //Retry how many times before failure of a burst. 0 means send only once.
 
 //Pins
 
@@ -109,20 +110,20 @@ void setup() {
     digitalWrite(YELLOW_LED, HIGH);
     digitalWrite(RED_LED, HIGH);
     
-    //Serial.begin(SERIAL_BAUD);
+    Serial.begin(SERIAL_BAUD);
     
     pinMode(RADIO_RESET, OUTPUT);
     resetRadio();
     
     radio.initialize(FREQUENCY,NODEID,NETWORKID);
     radio.setHighPower(); //must include this only for RFM69HW/HCW!
+    radio.setFrequency(FREQ_ADJUST);
     
     //Dial down transmit speed for increased range.
     //Causes sporadic connection losses
     radio.writeReg(REG_BITRATEMSB, RF_BITRATEMSB_19200);
     radio.writeReg(REG_BITRATELSB, RF_BITRATELSB_19200);
     
-    //radio.setFrequency(919000000); //set frequency to some custom frequency
     LED4_ON();
 
     digitalWrite(BLUE_LED, LOW);
@@ -149,9 +150,9 @@ void loop() {
     payload[0] = state;
     
     //Print what we are sending
-    //Serial.print("Sending: ");
+    Serial.print("Sending: ");
     for(byte i = 0; i < payloadLength; i++){
-        //Serial.print((char)payload[i]);
+        Serial.println((char)payload[i]);
     }
     
     //Send the data. If successful, delay.
@@ -200,7 +201,8 @@ void setUpRemoteIOPins(){
     pinMode(STOP_BUTTON, INPUT_PULLUP);
 }
 
-bool buttonsStillPressedSinceDie = false;
+bool buttonsStillPressedStationary = false;
+bool buttonsStillPressedEStop = false;
 
 uint8_t readStateFromButtons(uint8_t curr_state){
     //Buttons are LOW when pushed
@@ -209,21 +211,30 @@ uint8_t readStateFromButtons(uint8_t curr_state){
     bool stop_button = !digitalRead(STOP_BUTTON);
     
     //This is true from the time when the DIE code was pressed until all buttons are released
-    buttonsStillPressedSinceDie = buttonsStillPressedSinceDie && (go_button || limited_button || stop_button);
+    buttonsStillPressedStationary = buttonsStillPressedStationary && (go_button || limited_button);
+    buttonsStillPressedEStop = buttonsStillPressedEStop && (limited_button || stop_button);
     
-    if(curr_state == dieCode && buttonsStillPressedSinceDie){
+    if(curr_state == stationaryCode && buttonsStillPressedStationary){
         //Commanded to die and all remote buttons have not yet been released
-        return dieCode;
+        return stationaryCode;
     }
-    else if (stop_button && limited_button){
-        buttonsStillPressedSinceDie = true;
-        return dieCode;
-    }
-    else if (stop_button){
+    else if(curr_state == eStopCode && buttonsStillPressedEStop){
+        //Commanded to die and all remote buttons have not yet been released
         return eStopCode;
     }
+    else if (limited_button && stop_button) {
+        buttonsStillPressedEStop = true;
+        return eStopCode;
+    }
+    else if (go_button && limited_button){
+        buttonsStillPressedStationary = true;
+        return stationaryCode;
+    }
+    else if (stop_button){
+        return dieCode;
+    }
     else if (limited_button){
-        return limitedCode;
+        return resetCode;
     }
     else if (go_button){
         return goCode;
@@ -233,12 +244,15 @@ uint8_t readStateFromButtons(uint8_t curr_state){
 
 void showStateOnLEDs(uint8_t curr_state){
     if (curr_state == dieCode){
-        writeToRemoteLEDs(false, true, true);
-    }
-    else if (curr_state == eStopCode){
         writeToRemoteLEDs(false, false, true);
     }
-    else if (curr_state == limitedCode){
+    else if (curr_state == eStopCode){
+        writeToRemoteLEDs(false, true, true);
+    }
+    else if (curr_state == stationaryCode){
+        writeToRemoteLEDs(true, true, false);
+    }
+    else if (curr_state == resetCode){
         writeToRemoteLEDs(false, true, false);
     }
     else if (curr_state == goCode){
@@ -246,8 +260,8 @@ void showStateOnLEDs(uint8_t curr_state){
     }
     else {
         //Internal code fault
-        //Serial.print("WARNING: INVALID STATE");
-        //Serial.println(curr_state);
+        Serial.print("WARNING: INVALID STATE");
+        Serial.println(curr_state);
         writeToRemoteLEDs(true, true, true);
     }
 }

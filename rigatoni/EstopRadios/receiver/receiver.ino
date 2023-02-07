@@ -32,7 +32,8 @@
 #define NODEID        1    //unique for each node on same network
 #define NETWORKID     101  //the same on all nodes that talk to each other
 //Match frequency to the hardware version of the radio:
-#define FREQUENCY     RF69_915MHZ
+#define FREQUENCY     RF69_915MHZ   //This identifies what module we have - 868 or 915MHz
+#define FREQ_ADJUST   928000000     //This is the carrier frequency we want
 
 //exactly the same 16 characters/bytes on all nodes!
 //Currently disabled, as no point to encryption
@@ -57,8 +58,9 @@
 MAKE SURE TO KEEP THESE CODES THE SAME AS RECIEVER
 */
 const static uint8_t dieCode = 'd';
-const static uint8_t eStopCode = 's';
-const static uint8_t limitedCode = 'l';
+const static uint8_t stationaryCode = 's';
+const static uint8_t eStopCode = 'e';
+const static uint8_t resetCode = 'r';
 const static uint8_t goCode = 'g';
 const static byte expectedMessageLength = 1;
 
@@ -101,9 +103,10 @@ RFM69 radio(RF69_SPI_CS, 3);
 
 #define RADIO_RESET A5 //Not needed for UNO, but doesn't hurt anything
 
-#define DRIVE_ENABLE 6  //steering_en_rb since switched
-#define STEERING_ENABLE 12  //drive_en_rb since switched
-#define DIE_PIN 8
+#define DRIVE_ENABLE 6 // indirectly controlled via motherboard
+#define STEERING_ENABLE 12 // indirectly controlled via motherboard
+#define POWER_ENABLE 8 // directly controlled
+#define BRAKE_ENABLE 13 //active low, directly controlled
 
 
 
@@ -122,16 +125,19 @@ void setup() {
     
     pinMode(DRIVE_ENABLE, OUTPUT);
     pinMode(STEERING_ENABLE, OUTPUT);
-    pinMode(DIE_PIN, OUTPUT);
+    pinMode(POWER_ENABLE, OUTPUT);
+    pinMode(BRAKE_ENABLE, OUTPUT);
     digitalWrite(DRIVE_ENABLE, LOW);
     digitalWrite(STEERING_ENABLE, LOW);
-    digitalWrite(DIE_PIN, LOW);
+    digitalWrite(POWER_ENABLE, HIGH);
+    digitalWrite(BRAKE_ENABLE, HIGH);
     
     pinMode(RADIO_RESET, OUTPUT);
     resetRadio();
     
     radio.initialize(FREQUENCY,NODEID,NETWORKID);
     radio.setHighPower(); //must include this only for RFM69HW/HCW!
+    radio.setFrequency(FREQ_ADJUST);
     
     //Dial down transmit speed for increased range.
     //Causes sporadic connection losses
@@ -159,7 +165,7 @@ bool messageValid = false;
 bool connectionEstablished = false;
 
 //Car's current state
-uint8_t state = eStopCode;
+uint8_t state = stationaryCode;
 
 const static int MS_PER_PRINT = 1000;  //If we lost signal, print "LOST SIGNAL" every this many ms.
 unsigned long lastPrintTime = 0;
@@ -196,16 +202,20 @@ void loop() {
                 state = goCode;
                 messageValid = true;
             }
-            else if (radio.DATA[0] == eStopCode){
-                state = eStopCode;
+            else if (radio.DATA[0] == stationaryCode){
+                state = stationaryCode;
                 messageValid = true;
             }
-            else if (radio.DATA[0] == limitedCode){
-                state = limitedCode;
+            else if (radio.DATA[0] == resetCode){
+                state = resetCode;
                 messageValid = true;
             }
             else if (radio.DATA[0] == dieCode){
                 state = dieCode;
+                messageValid = true;
+            }
+            else if (radio.DATA[0] == eStopCode){
+                state = eStopCode;
                 messageValid = true;
             }
             else{
@@ -238,9 +248,9 @@ void loop() {
             Serial.println("LOST SIGNAL");
         }
         connectionEstablished = false;
-        state = eStopCode;
+        state = stationaryCode;
     }
-    
+    Serial.println(state);
     //Write the signal out to the pins
     if(state == dieCode){
         //Die permanently
@@ -250,16 +260,25 @@ void loop() {
         //GO!!!!!
         digitalWrite(DRIVE_ENABLE, HIGH);
         digitalWrite(STEERING_ENABLE, HIGH);
+        digitalWrite(BRAKE_ENABLE, HIGH);
     }
-    else if(state == limitedCode){
-        //Limited operations
+    else if(state == stationaryCode){
+        //Steering on but drive off
         digitalWrite(DRIVE_ENABLE, LOW);
         digitalWrite(STEERING_ENABLE, HIGH);
+        digitalWrite(BRAKE_ENABLE, HIGH);
     }
-    else{
-        //STOP
+    else if(state == resetCode){
+        //Steering & drive off, for resetting ebrake
         digitalWrite(DRIVE_ENABLE, LOW);
         digitalWrite(STEERING_ENABLE, LOW);
+        digitalWrite(BRAKE_ENABLE, HIGH);
+    }
+    else{ //eStopCode
+        //Steering & drive off, also activate ebrake
+        digitalWrite(DRIVE_ENABLE, LOW);
+        digitalWrite(STEERING_ENABLE, LOW);
+        digitalWrite(BRAKE_ENABLE, LOW);
     }
     
     //Debug LEDs
@@ -298,7 +317,8 @@ void diePermanently(){
     while(true){
         digitalWrite(DRIVE_ENABLE, LOW);
         digitalWrite(STEERING_ENABLE, LOW);
-        digitalWrite(DIE_PIN, HIGH);
+        digitalWrite(BRAKE_ENABLE, LOW);
+        digitalWrite(POWER_ENABLE, LOW);
         
         wdt_reset();
         Serial.println("DYING");
