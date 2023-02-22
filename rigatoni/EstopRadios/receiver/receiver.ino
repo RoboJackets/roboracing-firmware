@@ -103,10 +103,11 @@ RFM69 radio(RF69_SPI_CS, 3);
 
 #define RADIO_RESET A5 //Not needed for UNO, but doesn't hurt anything
 
+// NOTE: steering and drive pins are flipped from schematic
 #define DRIVE_ENABLE 6 // indirectly controlled via motherboard
 #define STEERING_ENABLE 12 // indirectly controlled via motherboard
 #define POWER_ENABLE 8 // directly controlled
-#define BRAKE_ENABLE 13 //active low, directly controlled
+#define BRAKE_ENABLE 10 //active low, directly controlled
 
 
 
@@ -165,7 +166,7 @@ bool messageValid = false;
 bool connectionEstablished = false;
 
 //Car's current state
-uint8_t state = stationaryCode;
+uint8_t state = resetCode;
 
 const static int MS_PER_PRINT = 1000;  //If we lost signal, print "LOST SIGNAL" every this many ms.
 unsigned long lastPrintTime = 0;
@@ -248,9 +249,8 @@ void loop() {
             Serial.println("LOST SIGNAL");
         }
         connectionEstablished = false;
-        state = stationaryCode;
+        state = eStopCode;
     }
-    Serial.println(state);
     //Write the signal out to the pins
     if(state == dieCode){
         //Die permanently

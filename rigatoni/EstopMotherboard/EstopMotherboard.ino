@@ -19,6 +19,7 @@ byte currentState = RESET;  // default state is RESET
 byte steeringIn;          // steering input from radio board
 byte driveIn;             // drive input from radio board
 byte eBrakeIn;            // ebrake input from radio board, active low
+byte powerIn;
 byte remoteState = RESET;
 
 
@@ -143,8 +144,8 @@ void evaluateState(void) {
   steeringIn = digitalRead(STEERING_IN);
   driveIn = digitalRead(DRIVE_IN);
   eBrakeIn = digitalRead(SENSOR_1);
-  powerIn = digitalRead(POWER_IN); // TODO
-
+  powerIn = digitalRead(POWER_IN);
+  
   // Check remote state
   if (steeringIn && driveIn && eBrakeIn)
   {
@@ -168,13 +169,13 @@ void evaluateState(void) {
     Serial.println("INVALID REMOTE STATE!");
   }
   // Evaluate remote and nuc states
-  if (isPermanentlyStopped)
+  if (!powerIn)
   {
-    //hardware fault. Permanently stopped.
-    //currentState = STOP;
+    isPermanentlyStopped = true;
   }
   else
   {
+    isPermanentlyStopped = false;
     // Written out more explicitly for clarity of state machine
     // Lowest level of the nuc state (need to be implemented)/remote state becomes the current state, working up from ESTOP to GO
     if (remoteState == ESTOP || nucState == ESTOP)
@@ -214,8 +215,8 @@ void setup() {
   pinMode(STACK_R, OUTPUT);
   pinMode(LED1, OUTPUT);
   pinMode(ETH_RST, OUTPUT);
-  //pinMode(ETH_CS_PIN, OUTPUT);
-  //pinMode(17, OUTPUT);   //Default SS pin as output
+  pinMode(ETH_CS_PIN, OUTPUT);
+  pinMode(17, OUTPUT);   //Default SS pin as output
   //unused
   //pinMode(SAFE_RB, INPUT);
   //pinMode(SENSOR_2, INPUT);
@@ -288,14 +289,15 @@ void loop() {
   if (millis() - 500 > lastTimePrintedStatus) {
     lastTimePrintedStatus = millis();
     if (isPermanentlyStopped) {
-      Serial.print("HARDWARE FAULT ON ");
-      //Serial.print(hardwareFaultIP);
+      Serial.println("PERMANENTLY STOPPED");
     }
-    Serial.print("Remote State: ");
-    Serial.print(remoteState);
-    Serial.print(", NUC State: ");
-    Serial.print(nucState);
-    Serial.print(", Overall state: ");
-    Serial.println(currentState);
+    else {
+      Serial.print("Remote State: ");
+      Serial.print(remoteState);
+      Serial.print(", NUC State: ");
+      Serial.print(nucState);
+      Serial.print(", Overall state: ");
+      Serial.println(currentState);
+    }
   }
 }

@@ -1,9 +1,10 @@
-#define POWER_IN 2 
+#define POWER_IN 6
+#define SENSOR_1 8
+
+ // NOTE: Steering and drive pins are switched from the schematic
 #define STEERING_IN 1
 #define DRIVE_IN 0
-#define SENSOR_1 8 
-
-#define STEERING_EN 12 // Sensor 2 used to control steering, original pin is 9
+#define STEERING_EN 9 // Sensor 2 used to control steering, original pin is 9
 #define DRIVE_EN 10
 
 // Unused
