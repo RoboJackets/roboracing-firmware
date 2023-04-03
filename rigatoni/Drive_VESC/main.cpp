@@ -66,9 +66,9 @@ void watchdog_kick_thread() {
 
 
 int main() {
-    Watchdog::get_instance().start(WATCHDOG_TIMEOUT);
+    /*Watchdog::get_instance().start(WATCHDOG_TIMEOUT);
     Thread watchdog_thread(osPriorityLow);
-    watchdog_thread.start(&watchdog_kick_thread);
+    watchdog_thread.start(&watchdog_kick_thread);*/
 
     DigitalOut led1(LED1);
     DigitalOut led2(LED2);
