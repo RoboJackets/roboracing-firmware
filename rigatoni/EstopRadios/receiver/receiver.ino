@@ -106,7 +106,7 @@ RFM69 radio(RF69_SPI_CS, 3);
 // NOTE: steering and drive pins are flipped from schematic
 #define DRIVE_ENABLE 6 // indirectly controlled via motherboard
 #define STEERING_ENABLE 12 // indirectly controlled via motherboard
-#define POWER_ENABLE 8 // directly controlled
+#define POWER_ENABLE 8 // active low, directly controlled
 #define BRAKE_ENABLE 10 //active low, directly controlled
 
 
@@ -130,8 +130,8 @@ void setup() {
     pinMode(BRAKE_ENABLE, OUTPUT);
     digitalWrite(DRIVE_ENABLE, LOW);
     digitalWrite(STEERING_ENABLE, LOW);
-    digitalWrite(POWER_ENABLE, HIGH);
-    digitalWrite(BRAKE_ENABLE, HIGH);
+    digitalWrite(POWER_ENABLE, LOW);
+    digitalWrite(BRAKE_ENABLE, LOW);
     
     pinMode(RADIO_RESET, OUTPUT);
     resetRadio();
@@ -318,7 +318,7 @@ void diePermanently(){
         digitalWrite(DRIVE_ENABLE, LOW);
         digitalWrite(STEERING_ENABLE, LOW);
         digitalWrite(BRAKE_ENABLE, LOW);
-        digitalWrite(POWER_ENABLE, LOW);
+        digitalWrite(POWER_ENABLE, HIGH);
         
         wdt_reset();
         Serial.println("DYING");

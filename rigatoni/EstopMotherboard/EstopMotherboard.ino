@@ -169,7 +169,7 @@ void evaluateState(void) {
     Serial.println("INVALID REMOTE STATE!");
   }
   // Evaluate remote and nuc states
-  if (!powerIn)
+  if (powerIn)
   {
     isPermanentlyStopped = true;
   }
