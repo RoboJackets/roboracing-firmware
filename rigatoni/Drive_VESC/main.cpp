@@ -13,11 +13,11 @@ constexpr PinName TX = D14;
 constexpr PinName RX = D15;
 
 constexpr float SI_TO_RPM = 1;
-constexpr float MAX_RPM = 10000;
+constexpr float MAX_RPM = 7000;
 constexpr float GEAR_RATIO = 62.f/22.f;
-constexpr float ERPM_TO_RPM = 0.2;
+// constexpr float ERPM_TO_RPM = 0.2;
 
-constexpr unsigned int MAX_AMPS = 20;
+constexpr unsigned int MAX_AMPS = 60;
 constexpr float kP = 0.01;
 constexpr float kI = 0.001;
 constexpr float kD = 0.2;
@@ -73,9 +73,9 @@ void watchdog_kick_thread() {
  * Useful reference for Velocity PID: https://deltamotion.com/support/webhelp/rmctools/Controller_Features/Control_Modes/Velocity_PID.htm
  */
 int main() {
-    // Watchdog::get_instance().start(WATCHDOG_TIMEOUT);
-    // Thread watchdog_thread(osPriorityLow);
-    // watchdog_thread.start(&watchdog_kick_thread);
+    Watchdog::get_instance().start(WATCHDOG_TIMEOUT);
+    Thread watchdog_thread(osPriorityLow);
+    watchdog_thread.start(&watchdog_kick_thread);
 
     DigitalOut led1(LED1);
     DigitalOut led2(LED2);
@@ -96,27 +96,26 @@ int main() {
     vesc.setSerialPort(&vesc_serial);
     vesc.getVescValues();
 
-    desired_rpm.store(vesc.data.rpm * ERPM_TO_RPM);
+    desired_rpm = 0.0;
     double I = 0;
     double prev_err = 0;
-    auto max_vel = -1.0;
+    // auto max_vel = -1.0;
 
     while (true) {
         auto time = Kernel::Clock::now();
         vesc.getVescValues();
         auto vel = vesc.data.rpm;
-        if (vel > max_vel) max_vel = vel;
+        // if (vel > max_vel) max_vel = vel;
 
         auto err = desired_rpm - vel;
         I += err;
         I = abs_max_bound(I, 10.0/kI);
-        auto command = kP * err +  kI * I + 2.5 * sgn(desired_rpm.load()) + kD * (err - prev_err); // + kF * desired_rpm; + 
+        auto command = kP * err +  kI * I + 2.5 * sgn(desired_rpm.load()) + kD * (err - prev_err);
         command = abs_max_bound<double>(command, MAX_AMPS);
 
         vesc.setCurrent(command);
 
-        // vesc.setRPM(desired_rpm / ERPM_TO_RPM);
-        printf("Desired RPM: %f, Command: %f, RPM: %f, P: %f, I: %f, D: %f, M: %f\n", desired_rpm.load(), command, vesc.data.rpm, kP * err, kI * I, kD * (err - prev_err), max_vel);
+        // printf("Desired RPM: %f, Command: %f, RPM: %f, P: %f, I: %f, D: %f, M: %f\n", desired_rpm.load(), command, vesc.data.rpm, kP * err, kI * I, kD * (err - prev_err), max_vel);
         prev_err = err;
         ThisThread::sleep_until(time + REFRESH_RATE);
     }
