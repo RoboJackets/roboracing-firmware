@@ -12,10 +12,11 @@ constexpr int BAUD_RATE = 115200;
 constexpr PinName TX = D14;
 constexpr PinName RX = D15;
 
-constexpr float SI_TO_RPM = 1;
 constexpr float MAX_RPM = 7000;
+constexpr float MIN_RPM = 1500;
+constexpr float RPM_TO_SI = 0.85f;
 constexpr float GEAR_RATIO = 62.f/22.f;
-// constexpr float ERPM_TO_RPM = 0.2;
+constexpr float ERPM_TO_RPM = 0.2;
 
 constexpr unsigned int MAX_AMPS = 60;
 constexpr float kP = 0.01;
@@ -43,6 +44,16 @@ inline T abs_max_bound(T val, T range) {
     return sgn(val) * min(abs(val), abs(range));
 }
 
+template<typename T>
+inline T si_to_erpm(T val) {
+    return val / RPM_TO_SI * GEAR_RATIO / ERPM_TO_RPM;
+}
+
+template<typename T>
+inline T erpm_to_si(T val) {
+    return val * RPM_TO_SI / GEAR_RATIO * ERPM_TO_RPM;
+}
+
 void process_single_message(const SocketAddress & senders_address, const char incoming_udp_message[], unsigned int num_bytes_in_message) {
     //Parses a UDP message we just recieved. Places any received data in global variables.
     if(rjnet_udp.are_ip_addrs_equal(nucIP, senders_address)) {
@@ -54,7 +65,11 @@ void process_single_message(const SocketAddress & senders_address, const char in
             char outgoing_message [64];
             sprintf(outgoing_message, "Got speed = %f", temp);
             rjnet_udp.send_single_message(outgoing_message, nucIP);
-            desired_rpm.store(abs_max_bound(temp, MAX_RPM)); // * SI_TO_RPM * GEAR_RATIO
+            temp = si_to_erpm(temp);
+            if (abs(temp) > 0 && abs(temp) <= MIN_RPM) {
+                temp = MIN_RPM * sgn(temp);
+            }
+            desired_rpm.store(abs_max_bound(temp, MAX_RPM));
         } else if (incoming_udp_message[0] == 'R') {
             NVIC_SystemReset();
         }
@@ -94,18 +109,19 @@ int main() {
     //Set the Vesc's serial port
     vesc.setDebugEnable(false);
     vesc.setSerialPort(&vesc_serial);
-    vesc.getVescValues();
 
     desired_rpm = 0.0;
     double I = 0;
     double prev_err = 0;
-    // auto max_vel = -1.0;
 
     while (true) {
         auto time = Kernel::Clock::now();
         vesc.getVescValues();
         auto vel = vesc.data.rpm;
-        // if (vel > max_vel) max_vel = vel;
+
+        char outgoing_message [64];
+        sprintf(outgoing_message, "vel = %f", erpm_to_si(vel));
+        rjnet_udp.send_single_message(outgoing_message, nucIP);
 
         auto err = desired_rpm - vel;
         I += err;
@@ -115,7 +131,6 @@ int main() {
 
         vesc.setCurrent(command);
 
-        // printf("Desired RPM: %f, Command: %f, RPM: %f, P: %f, I: %f, D: %f, M: %f\n", desired_rpm.load(), command, vesc.data.rpm, kP * err, kI * I, kD * (err - prev_err), max_vel);
         prev_err = err;
         ThisThread::sleep_until(time + REFRESH_RATE);
     }
