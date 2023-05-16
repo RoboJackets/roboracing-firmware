@@ -17,10 +17,10 @@ constexpr int BAUD_RATE = 115200;
 constexpr PinName TX = D14;
 constexpr PinName RX = D15;
 
-constexpr float kP = 2.8;
-constexpr float kI = 0.02;
-constexpr float kD = 16;
-constexpr float kF = 0.25;
+constexpr float kP = 1.85;
+constexpr float kI = 0.04;
+constexpr float kD = 12;
+constexpr float kF = 0.3;
 constexpr unsigned int MAX_AMPS = 50;
 constexpr float POT_ELECTRICAL_RANGE = 260;
 constexpr float POT_OFFSET = 0.76;
@@ -115,15 +115,18 @@ int main() {
         auto time = Kernel::Clock::now();
         pos = (sample_pot() - POT_OFFSET) * POT_ELECTRICAL_RANGE;
 
+        char outgoing_message [64];
+        sprintf(outgoing_message, "angle = %f", pos);
+        rjnet_udp.send_single_message(outgoing_message, nucIP);
+
         float err = (desired_angle - pos);
         I += err;
-        I = abs_max_bound(I, 20.0f/kI);
-        float command = kP * err + kD * (prevPos - pos) + kI * I + kF * desired_angle;
+        I = abs_max_bound(I, 25.0f/kI);
+        float command = (kP + kP * desired_angle) * err + kD * (prevPos - pos) + kI * I + kF * desired_angle;
         command = abs_max_bound<float>(command, MAX_AMPS);
 
         // potentiometer and motor positive are reversed
-        vesc.setCurrent(-command);
-        printf("Position: %f Command: %f Desired: %f I: %f\n", pos, command, desired_angle.load(), kI * I);
+        vesc.setCurrent(command);
         prevPos = pos;
         ThisThread::sleep_until(time + REFRESH_RATE);
     }
