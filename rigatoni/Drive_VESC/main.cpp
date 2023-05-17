@@ -18,11 +18,11 @@ constexpr float RPM_TO_SI = 0.85f/60.f;
 constexpr float GEAR_RATIO = 62.f/22.f;
 constexpr float ERPM_TO_RPM = 0.2f;
 
-constexpr unsigned int MAX_AMPS = 120;
-constexpr float kP = 0.64;
+constexpr unsigned int MAX_AMPS = 300;
+constexpr float kP = 0.02;
 constexpr float kI = 0.001;
 constexpr float kD = 0.2;
-constexpr float kF = 15.0;
+constexpr float kF = 2.5;
 
 constexpr Kernel::Clock::duration_u32 REFRESH_RATE = 10ms;
 constexpr int WATCHDOG_TIMEOUT = 50;
@@ -67,7 +67,7 @@ void process_single_message(const SocketAddress & senders_address, const char in
             sprintf(outgoing_message, "Got speed = %f", temp);
             rjnet_udp.send_single_message(outgoing_message, nucIP);
             temp = si_to_erpm(temp);
-            if (abs(temp) > 0 && abs(temp) <= MIN_RPM) {
+            if (abs(temp) > 100 && abs(temp) <= MIN_RPM) {
                 temp = MIN_RPM * sgn(temp);
             }
             desired_rpm.store(abs_max_bound(temp, MAX_RPM));
@@ -118,6 +118,16 @@ int main() {
     while (true) {
         auto time = Kernel::Clock::now();
         vesc.setRPM(desired_rpm);
+
+        // vesc.getVescValues();
+        // auto vel = vesc.data.rpm;
+
+        // if (abs(desired_rpm) > 0 && abs(vel) < MAX_RPM) {
+        //     vesc.setCurrent(300 * sgn(desired_rpm.load()));
+        // } else {
+        //     vesc.setCurrent(300 * -sgn(vel));
+        // }
+
         // vesc.getVescValues();
         // auto vel = vesc.data.rpm;
 
@@ -131,7 +141,7 @@ int main() {
         // auto command = kP * err +  kI * I + kF * sgn(desired_rpm.load()) + kD * (err - prev_err);
 
         // if (abs(vel) < MIN_RPM && abs(desired_rpm) > 0) {
-        //     command = 100 * sgn(desired_rpm.load());
+        //     command = 300 * sgn(desired_rpm.load());
         // }
 
         // command = abs_max_bound<double>(command, MAX_AMPS);
