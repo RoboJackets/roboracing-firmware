@@ -23,7 +23,7 @@ constexpr float kD = 12;
 constexpr float kF = 0.3;
 constexpr unsigned int MAX_AMPS = 50;
 constexpr float POT_ELECTRICAL_RANGE = 260;
-constexpr float POT_OFFSET = 0.57;
+constexpr float POT_OFFSET = 0.49;
 
 constexpr float MAX_ANGLE = 55;
 
