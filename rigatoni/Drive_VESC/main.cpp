@@ -14,9 +14,9 @@ constexpr PinName RX = D15;
 
 constexpr float MAX_RPM = 7000;
 constexpr float MIN_RPM = 1500;
-constexpr float RPM_TO_SI = 0.85f;
+constexpr float RPM_TO_SI = 0.85f/60.f;
 constexpr float GEAR_RATIO = 62.f/22.f;
-constexpr float ERPM_TO_RPM = 0.2;
+constexpr float ERPM_TO_RPM = 0.2f;
 
 constexpr unsigned int MAX_AMPS = 60;
 constexpr float kP = 0.01;
