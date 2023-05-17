@@ -18,10 +18,11 @@ constexpr float RPM_TO_SI = 0.85f/60.f;
 constexpr float GEAR_RATIO = 62.f/22.f;
 constexpr float ERPM_TO_RPM = 0.2f;
 
-constexpr unsigned int MAX_AMPS = 60;
-constexpr float kP = 0.01;
+constexpr unsigned int MAX_AMPS = 120;
+constexpr float kP = 0.64;
 constexpr float kI = 0.001;
 constexpr float kD = 0.2;
+constexpr float kF = 15.0;
 
 constexpr Kernel::Clock::duration_u32 REFRESH_RATE = 10ms;
 constexpr int WATCHDOG_TIMEOUT = 50;
@@ -116,22 +117,28 @@ int main() {
 
     while (true) {
         auto time = Kernel::Clock::now();
-        vesc.getVescValues();
-        auto vel = vesc.data.rpm;
+        vesc.setRPM(desired_rpm);
+        // vesc.getVescValues();
+        // auto vel = vesc.data.rpm;
 
-        char outgoing_message [64];
-        sprintf(outgoing_message, "vel = %f", erpm_to_si(vel));
-        rjnet_udp.send_single_message(outgoing_message, nucIP);
+        // char outgoing_message [64];
+        // sprintf(outgoing_message, "vel = %f", erpm_to_si(vel));
+        // rjnet_udp.send_single_message(outgoing_message, nucIP);
 
-        auto err = desired_rpm - vel;
-        I += err;
-        I = abs_max_bound(I, 10.0/kI);
-        auto command = kP * err +  kI * I + 2.5 * sgn(desired_rpm.load()) + kD * (err - prev_err);
-        command = abs_max_bound<double>(command, MAX_AMPS);
+        // auto err = desired_rpm - vel;
+        // I += err;
+        // I = abs_max_bound(I, 10.0/kI);
+        // auto command = kP * err +  kI * I + kF * sgn(desired_rpm.load()) + kD * (err - prev_err);
 
-        vesc.setCurrent(command);
+        // if (abs(vel) < MIN_RPM && abs(desired_rpm) > 0) {
+        //     command = 100 * sgn(desired_rpm.load());
+        // }
 
-        prev_err = err;
+        // command = abs_max_bound<double>(command, MAX_AMPS);
+
+        // vesc.setCurrent(command);
+
+        // prev_err = err;
         ThisThread::sleep_until(time + REFRESH_RATE);
     }
 }
