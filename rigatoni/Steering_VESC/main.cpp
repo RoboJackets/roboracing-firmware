@@ -23,9 +23,9 @@ constexpr float kD = 12;
 constexpr float kF = 0.3;
 constexpr unsigned int MAX_AMPS = 50;
 constexpr float POT_ELECTRICAL_RANGE = 260;
-constexpr float POT_OFFSET = 0.76;
+constexpr float POT_OFFSET = 0.57;
 
-constexpr float MAX_ANGLE = 60;
+constexpr float MAX_ANGLE = 55;
 
 constexpr Kernel::Clock::duration_u32 REFRESH_RATE = 10ms;
 constexpr int WATCHDOG_TIMEOUT = 50;
@@ -122,7 +122,7 @@ int main() {
         float err = (desired_angle - pos);
         I += err;
         I = abs_max_bound(I, 25.0f/kI);
-        float command = (kP + kP * desired_angle) * err + kD * (prevPos - pos) + kI * I + kF * desired_angle;
+        float command = (kP + kP * abs(desired_angle) / MAX_ANGLE) * err + kD * (prevPos - pos) + kI * I + kF * desired_angle;
         command = abs_max_bound<float>(command, MAX_AMPS);
 
         // potentiometer and motor positive are reversed
