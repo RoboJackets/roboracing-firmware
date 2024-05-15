@@ -1,46 +1,32 @@
-#include "RigatoniNetwork.h"
 #include <avr/wdt.h>
-#include <Ethernet.h>
 #include "EstopMotherboard.h"
-#include "RJNet.h"
+#include <Ethernet.h>
+#include <EthernetUdp.h>
+#include "RJNetUDP.h"
+#include "RigatoniNetworkUDP.h"
 
 
-const static String stopMsg = "D";
-const static String limitedMsg = "L";
-const static String goMsg = "G";
-const static String nucRequestStateMsg = "S?";
-
-const static String nucResponseGo = "G";
-const static String nucResponseHalt = "H";
-
-
-const static String genRequestStateMsg = "S?";
+const static char stopMsg[] = "D";
+const static char limitedMsg[] = "L";
+const static char goMsg[] = "G";
 
 //If we receive this, indicates a hardware failure and we should permanently stop
 const static String hardwareFailure = "FAIL";
 
-IPAddress hardwareFaultIP;   //IP address of thing that sent hardware fault
 bool isPermanentlyStopped = false;
 byte currentState = STOP;  // default state is STOP
 
-//byte sensor1;           // input from sensor 1 TODO Not implemented on current version
-//byte sensor2;           // input from sensor 2 TODO Not implemented on current version
 byte steeringIn;          // steering input from radio board
 byte driveIn;             // drive input from radio board
 byte remoteState = STOP;  
 
 
-EthernetServer server(PORT);
-
-// NUC 
-const int timeToNucTimeoutMS = 500;
-unsigned long lastNUCReply = 0;
-bool nucConnected = false;
-
 unsigned long lastTimePrintedStatus = 0;
-unsigned long timeAtEndOfStartup = 0;
+unsigned long start_time = 0;
 
 byte nucState = GO; // Default state GO to operate without NUC connected 
+
+EthernetUDP Udp;
 
 
 void stackLights(byte green, byte yellow, byte red) {
@@ -96,67 +82,38 @@ void writeOutCurrentState() {  // CHANGE, STATUS NEEDS TO GO THROUGH NUC FIRST
     }
 }
 
+void broadcastState() {
+    if (millis() - start_time >= MIN_MESSAGE_SPACING) {
+        //So we are treating the C-style string as a pointer here because it
+        //decays to a pointer when we pass it into a function.
+        const char * currentStateMessage;
+        switch(currentState) {
+            case GO:    // everything enabled
+                currentStateMessage = goMsg;
+                break; 
+            case LIMITED:    // everything disabled
+                currentStateMessage = limitedMsg;
+                break;
+            default:    // steering enabled, drive disabled
+                currentStateMessage = stopMsg;
+                break;
+            }
 
-void respondToClient() {
-    EthernetClient client = server.available();
-    while (client) {
-        client.setConnectionTimeout(ETH_TCP_INITIATION_DELAY);   //Set connection delay so we don't hang
-        String data = RJNet::readData(client);
-        if (data.length() != 0) {
-            Serial.print(data); //show us what we read 
-            Serial.print(" From client ");
-            Serial.print(client.remoteIP());
-            Serial.print(":");
-            Serial.println(client.remotePort());
-
-            if(data.equals(hardwareFailure))
-            {
-                isPermanentlyStopped = true;
-                hardwareFaultIP = client.remoteIP();
-                currentState = STOP;
-                Serial.print("HARDWARE FAULT: MESSAGE: ");
-            }
-            else if(client.remoteIP() == nucIP && data.equals(nucResponseGo)){
-                nucState = GO;
-                lastNUCReply = millis();
-                sendStateToClient(client);
-            }
-            else if(client.remoteIP() == nucIP && data.equals(nucResponseHalt)){
-                nucState = STOP;
-                lastNUCReply = millis();
-                sendStateToClient(client);
-            }
-            else if(data.equals(genRequestStateMsg))
-            {
-                sendStateToClient(client);
-            }
-            else
-            {
-                Serial.println("Invalid message recieved.");
-            }
-        }
-        else
-        {
-            Serial.println("Empty message recieved.");
-        }
-        client = server.available();
+        RJNetUDP::sendMessage(currentStateMessage, Udp, broadcastIP);
+        Serial.println("Sending message");
+        start_time = millis();
     }
 }
 
-void sendStateToClient(EthernetClient the_client){
-    if(the_client.connected())
-    {
-        switch(currentState) {
-            case GO:    // everything enabled
-                RJNet::sendData(the_client, goMsg); 
-                break; 
-            case STOP:    // everything disabled
-                RJNet::sendData(the_client, stopMsg);
-                break;
-            case LIMITED:    // steering enabled, drive disabled
-                RJNet::sendData(the_client, limitedMsg);
-                break;
-        }
+void checkAllMessages(){
+    //Reads all UDP messages to prevent buffer from filling. Doesn' do anything with them though
+    Message message1 = RJNetUDP::receiveMessage(Udp);
+    while(message1.received) {
+        Serial.print("Message from IP: ");
+        Serial.print(message1.ipaddress);
+        Serial.print(" : ");
+        Serial.println(message1.message);
+        message1 = RJNetUDP::receiveMessage(Udp);
     }
 }
 
@@ -175,7 +132,6 @@ void evaluateState(void){
     //sensor2 = digitalRead(SENSOR_2); TODO Not implemented on current version
     steeringIn = digitalRead(STEERING_IN);
     driveIn = digitalRead(DRIVE_IN);
-
 
 
     // Check remote state
@@ -282,10 +238,14 @@ void setup() {
         delay(100);
     }
 
-    Ethernet.setRetransmissionCount(ETH_NUM_SENDS); //Set number resends before failure
-    Ethernet.setRetransmissionTimeout(ETH_RETRANSMISSION_DELAY_MS);  //Set timeout delay before failure
+    //If you don't set retransmission to 0, the WIZNET will retry 8 times if it cannot resolve the
+    //MAC address of the destination using ARP and block for a long time.
+    //With this as 0, will only block for ETH_RETRANSMISSION_DELAY_MS
+    Ethernet.setRetransmissionCount(0);
+    Ethernet.setRetransmissionTimeout(ETH_RETRANSMISSION_DELAY_MS);  //Set timeout delay before failure of ARP
 
-    server.begin();
+    //server.begin();
+    Udp.begin(RJNetUDP::RJNET_PORT);
     Serial.print("Our address: ");
     Serial.println(Ethernet.localIP());
 
@@ -301,19 +261,15 @@ void loop() {
     digitalWrite(LED1, !digitalRead(LED1));
 
     writeOutCurrentState();
-    respondToClient();
+    broadcastState();
+    checkAllMessages();
     
-    nucConnected = millis() - lastNUCReply < timeToNucTimeoutMS; 
     
     if(millis() - 500 > lastTimePrintedStatus){
         lastTimePrintedStatus = millis();
         if(isPermanentlyStopped){
             Serial.print("HARDWARE FAULT ON ");
-            Serial.print(hardwareFaultIP);
-        }
-        
-        if(!nucConnected){
-            Serial.print("No connection with NUC. ");
+            //Serial.print(hardwareFaultIP);
         }
         
         Serial.print("Overall state: ");
