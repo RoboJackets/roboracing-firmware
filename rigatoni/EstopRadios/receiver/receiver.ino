@@ -57,11 +57,10 @@
 /*
 MAKE SURE TO KEEP THESE CODES THE SAME AS RECIEVER
 */
-const static uint8_t dieCode = 'd';
-const static uint8_t stationaryCode = 's';
-const static uint8_t eStopCode = 'e';
-const static uint8_t resetCode = 'r';
-const static uint8_t goCode = 'g';
+const static uint8_t stoppedCode = 's';
+const static uint8_t standbyCode = 'r'; // short for reset
+const static uint8_t manualCode = 'm';
+const static uint8_t softwareCode = 'a'; // short for autonomous
 const static byte expectedMessageLength = 1;
 
 #define SERIAL_BAUD   115200
@@ -103,17 +102,15 @@ RFM69 radio(RF69_SPI_CS, 3);
 
 #define RADIO_RESET A5 //Not needed for UNO, but doesn't hurt anything
 
-// NOTE: steering and drive pins are flipped from schematic
-#define DRIVE_ENABLE 6 // indirectly controlled via motherboard
-#define STEERING_ENABLE 12 // indirectly controlled via motherboard
-#define POWER_ENABLE 8 // active low, directly controlled
-#define BRAKE_ENABLE 10 //active low, directly controlled
+#define SOFTWARE_MODE 6 // indirectly controlled via motherboard
+#define MANUAL_MODE 12 // indirectly controlled via motherboard
+#define STOPPED 8 // active low, directly controlled
+#define STANDBY 10 //active low, directly controlled
 
 
 
 void resetRadio();
-bool compareData(uint8_t, uint8_t, unsigned int);
-void diePermanently();
+void stopUntilReset();
 
 void setup() {
     delay(1);
@@ -124,14 +121,14 @@ void setup() {
     LED3_OFF();
     LED4_OFF();
     
-    pinMode(DRIVE_ENABLE, OUTPUT);
-    pinMode(STEERING_ENABLE, OUTPUT);
-    pinMode(POWER_ENABLE, OUTPUT);
-    pinMode(BRAKE_ENABLE, OUTPUT);
-    digitalWrite(DRIVE_ENABLE, LOW);
-    digitalWrite(STEERING_ENABLE, LOW);
-    digitalWrite(POWER_ENABLE, LOW);
-    digitalWrite(BRAKE_ENABLE, LOW);
+    pinMode(SOFTWARE_MODE, OUTPUT);
+    pinMode(MANUAL_MODE, OUTPUT);
+    pinMode(STOPPED, OUTPUT);
+    pinMode(STANDBY, OUTPUT);
+    digitalWrite(SOFTWARE_MODE, LOW);
+    digitalWrite(MANUAL_MODE, LOW);
+    digitalWrite(STANDBY, LOW);
+    digitalWrite(STOPPED, HIGH);
     
     pinMode(RADIO_RESET, OUTPUT);
     resetRadio();
@@ -199,28 +196,27 @@ void loop() {
         messageValid = false;
         //If message wrong length, fail immediately
         if (expectedMessageLength == messageLength){
-            if(radio.DATA[0] == goCode){
-                state = goCode;
+            if (state == stoppedCode && radio.DATA[0] == standbyCode) {
+                state = standbyCode;
                 messageValid = true;
-            }
-            else if (radio.DATA[0] == stationaryCode){
-                state = stationaryCode;
-                messageValid = true;
-            }
-            else if (radio.DATA[0] == resetCode){
-                state = resetCode;
-                messageValid = true;
-            }
-            else if (radio.DATA[0] == dieCode){
-                state = dieCode;
-                messageValid = true;
-            }
-            else if (radio.DATA[0] == eStopCode){
-                state = eStopCode;
-                messageValid = true;
-            }
-            else{
-                Serial.println("Invalid message received. ");
+            } else if (state != stoppedCode) {
+                if (radio.DATA[0] == softwareCode){
+                    state = softwareCode;
+                    messageValid = true;
+                } else if (radio.DATA[0] == standbyCode){
+                    state = standbyCode;
+                    messageValid = true;
+                } else if (radio.DATA[0] == manualCode){
+                    state = manualCode;
+                    messageValid = true;
+                } else if (radio.DATA[0] == stoppedCode){
+                    state = stoppedCode;
+                    messageValid = true;
+                } else {
+                    Serial.println("Invalid message received.");
+                }
+            } else {
+                Serial.println("Invalid message received.");
             }
         }
         else {
@@ -249,54 +245,38 @@ void loop() {
             Serial.println("LOST SIGNAL");
         }
         connectionEstablished = false;
-        state = eStopCode;
+        state = standbyCode;
     }
     //Write the signal out to the pins
-    if(state == dieCode){
-        //Die permanently
-        diePermanently();
+    if(state == stoppedCode){
+        digitalWrite(SOFTWARE_MODE, LOW);
+        digitalWrite(MANUAL_MODE, LOW);
+        digitalWrite(STANDBY, LOW);
+        digitalWrite(STOPPED, HIGH);
     }
-    else if(state == goCode){
-        //GO!!!!!
-        digitalWrite(DRIVE_ENABLE, HIGH);
-        digitalWrite(STEERING_ENABLE, HIGH);
-        digitalWrite(BRAKE_ENABLE, HIGH);
+    else if(state == softwareCode){
+        digitalWrite(SOFTWARE_MODE, HIGH);
+        digitalWrite(MANUAL_MODE, LOW);
+        digitalWrite(STANDBY, LOW);
+        digitalWrite(STOPPED, LOW);
     }
-    else if(state == stationaryCode){
-        //Steering on but drive off
-        digitalWrite(DRIVE_ENABLE, LOW);
-        digitalWrite(STEERING_ENABLE, HIGH);
-        digitalWrite(BRAKE_ENABLE, HIGH);
+    else if(state == standbyCode){
+        digitalWrite(SOFTWARE_MODE, LOW);
+        digitalWrite(MANUAL_MODE, LOW);
+        digitalWrite(STANDBY, HIGH);
+        digitalWrite(STOPPED, LOW);
     }
-    else if(state == resetCode){
-        //Steering & drive off, for resetting ebrake
-        digitalWrite(DRIVE_ENABLE, LOW);
-        digitalWrite(STEERING_ENABLE, LOW);
-        digitalWrite(BRAKE_ENABLE, HIGH);
-    }
-    else{ //eStopCode
-        //Steering & drive off, also activate ebrake
-        digitalWrite(DRIVE_ENABLE, LOW);
-        digitalWrite(STEERING_ENABLE, LOW);
-        digitalWrite(BRAKE_ENABLE, LOW);
+    else if(state == manualCode){
+        digitalWrite(SOFTWARE_MODE, LOW);
+        digitalWrite(MANUAL_MODE, HIGH);
+        digitalWrite(STANDBY, LOW);
+        digitalWrite(STOPPED, LOW);
     }
     
     //Debug LEDs
     (state == goCode) ? LED4_ON() : LED4_OFF();
     connectionEstablished ? LED3_ON() : LED3_OFF();
     
-}
-
-//Compares if two arrays are element-for-element the same
-//From https://forum.arduino.cc/index.php?topic=5157.0
-//numberOfElements MUST be less than the length of the two arrays
-bool compareData(volatile uint8_t *a, uint8_t *b, unsigned int numberOfElements){
-    for (unsigned int n=0;n<numberOfElements;n++){
-        if (a[n]!=b[n]){
-            return false;
-        }
-    }
-    return true;
 }
 
 void resetRadio(){
@@ -308,20 +288,4 @@ void resetRadio(){
     delayMicroseconds(150);
     digitalWrite(RADIO_RESET, LOW);
     delayMicroseconds(5100);
-}
-
-void diePermanently(){
-    //Kill the robot until a power cycle
-    //Die permanently
-    
-    while(true){
-        digitalWrite(DRIVE_ENABLE, LOW);
-        digitalWrite(STEERING_ENABLE, LOW);
-        digitalWrite(BRAKE_ENABLE, LOW);
-        digitalWrite(POWER_ENABLE, HIGH);
-        
-        wdt_reset();
-        Serial.println("DYING");
-        delay(100);
-    }
 }

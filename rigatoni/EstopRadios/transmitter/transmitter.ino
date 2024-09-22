@@ -43,14 +43,13 @@
 
 //MAKE SURE TO KEEP THESE CODES THE SAME AS RECIEVER
 
-const static uint8_t dieCode = 'd';
-const static uint8_t stationaryCode = 's';
-const static uint8_t eStopCode = 'e';
-const static uint8_t resetCode = 'r';
-const static uint8_t goCode = 'g';
+const static uint8_t stoppedCode = 's';
+const static uint8_t standbyCode = 'r'; // short for reset
+const static uint8_t manualCode = 'm';
+const static uint8_t softwareCode = 'a'; // short for autonomous
 const static byte expectedMessageLength = 1;
 
-uint8_t state = resetCode; // initial state is reset
+uint8_t state = standbyCode; // initial state is reset
 
 //Payload is the code (go or stop) to send with the radio.
 const static byte payloadLength = 1;
@@ -82,9 +81,9 @@ RFM69 radio(RF69_SPI_CS, 3);
 #define RED_LED 9
 
 //Buttons on the controller
-#define GO_BUTTON 6
-#define LIMITED_BUTTON 8
-#define STOP_BUTTON 12
+#define GREEN_BUTTON 6
+#define YELLOW_BUTTON 8
+#define RED_BUTTON 12
 
 //Radio reset pin
 #define RADIO_RESET A5 //Not needed for UNO, but doesn't hurt anything
@@ -196,9 +195,9 @@ void setUpRemoteIOPins(){
     pinMode(YELLOW_LED, OUTPUT);
     pinMode(RED_LED, OUTPUT);
     
-    pinMode(GO_BUTTON, INPUT_PULLUP);
-    pinMode(LIMITED_BUTTON, INPUT_PULLUP);
-    pinMode(STOP_BUTTON, INPUT_PULLUP);
+    pinMode(GREEN_BUTTON, INPUT_PULLUP);
+    pinMode(YELLOW_BUTTON, INPUT_PULLUP);
+    pinMode(RED_BUTTON, INPUT_PULLUP);
 }
 
 bool buttonsStillPressedStationary = false;
@@ -206,17 +205,17 @@ bool buttonsStillPressedEStop = false;
 
 uint8_t readStateFromButtons(uint8_t curr_state){
     //Buttons are LOW when pushed
-    bool go_button = !digitalRead(GO_BUTTON);
-    bool limited_button = !digitalRead(LIMITED_BUTTON);
-    bool stop_button = !digitalRead(STOP_BUTTON);
+    bool go_button = !digitalRead(GREEN_BUTTON);
+    bool limited_button = !digitalRead(YELLOW_BUTTON);
+    bool stop_button = !digitalRead(RED_BUTTON);
     
     //This is true from the time when the DIE code was pressed until all buttons are released
     buttonsStillPressedStationary = buttonsStillPressedStationary && (go_button || limited_button);
     buttonsStillPressedEStop = buttonsStillPressedEStop && (limited_button || stop_button);
     
-    if(curr_state == stationaryCode && buttonsStillPressedStationary){
+    if(curr_state == standbyCode && buttonsStillPressedStationary){
         //Commanded to die and all remote buttons have not yet been released
-        return stationaryCode;
+        return standbyCode;
     }
     else if(curr_state == eStopCode && buttonsStillPressedEStop){
         //Commanded to die and all remote buttons have not yet been released
@@ -228,34 +227,34 @@ uint8_t readStateFromButtons(uint8_t curr_state){
     }
     else if (go_button && limited_button){
         buttonsStillPressedStationary = true;
-        return stationaryCode;
+        return standbyCode;
     }
     else if (stop_button){
-        return dieCode;
+        return stoppedCode;
     }
     else if (limited_button){
-        return resetCode;
+        return manualCode;
     }
     else if (go_button){
-        return goCode;
+        return softwareCode;
     }
     return curr_state;
 }
 
 void showStateOnLEDs(uint8_t curr_state){
-    if (curr_state == dieCode){
+    if (curr_state == stoppedCode){
         writeToRemoteLEDs(false, false, true);
     }
     else if (curr_state == eStopCode){
         writeToRemoteLEDs(false, true, true);
     }
-    else if (curr_state == stationaryCode){
+    else if (curr_state == standbyCode){
         writeToRemoteLEDs(true, true, false);
     }
-    else if (curr_state == resetCode){
+    else if (curr_state == manualCode){
         writeToRemoteLEDs(false, true, false);
     }
-    else if (curr_state == goCode){
+    else if (curr_state == softwareCode){
         writeToRemoteLEDs(true, false, false);
     }
     else {
