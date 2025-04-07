@@ -163,7 +163,7 @@ bool messageValid = false;
 bool connectionEstablished = false;
 
 //Car's current state
-uint8_t state = resetCode;
+uint8_t state = stoppedCode;
 
 const static int MS_PER_PRINT = 1000;  //If we lost signal, print "LOST SIGNAL" every this many ms.
 unsigned long lastPrintTime = 0;
@@ -196,10 +196,10 @@ void loop() {
         messageValid = false;
         //If message wrong length, fail immediately
         if (expectedMessageLength == messageLength){
-            if (state == stoppedCode && radio.DATA[0] == standbyCode) {
-                state = standbyCode;
-                messageValid = true;
-            } else if (state != stoppedCode) {
+//            if (state == stoppedCode && radio.DATA[0] == stoppedCode) {
+//                state = stoppedCode;
+//                messageValid = true;
+//            } else if (state != stoppedCode) {
                 if (radio.DATA[0] == softwareCode){
                     state = softwareCode;
                     messageValid = true;
@@ -215,9 +215,9 @@ void loop() {
                 } else {
                     Serial.println("Invalid message received.");
                 }
-            } else {
-                Serial.println("Invalid message received.");
-            }
+//            } else {
+//                Serial.println("Invalid message received.");
+//            }
         }
         else {
             Serial.print("Message too short: "); Serial.print(messageLength);
@@ -274,7 +274,7 @@ void loop() {
     }
     
     //Debug LEDs
-    (state == goCode) ? LED4_ON() : LED4_OFF();
+    (state == softwareCode || state == manualCode) ? LED4_ON() : LED4_OFF();
     connectionEstablished ? LED3_ON() : LED3_OFF();
     
 }

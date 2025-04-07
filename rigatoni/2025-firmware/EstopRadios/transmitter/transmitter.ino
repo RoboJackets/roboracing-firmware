@@ -49,7 +49,7 @@ const static uint8_t manualCode = 'm';
 const static uint8_t softwareCode = 'a'; // short for autonomous
 const static byte expectedMessageLength = 1;
 
-uint8_t state = standbyCode; // initial state is reset
+uint8_t state = stoppedCode; // initial state is reset
 
 //Payload is the code (go or stop) to send with the radio.
 const static byte payloadLength = 1;
@@ -217,23 +217,15 @@ uint8_t readStateFromButtons(uint8_t curr_state){
         //Commanded to die and all remote buttons have not yet been released
         return standbyCode;
     }
-    else if(curr_state == eStopCode && buttonsStillPressedEStop){
-        //Commanded to die and all remote buttons have not yet been released
-        return eStopCode;
-    }
-    else if (limited_button && stop_button) {
-        buttonsStillPressedEStop = true;
-        return eStopCode;
-    }
     else if (go_button && limited_button){
-        buttonsStillPressedStationary = true;
-        return standbyCode;
+//        buttonsStillPressedStationary = true;
+        return manualCode;
     }
     else if (stop_button){
         return stoppedCode;
     }
     else if (limited_button){
-        return manualCode;
+        return standbyCode;
     }
     else if (go_button){
         return softwareCode;
@@ -245,14 +237,14 @@ void showStateOnLEDs(uint8_t curr_state){
     if (curr_state == stoppedCode){
         writeToRemoteLEDs(false, false, true);
     }
-    else if (curr_state == eStopCode){
-        writeToRemoteLEDs(false, true, true);
-    }
+//    else if (curr_state == eStopCode){
+//        writeToRemoteLEDs(false, true, true);
+//    }
     else if (curr_state == standbyCode){
-        writeToRemoteLEDs(true, true, false);
+        writeToRemoteLEDs(false, true, false);
     }
     else if (curr_state == manualCode){
-        writeToRemoteLEDs(false, true, false);
+        writeToRemoteLEDs(true, true, false);
     }
     else if (curr_state == softwareCode){
         writeToRemoteLEDs(true, false, false);

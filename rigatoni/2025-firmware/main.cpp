@@ -8,22 +8,27 @@
  * 5 m/s for drive correponds to about 5000 ERPM or 1000 RPM
  *
  * Useful reference for Velocity PID: https://deltamotion.com/support/webhelp/rmctools/Controller_Features/Control_Modes/Velocity_PID.htm
+ *
+ * Min ERPM is 900 RPM in Vesc Tool
  */
 #include "mbed.h"
 #include "PwmIn.h"
+#include "rjnet_mbed_udp.h"
 #include <atomic>
 #include <arm_acle.h>
 #include <VescUart.h>
 
 #define ETHERNET_ID 3
-#define DRIVE_VESC_ID 9
+#define DRIVE_VESC_ID 90
 #define STEERING_VESC_ID 10
+#define MOTOR_STATUS_MSG_ID 9
 
 constexpr int BAUD_RATE = 115200;
 constexpr PinName TX = D14;
 constexpr PinName RX = D15;
 
-constexpr bool ON_GROUND = true;
+constexpr bool ON_GROUND = false;
+// constexpr bool MANUAL_CONTROL = false;
 
 VescUart vesc;
 BufferedSerial vesc_serial(TX, RX, BAUD_RATE);
@@ -64,9 +69,9 @@ constexpr float kI = 0.04;
 constexpr float kD = 12;
 constexpr float kF = 0.3;
 constexpr unsigned int MAX_COMMAND = 50;
-constexpr float POT_ELECTRICAL_RANGE = 260;
-constexpr float POT_OFFSET = 0.50;
-constexpr float MAX_ANGLE = 55;
+constexpr float POT_ELECTRICAL_RANGE = 147.06;
+constexpr float POT_OFFSET = 0.5358; // Potentiometer reading when wheels are straight
+constexpr float MAX_ANGLE = 30;
 constexpr float MAX_VELOCITY = 5.0;
 
 constexpr float MAX_STEERING_DUTY_CYCLE = 0.5;
@@ -88,24 +93,52 @@ constexpr Kernel::Clock::duration_u32 REFRESH_RATE = 10ms;
 
 CAN can(PD_0, PD_1);
 AnalogIn pot(A0);
-// DigitalOut HV_enable(D7);
+DigitalOut HV_enable(D5);
 PwmIn steering_RC(D7);
 PwmIn drive_RC(D6);
+DigitalIn standby(D9);
+DigitalIn stopped(D10);
+DigitalIn manual_mode(D11);
+DigitalIn software_mode(D12);
+
+DigitalOut green_led(LED1);
+DigitalOut yellow_led(LED2);
+DigitalOut red_led(LED3);
 
 uint64_t steering_counter = 0;
 uint64_t drive_counter = 0;
 bool writing_steering_messages = false;
 bool writing_drive_messages = false;
 
+// bool manual_on = false;
+
 std::atomic<float> desired_angle;
 std::atomic<float> manual_steering;
-
 std::atomic<float> manual_drive;
+
+// std::atomic<float> autonomous_steering;
+std::atomic<float> autonomous_drive;
+
+enum State
+{
+    STOPPED,
+    STANDBY, 
+    MANUAL,
+    SOFTWARE
+};
+
+State current_state;
+State last_state;
 
 Thread send_steering_thread;
 Thread manual_steering_thread;
 Thread manual_drive_thread;
+Thread send_drive_thread;
+Thread network_thread;
 
+void process_single_message(const SocketAddress & senders_address, const char incoming_udp_message[], unsigned int num_bytes_in_message);
+
+RJNetMbed rjnet_udp(nucleoIP, &process_single_message);
 
 template<typename T>
 inline int sgn(T n) {
@@ -134,15 +167,22 @@ inline T vel_to_erpm(T val) {
 
 
 void can_transmit_eid(uint32_t id, const uint8_t *data, uint8_t len) {
-    printf("ID: %d\n", id);
+    // printf("ID: %d\n", id);
     if ((id & 0xff) == STEERING_VESC_ID) {
         if (can.write(CANMessage(id, data, len, CANData, CANExtended))) {
-            printf("Steering message sent: %llu\n", steering_counter);
+            // printf("Steering message sent: %llu\n", steering_counter);
             steering_counter++;
             writing_steering_messages = true;
         } else {
-            printf("Err\n");
+            // printf("Err\n");
             writing_steering_messages = false;
+        }
+    } else if ((id & 0xff) == DRIVE_VESC_ID) {
+        if (can.write(CANMessage(id, data, len, CANData, CANExtended))) {
+            drive_counter++;
+            writing_drive_messages = true;
+        } else {
+            writing_drive_messages = false;
         }
     }
 }
@@ -182,33 +222,41 @@ inline float sample_pot() {
 
 void read_manual_steering()
 {
+    printf("Manual steering thread started\n");
     while (true) {
-        float pulse = steering_RC.pulsewidth();
-        if (pulse == 0)
-        {
-            desired_angle.store(manual_steering.load());
+        auto time = Kernel::Clock::now();
+        if (current_state == MANUAL) {
+            float pulse = steering_RC.pulsewidth();
+            if (pulse == 0)
+            {
+                desired_angle.store(manual_steering.load());
+            }
+            else if (pulse >= 1000.0f && pulse <= 2080.0f)
+            {
+                float target_angle = abs_max_bound((pulse - STRAIGHT_PULSEWIDTH) * PULSEWIDTH_TO_DEGREES, MAX_ANGLE);
+                desired_angle.store(target_angle);
+                manual_steering.store(target_angle);
+                printf("Steering pulse width: %f\n", target_angle);
+            }
         }
-        else if (pulse >= 1000.0f && pulse <= 2080.0f)
-        {
-            float target_angle = abs_max_bound((pulse - STRAIGHT_PULSEWIDTH) * PULSEWIDTH_TO_DEGREES, MAX_ANGLE);
-            desired_angle.store(target_angle);
-            manual_steering.store(target_angle);
-        }
-        printf("Steering pulse width: %f\n", pulse);
-        ThisThread::sleep_for(50ms);
+        ThisThread::sleep_until(time + 50ms);
     }
 }
 
 void read_manual_drive()
 {
+    printf("Manual drive thread started\n");
     while (true) {
-        float pulse = drive_RC.pulsewidth();
-        if (pulse >= 1000.0f && pulse <= 2080.0f) {
-            float target_speed = abs_max_bound((pulse - ZERO_SPEED_PULSEWIDTH) * PULSEWIDTH_TO_MPS, MAX_MANUAL_SPEED);
-            manual_drive.store(target_speed);
+        auto time = Kernel::Clock::now();
+        if (current_state == MANUAL) {
+            float pulse = drive_RC.pulsewidth();
+            if (pulse >= 1000.0f && pulse <= 2080.0f) {
+                float target_speed = abs_max_bound((pulse - ZERO_SPEED_PULSEWIDTH) * PULSEWIDTH_TO_MPS, MAX_MANUAL_SPEED);
+                manual_drive.store(target_speed);
+                printf("Drive pulse width: %f\n", target_speed);
+            }
         }
-        printf("Drive pulse width: %f\n", pulse);
-        ThisThread::sleep_for(50ms);
+        ThisThread::sleep_until(time + 50ms);
     }
 }
 
@@ -244,15 +292,15 @@ void send_steering_command() {
 
         // On the ground code:
         if (ON_GROUND) {
-            if (abs(desired_angle) > 45)
+            if (abs(desired_angle) > 25)
             {
                 command = abs_min_bound<float>(command, MIN_DUTY_CMD_ONG);
             }
-            else if (abs(desired_angle) > 25)
+            else if (abs(desired_angle) > 14)
             {
                 // Old error threshold when steering motor wasn't loose
                 // if (abs(err) < 0.125)
-                if (abs(err) < 5)
+                if (abs(err) < 3)
                 {
                     command = 0;
                 }
@@ -262,7 +310,7 @@ void send_steering_command() {
             }
             else
             {
-                if (abs(err) < 5)
+                if (abs(err) < 3)
                 {
                     command = 0;
                 }
@@ -283,14 +331,79 @@ void send_steering_command() {
         
         printf("Time: %llu:, Target: %f, Position: %f, Duty Cycle: %f\n", timeMs, desired_angle.load(), pos, -command);
         comm_can_set_duty(STEERING_VESC_ID, -command);
+
+        char outgoing_message [64];
+        sprintf(outgoing_message, "Current angle = %f", pos);
+        rjnet_udp.send_single_message(outgoing_message, jetsonIP);
+
         prevPos = pos;
+        // if (can.read(msg)) {
+        //     read_message = true;
+        //     receiving_messages = true;
+        //     // ID for EPRM, Current, and duty cycle is 9
+        //     // if (msg.id >> 8 == MOTOR_STATUS_MSG_ID) {
+        //     //     uint32_t* rpm = (uint32_t*)msg.data;
+        //     //     uint16_t* current = (uint16_t* )(msg.data + 4);
+
+        //     //     char receivedByte[4];
+        //     //     sprintf(receivedByte, "%02X%02X", msg.data[6], msg.data[7]);
+        //     //     float duty_cycle = (short) strtol(receivedByte, NULL, 16);
+
+        //     //     char currentBytes[4];
+        //     //     sprintf(currentBytes, "%02X%02X", msg.data[4], msg.data[5]);
+        //     //     float current_f = (short) strtol(currentBytes, NULL, 16);
+
+        //     //     unsigned char erpm_vals[4];
+        //     //     erpm_vals[0] = msg.data[3];
+        //     //     erpm_vals[1] = msg.data[2];
+        //     //     erpm_vals[2] = msg.data[1];
+        //     //     erpm_vals[3] = msg.data[0];
+        //     //     int erpm = *(int *)erpm_vals;
+        //     //     // printf("Steering - ID: %u, ERPM: %d, Current: %f, Duty Cycle %f\n", msg.id, erpm, current_f * 0.1, duty_cycle * 0.001);
+        //     // } else {
+        //     //     // printf("Steering - ID: %u\n", msg.id);
+        //     // }
+        // } else {
+        //     receiving_messages = false;
+        // }
+        if (steering_counter > 0 && !writing_steering_messages) {
+            can.reset();
+        }
+        ThisThread::sleep_until(time + REFRESH_RATE);
+    }
+}
+
+void send_drive_command() {
+    CANMessage msg;
+    msg.format = CANExtended;
+    while (true) {
+        auto time = Kernel::Clock::now();
+        float target_speed;
+        switch (current_state) {
+            case STANDBY:
+                target_speed = 0;
+                break;
+            case MANUAL:
+                target_speed = manual_drive.load();
+                break;
+            case SOFTWARE:
+                target_speed = autonomous_drive.load();
+                break;
+            default:
+                target_speed = 0;
+        }
+        float command = abs_max_bound(target_speed, MAX_MANUAL_SPEED);
+        command = vel_to_erpm(target_speed);
+        // printf("Target: %f, Command: %f\n", target_speed, command);
+        comm_can_set_rpm(DRIVE_VESC_ID, command);
+
         if (can.read(msg)) {
-            read_message = true;
-            receiving_messages = true;
+            // read_message = true;
+            // receiving_messages = true;
             // ID for EPRM, Current, and duty cycle is 9
-            if (msg.id >> 8 == 0x9) {
-                uint32_t* rpm = (uint32_t*)msg.data;
-                uint16_t* current = (uint16_t* )(msg.data + 4);
+            if ((msg.id & 0xff) == DRIVE_VESC_ID && (msg.id >> 8) == MOTOR_STATUS_MSG_ID) {
+                // uint32_t* rpm = (uint32_t*)msg.data;
+                // uint16_t* current = (uint16_t* )(msg.data + 4);
 
                 char receivedByte[4];
                 sprintf(receivedByte, "%02X%02X", msg.data[6], msg.data[7]);
@@ -306,48 +419,190 @@ void send_steering_command() {
                 erpm_vals[2] = msg.data[1];
                 erpm_vals[3] = msg.data[0];
                 int erpm = *(int *)erpm_vals;
-                printf("Steering - ID: %u, ERPM: %d, Current: %f, Duty Cycle %f\n", msg.id, erpm, current_f * 0.1, duty_cycle * 0.001);
+                float velocity = erpm_to_vel(static_cast<float>(erpm));
+
+                char outgoing_message [64];
+                sprintf(outgoing_message, "Current speed = %f", velocity);
+                rjnet_udp.send_single_message(outgoing_message, jetsonIP);
+
+                auto timeMs = Kernel::get_ms_count();
+                printf("Time: %llu, Drive - ID: %u, ERPM: %d, Current: %f, Duty Cycle %f\n", timeMs, msg.id, erpm, current_f * 0.1, duty_cycle * 0.001);
             } else {
-                printf("Steering - ID: %u\n", msg.id);
+                printf("Drive - Message ID: %u\n", msg.id);
             }
-        } else {
-            receiving_messages = false;
-        }
-        if (steering_counter > 0 && !writing_steering_messages) {
-            can.reset();
         }
         ThisThread::sleep_until(time + REFRESH_RATE);
     }
 }
 
-void send_drive_command() {
-    while (true) {
-        auto time = Kernel::Clock::now();
-        float target_speed = manual_drive.load();
-        float command = abs_max_bound(target_speed, MAX_MANUAL_SPEED);
-        command = vel_to_erpm(target_speed);
-        printf("Target: %f, Command: %f\n", target_speed, command);
-        vesc.setRPM(command);
-        ThisThread::sleep_until(time + REFRESH_RATE);
+void process_single_message(const SocketAddress & senders_address, const char incoming_udp_message[], unsigned int num_bytes_in_message) {
+    //Parses a UDP message we just recieved. Sends any received data through the CAN network.
+    if(rjnet_udp.are_ip_addrs_equal(jetsonIP, senders_address)) {
+        //Parse angle from message. Doing incoming_message + 2 ignores the first two characters
+        if (incoming_udp_message[0] == 'V') {
+            // Message format for velocity is "V=%f"
+            float velocity;
+            sscanf(incoming_udp_message + 2, "%f", &velocity);
+
+            //Reply to Jetson at once
+            char outgoing_message [64];
+            sprintf(outgoing_message, "Got speed = %f", velocity);
+            printf("Got speed = %f\n", velocity);
+            rjnet_udp.send_single_message(outgoing_message, jetsonIP);
+            if (current_state == SOFTWARE) {
+                autonomous_drive.store(abs_max_bound(velocity, MAX_MANUAL_SPEED));
+            }
+        } else if (incoming_udp_message[0] == 'A') {
+            // Message format for steering angle is "A=%f"
+            float angle;
+            sscanf(incoming_udp_message + 2, "%f", &angle);
+
+            //Reply to Jetson at once
+            char outgoing_message [64];
+            sprintf(outgoing_message, "Got angle = %f", angle);
+            printf("Got angle = %f\n", angle);
+            rjnet_udp.send_single_message(outgoing_message, jetsonIP);
+            if (current_state == SOFTWARE) {
+                desired_angle.store(abs_max_bound(angle, MAX_ANGLE));
+            }
+        } else if (incoming_udp_message[0] == 'R') {
+            NVIC_SystemReset();
+        }
+    }
+}
+
+void evaluateState()
+{
+    if (stopped.read()) {
+        current_state = STOPPED;
+        printf("Currently in STOPPED state\n");
+    } else if (standby.read()) {
+        current_state = STANDBY;
+        printf("Currently in STANDBY state\n");
+    } else if (manual_mode.read()) {
+        current_state = MANUAL;
+        printf("Currently in MANUAL state\n");
+    } else if (software_mode.read()) {
+        current_state = SOFTWARE;
+        printf("Currently in SOFTWARE state\n");
+    } else {
+        // something wrong or unexpected happened, best to stop
+        current_state = STANDBY;
+        printf("Unexpected state!\n");
     }
 }
 
 int main()
 {
     printf("Reset\n");
-    // HV_enable.write(1);
     can.frequency(500000);
-
-    vesc.setDebugEnable(false);
-    vesc.setSerialPort(&vesc_serial);
     
 
+    // Testing code for measuring potentiometer accuracy
+    // while (true) {
+    //     // float position = (sample_pot() - POT_OFFSET) * POT_ELECTRICAL_RANGE;
+    //     float position = sample_pot();
+    //     printf("Position - %f\n", position);
+    //     ThisThread::sleep_for(100ms);
+    // }
+
+    // Testing code for sending and reading drive VESC
+    // while (true) {
+    //     comm_can_set_rpm(DRIVE_VESC_ID, 1000);
+    //     if (can.read(msg)) {
+    //         // read_message = true;
+    //         // receiving_messages = true;
+    //         // ID for EPRM, Current, and duty cycle is 9
+    //         if ((msg.id & 0xff) == DRIVE_VESC_ID && msg.id >> 8 == 0x9) {
+    //             uint32_t* rpm = (uint32_t*)msg.data;
+    //             uint16_t* current = (uint16_t* )(msg.data + 4);
+
+    //             char receivedByte[4];
+    //             sprintf(receivedByte, "%02X%02X", msg.data[6], msg.data[7]);
+    //             float duty_cycle = (short) strtol(receivedByte, NULL, 16);
+
+    //             char currentBytes[4];
+    //             sprintf(currentBytes, "%02X%02X", msg.data[4], msg.data[5]);
+    //             float current_f = (short) strtol(currentBytes, NULL, 16);
+
+    //             unsigned char erpm_vals[4];
+    //             erpm_vals[0] = msg.data[3];
+    //             erpm_vals[1] = msg.data[2];
+    //             erpm_vals[2] = msg.data[1];
+    //             erpm_vals[3] = msg.data[0];
+    //             int erpm = *(int *)erpm_vals;
+    //             auto timeMs = Kernel::get_ms_count();
+    //             printf("Time: %llu, Drive - ID: %u, ERPM: %d, Current: %f, Duty Cycle %f\n", timeMs, msg.id, erpm, current_f * 0.1, duty_cycle * 0.001);
+    //         } else {
+    //             printf("Drive - Message ID: %u\n", msg.id);
+    //         }
+    //     }
+    //     ThisThread::sleep_for(50ms);
+    // }
+    
     desired_angle.store((sample_pot() - POT_OFFSET) * POT_ELECTRICAL_RANGE);
 
-    manual_steering_thread.start(read_manual_steering);
-    manual_drive_thread.start(read_manual_drive);
+    rjnet_udp.start_network_and_listening_threads();
 
     send_steering_thread.start(send_steering_command);
-    send_drive_command();
+    send_drive_thread.start(send_drive_command);
+
+    manual_drive_thread.start(read_manual_drive);
+    manual_steering_thread.start(read_manual_steering);
+
+    evaluateState();
+    last_state = current_state;
+
+    while (true) {
+        auto time = Kernel::Clock::now();
+        evaluateState();
+        switch (current_state) {
+            case STOPPED:
+                // displayStackLights(1, 0, 0);
+                red_led.write(1);
+                yellow_led.write(0);
+                green_led.write(0);
+                break;
+            case STANDBY:
+                // displayStackLights(0, 1, 0);
+                red_led.write(0);
+                yellow_led.write(1);
+                green_led.write(0);
+                break;
+            case MANUAL:
+                // displayStackLights(0, 1, 1);
+                red_led.write(0);
+                yellow_led.write(1);
+                green_led.write(1);
+                break;
+            case SOFTWARE:
+                // displayStackLights(0, 0, 1);
+                red_led.write(0);
+                yellow_led.write(0);
+                green_led.write(1);
+                break;
+            default:
+                // displayStackLights(1, 1, 1);
+                red_led.write(1);
+                yellow_led.write(1);
+                green_led.write(1);
+                break;
+        }
+
+        if (current_state == STOPPED) {
+            // Using NOR gate for logic level shifting from 3.3V to 5V, so need to use inverted value for on/off
+            HV_enable.write(1);
+        } else {
+            HV_enable.write(0);
+        }
+
+        if (current_state == STANDBY) {
+            desired_angle.store(0);
+            manual_drive.store(0);
+            autonomous_drive.store(0);
+        }
+        last_state = current_state;
+        ThisThread::sleep_until(time + 50ms);
+    }
 }
 
