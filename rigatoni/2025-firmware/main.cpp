@@ -464,18 +464,22 @@ void send_steering_command() {
             command = K_p_duty * err + K_d_duty * (pos - prevPos) + K_i_duty * I;
         }
 
-        // Used for determining K_u, the ultimate gain where the wheels oscillate at consistent angles
-        // This value should be the smallest possible gain that causes the wheels to never reach the desired angle
-        // float command = K_u_duty_ong * err;
+        // This comment is not relevant anymore:
+        //   Used for determining K_u, the ultimate gain where the wheels oscillate at consistent angles
+        //   This value should be the smallest possible gain that causes the wheels to never reach the desired angle
+        //   float command = K_u_duty_ong * err;
         command = abs_max_bound<float>(command, MAX_COMMAND);
         command = command / MAX_COMMAND * MAX_STEERING_DUTY_CYCLE;
 
         // On the ground code:
         if (ON_GROUND) {
+            // Set a minimum command value because wheels do not turn otherwise
             if (abs(desired_angle) > 25)
             {
                 command = abs_min_bound<float>(command, MIN_DUTY_CMD_ONG);
             }
+            // When wheels are closer to center, allow for some error to prevent
+            // the wheels from oscillating
             else if (abs(desired_angle) > 14)
             {
                 // Old error threshold when steering motor wasn't loose
@@ -488,6 +492,7 @@ void send_steering_command() {
                     command = abs_min_bound<float>(command, MIN_DUTY_CMD_ONG);
                 }
             }
+            // Prevent oscillation when wheels are straight
             else
             {
                 if (abs(err) < 5)
@@ -510,6 +515,9 @@ void send_steering_command() {
         }
         
         printf("Time: %llu:, Target: %f, Position: %f, Duty Cycle: %f\n", timeMs, desired_angle.load(), pos, -command);
+        // Actually send duty cycle command to steering motor
+        // Need to reverse polarity to match convention of negative steering angles turning to the left
+        // and positive steering angles turning to the right
         comm_can_set_duty(STEERING_VESC_ID, -command);
         current_steering_angle.store(pos);
 
@@ -517,6 +525,8 @@ void send_steering_command() {
         // sprintf(outgoing_message, "Current angle = %f", pos);
         // rjnet_udp.send_single_message(outgoing_message, jetsonIP);
 
+        // Update previous position to the current position because
+        // the current position will change in the next time step
         prevPos = pos;
         // if (can.read(msg)) {
         //     read_message = true;
@@ -547,6 +557,12 @@ void send_steering_command() {
         // } else {
         //     receiving_messages = false;
         // }
+
+        // If CAN messages were able to send, but they stopped sending later on,
+        // we can restart the CAN controller on the microcontroller and start
+        // sending CAN messages again.
+        // Unfortunately, it is not known why this happens, so this is simply a
+        // workaround
         if (steering_counter > 0 && !writing_steering_messages) {
             can.reset();
         }
@@ -554,6 +570,9 @@ void send_steering_command() {
     }
 }
 
+// Used to send the desired ERPM to the drive motor controller
+// Reads in velocity from either the remote or the Jetson depending
+// on the current state and sends ERPM over the CAN bus
 void send_drive_command() {
     CANMessage msg;
     msg.format = CANExtended;
@@ -578,10 +597,20 @@ void send_drive_command() {
         // printf("Target: %f, Command: %f\n", target_speed, command);
         comm_can_set_rpm(DRIVE_VESC_ID, command);
 
+        // Read CAN messages over bus to read current speed of the robot,
+        // current drawn from the drive motor, and the duty cycle of the
+        // motor (approximately corresponds to the current voltage of the motor)
         if (can.read(msg)) {
             // read_message = true;
             // receiving_messages = true;
-            // ID for EPRM, Current, and duty cycle is 9
+
+            // Message ID for EPRM, Current, and duty cycle is 9
+            // Drive VESC motor controller ID is 90
+            // Need to check for both the motor controller ID and specific message ID
+            // to make sure it's not being sent from the steering motor controller
+            // because both motor controllers share the same CAN bus and there
+            // are other messages with different IDs that have other information that
+            // we are not concerned about
             if ((msg.id & 0xff) == DRIVE_VESC_ID && (msg.id >> 8) == MOTOR_STATUS_MSG_ID) {
                 // uint32_t* rpm = (uint32_t*)msg.data;
                 // uint16_t* current = (uint16_t* )(msg.data + 4);
@@ -619,9 +648,11 @@ void send_drive_command() {
 }
 
 void process_single_message(const SocketAddress & senders_address, const char incoming_udp_message[], unsigned int num_bytes_in_message) {
-    //Parses a UDP message we just recieved. Sends any received data through the CAN network.
+    // Parses a UDP message we just recieved. Sends any received data through the CAN network.
+    // Check that the UDP packet was sent by the Jetson
     if(rjnet_udp.are_ip_addrs_equal(jetsonIP, senders_address)) {
-        //Parse angle from message. Doing incoming_message + 2 ignores the first two characters
+        // Parse velocity from message. Doing incoming_message + 2 ignores the first two characters
+        // which are "V=" and we only need the numeric value
         if (incoming_udp_message[0] == 'V') {
             // Message format for velocity is "V=%f"
             float velocity;
@@ -632,9 +663,16 @@ void process_single_message(const SocketAddress & senders_address, const char in
             sprintf(outgoing_message, "Got speed = %f", velocity);
             printf("Got speed = %f\n", velocity);
             rjnet_udp.send_single_message(outgoing_message, jetsonIP);
+            // Only update the autonomous_drive_speed variable when we are in the autonomous mode
+            // This means that packets sent by the Jetson when the robot is not in autonomous mode
+            // will be ignored. When the robot switches from another mode to the autonomous mode,
+            // the previously stored value from the last time the robot was in autonomous mode 
+            // will be used.
             if (current_state == SOFTWARE) {
+                // Bound the velocity so that the Jetson can't send a speed higher than the firmware limit
                 autonomous_drive_speed.store(abs_max_bound(velocity, MAX_MANUAL_SPEED));
             }
+        // Parse angle from message.
         } else if (incoming_udp_message[0] == 'A') {
             // Message format for steering angle is "A=%f"
             float angle;
@@ -646,14 +684,26 @@ void process_single_message(const SocketAddress & senders_address, const char in
             printf("Got angle = %f\n", angle);
             rjnet_udp.send_single_message(outgoing_message, jetsonIP);
             if (current_state == SOFTWARE) {
+                // Bound the max angle due to the physical limit of the steering wheels
                 desired_angle.store(abs_max_bound(angle, MAX_ANGLE));
             }
+        // Allow Jetson to reset the microcontroller via UDP
         } else if (incoming_udp_message[0] == 'R') {
             NVIC_SystemReset();
         }
     }
 }
 
+// Function for checking the current state of the robot from
+// the emergency stop board. This board receives radio signals
+// from the emergency stop remote which controls the current
+// state of the robot. There are 4 pins coming from the e-stop
+// board, and each pin controls a state. The pins are assigned
+// a priority with the highest being STOPPED, then STANDBY, MANUAL,
+// and SOFTWARE.
+// If none of the pins from the e-stop board are HIGH, then the default
+// state is the STANDBY mode to command the motors to stop the robot
+// immediately.
 void evaluateState()
 {
     if (stopped.read()) {
@@ -675,9 +725,11 @@ void evaluateState()
     }
 }
 
+// Main control loop, refresh rate of 20 Hz
 int main()
 {
     printf("Reset\n");
+    // Make sure CAN bus frequency is 500 kHz
     can.frequency(500000);
     
 
@@ -723,16 +775,21 @@ int main()
     //     ThisThread::sleep_for(50ms);
     // }
     
+    // On startup, store the current angle of the steering shaft to prevent
+    // it from moving
     desired_angle.store((sample_pot() - POT_OFFSET) * POT_ELECTRICAL_RANGE);
 
+    // Start up UDP thread in the background to the main thread
     rjnet_udp.start_network_and_listening_threads();
 
+    // Start threads for sending and reading (from remote) steering and driving values
     send_steering_thread.start(send_steering_command);
     send_drive_thread.start(send_drive_command);
 
     manual_drive_thread.start(read_manual_drive);
     manual_steering_thread.start(read_manual_steering);
 
+    // Update current state
     evaluateState();
     last_state = current_state;
     string state_string;
@@ -740,6 +797,7 @@ int main()
     while (true) {
         auto time = Kernel::Clock::now();
         evaluateState();
+        // Display current state using LEDs on the microcontroller's board
         switch (current_state) {
             case STOPPED:
                 // displayStackLights(1, 0, 0);
@@ -778,6 +836,7 @@ int main()
                 break;
         }
 
+        // If the robot is in the STOPPED state, the motors should be turned off
         if (current_state == STOPPED) {
             // Using NOR gate for logic level shifting from 3.3V to 5V, so need to use inverted value for on/off
             HV_enable.write(1);
@@ -785,12 +844,16 @@ int main()
             HV_enable.write(0);
         }
 
+        // If the robot is in the STANDBY state, the speed and steering angle should be set to 0,
+        // so the robot should not move and the wheels should be pointing straight
         if (current_state == STANDBY) {
             desired_angle.store(0);
             manual_drive_speed.store(0);
             autonomous_drive_speed.store(0);
         }
 
+        // Send current steering angle of steering shaft, current speed of the robot,
+        // and the current state of the robot to the Jetson
         char outgoing_message[128];
         sprintf(outgoing_message, "Current angle = %f, current speed = %f, current state = %s", current_steering_angle.load(), current_velocity.load(), state_string.c_str());
         rjnet_udp.send_single_message(outgoing_message, jetsonIP);
