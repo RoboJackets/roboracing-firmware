@@ -36,6 +36,8 @@ constexpr PinName TX = D14;
 constexpr PinName RX = D15;
 
 constexpr bool ON_GROUND = true;
+constexpr bool NETWORK_OFF = true;
+constexpr bool STRAIGHT_ANGLE_TEST = false;
 // constexpr bool MANUAL_CONTROL = false;
 
 // Object handle for communicating to VESC using UART
@@ -72,12 +74,12 @@ constexpr float K_d_duty = 0.075 * K_u_duty * T_u_duty;
 // on the steering wheels because the Ackermann steering system actually lifts the wheels
 // off the ground, so there's an additional force from gravity that needs to be accounted for.
 // ** These values are still not finalized. **
-constexpr float K_u_duty_ong = 1;
+constexpr float K_u_duty_ong = 1.35;
 constexpr float T_u_duty_ong = 0.34;
 constexpr float K_p_duty_ong = 0.6 * K_u_duty_ong;
 constexpr float K_i_duty_ong = 1.2 * K_u_duty_ong / T_u_duty_ong;
 constexpr float K_d_duty_ong = 0.075 * K_u_duty_ong * T_u_duty_ong;
-constexpr float K_f_duty_ong = 0.04;
+constexpr float K_f_duty_ong = 0.35;
 
 // Bounds for PID control to account for any non-idealities in the system
 // For MIN_DUTY, this is used to indicate what the minimum control input is
@@ -86,7 +88,8 @@ constexpr float K_f_duty_ong = 0.04;
 constexpr float MIN_DUTY_CMD = 0.015;
 constexpr float MIN_DUTY_CMD_ONG = 0.02;
 // To prevent integral windup: https://en.wikipedia.org/wiki/Integral_windup
-constexpr float MAX_INTEGRAL_TERM_ONG = 0.01;
+constexpr float MAX_INTEGRAL_TERM_ONG_LARGE_ANGLES = 0.07;
+constexpr float MAX_INTEGRAL_TERM_ONG_SMALL_ANGLES = 0.09;
 constexpr float MAX_INTEGRAL_TERM = 0.001;
 
 // constexpr float kP = 1.85;
@@ -119,7 +122,7 @@ constexpr float POT_ELECTRICAL_RANGE = 147.06;
 // If the potentiometer is ever removed from the steering shaft,
 // this offset will need to modified to the value of the ADC input when the
 // potentiometer is remounted and the wheels are pointed straight.
-constexpr float POT_OFFSET = 0.549;
+constexpr float POT_OFFSET = 0.469;
 
 // Max physical steering angle of the robot
 // If the wheels turn any further, they will hit the electrical board which
@@ -142,7 +145,8 @@ constexpr float MAX_STEERING_DUTY_CYCLE = 0.35;
 // Units of microseconds
 // Duration of the high portion of the pulse
 // Corresponds to when the steering wheel on the RC car remote is not turned/robot's wheels should be going straight
-constexpr int STRAIGHT_PULSEWIDTH = 1540;
+constexpr int MIN_STRAIGHT_PULSEWIDTH = 1546;
+constexpr int MAX_STRAIGHT_PULSEWIDTH = 1550;
 
 // The max angle divided by the range of the pwm pulse
 // The range of values for the PWM pulse width is 1080-2000 us, so the
@@ -388,10 +392,16 @@ void read_manual_steering()
             // receiver ever glitches and returns a pulse width that is too large or too small
             else if (pulse >= 1000.0f && pulse <= 2080.0f)
             {
-                float target_angle = abs_max_bound((pulse - STRAIGHT_PULSEWIDTH) * PULSEWIDTH_TO_DEGREES, MAX_ANGLE);
+                float middle_straight_pulsewidth = MIN_STRAIGHT_PULSEWIDTH + (MAX_STRAIGHT_PULSEWIDTH - MIN_STRAIGHT_PULSEWIDTH) / 2.0f;
+                float target_angle;
+                if (MIN_STRAIGHT_PULSEWIDTH <= pulse && pulse <= MAX_STRAIGHT_PULSEWIDTH) {
+                    target_angle = 0;
+                } else {
+                    target_angle = abs_max_bound((pulse - middle_straight_pulsewidth) * PULSEWIDTH_TO_DEGREES, MAX_ANGLE);
+                }
                 desired_angle.store(target_angle);
                 manual_steering_angle.store(target_angle);
-                printf("Steering pulse width: %f\n", target_angle);
+                printf("Steering pulse width: %f\n", pulse);
             }
         }
         ThisThread::sleep_until(time + 50ms);
@@ -438,7 +448,11 @@ void send_steering_command() {
         I += err;
         // Bound I to prevent integral windup: https://en.wikipedia.org/wiki/Integral_windup
         if (ON_GROUND) {
-            I = abs_max_bound(I, MAX_INTEGRAL_TERM_ONG * MAX_COMMAND / K_i_duty_ong);
+            if (abs(desired_angle) > 5) {
+                I = abs_max_bound(I, MAX_INTEGRAL_TERM_ONG_LARGE_ANGLES * MAX_COMMAND / K_i_duty_ong);
+            } else {
+                I = abs_max_bound(I, MAX_INTEGRAL_TERM_ONG_SMALL_ANGLES * MAX_COMMAND / K_i_duty_ong);
+            }
         } else {
             I = abs_max_bound(I, MAX_INTEGRAL_TERM * MAX_COMMAND / K_i_duty);
         }
@@ -458,8 +472,23 @@ void send_steering_command() {
         //    stabilizing. With the D term, the steering angle can settle to the target angle more quickly which is ideal. In
         //    other words, this term helps with rapid changes when the change in steering angle is very large (such as switching
         //    from turning all the way to the left to turning all the way to the right, a swing of 60 degrees which is the max)
+        //
+        // The idea here is to try to prevent the kf term from slowing down the responsiveness of the PID controller for large
+        // changes in error, so if the difference in angle is > 5 and the wheels are turning towards the center, the kf term
+        // is zeroed out.
+        // 
+        // pos = 20, desired_angle = -20, kf = 0
+        // pos = 20, desired_angle = 16, kf != 0
+        // pos = 20, desired_angle = 30, kf != 0
+        // pos = -30, desired_angle = -20, kf = 0
+        // pos = -20, desired_angle = -30, kf != 0
+        // try thresholding at 5 degrees
         if (ON_GROUND) {
-            command = K_p_duty_ong * err + K_d_duty_ong * (pos - prevPos) + K_i_duty_ong * I + K_f_duty_ong * desired_angle;
+            float kf = K_f_duty_ong * desired_angle;
+            if (abs(pos - desired_angle) > 5 && (desired_angle < pos && pos > 0 && desired_angle > 0 || desired_angle > pos && pos < 0 && desired_angle < 0)) {
+                kf = 0;
+            }
+            command = K_p_duty_ong * err + K_d_duty_ong * (pos - prevPos) + K_i_duty_ong * I + kf;
         } else {
             command = K_p_duty * err + K_d_duty * (pos - prevPos) + K_i_duty * I;
         }
@@ -474,35 +503,35 @@ void send_steering_command() {
         // On the ground code:
         if (ON_GROUND) {
             // Set a minimum command value because wheels do not turn otherwise
-            if (abs(desired_angle) > 25)
-            {
-                command = abs_min_bound<float>(command, MIN_DUTY_CMD_ONG);
-            }
-            // When wheels are closer to center, allow for some error to prevent
-            // the wheels from oscillating
-            else if (abs(desired_angle) > 14)
-            {
-                // Old error threshold when steering motor wasn't loose
-                // if (abs(err) < 0.125)
-                if (abs(err) < 0.5)
-                {
-                    command = 0;
-                }
-                else {
-                    command = abs_min_bound<float>(command, MIN_DUTY_CMD_ONG);
-                }
-            }
-            // Prevent oscillation when wheels are straight
-            else
-            {
-                if (abs(err) < 5)
-                {
-                    command = 0;
-                }
-                else {
-                    command = abs_min_bound<float>(command, MIN_DUTY_CMD_ONG);
-                }
-            }
+            // if (abs(desired_angle) > 25)
+            // {
+            //     command = abs_min_bound<float>(command, MIN_DUTY_CMD_ONG);
+            // }
+            // // When wheels are closer to center, allow for some error to prevent
+            // // the wheels from oscillating
+            // else if (abs(desired_angle) > 14)
+            // {
+            //     // Old error threshold when steering motor wasn't loose
+            //     // if (abs(err) < 0.125)
+            //     if (abs(err) < 0.5)
+            //     {
+            //         command = 0;
+            //     }
+            //     else {
+            //         command = abs_min_bound<float>(command, MIN_DUTY_CMD_ONG);
+            //     }
+            // }
+            // // Prevent oscillation when wheels are straight
+            // else
+            // {
+            //     if (abs(err) < 4)
+            //     {
+            //         command = 0;
+            //     }
+            //     else {
+            //         command = abs_min_bound<float>(command, MIN_DUTY_CMD_ONG);
+            //     }
+            // }
         } else {
             // 1 degree of error seems to work for a desired angle of 30 or -30 degrees (only for off the ground)
             if (abs(err) < 1)
@@ -528,35 +557,35 @@ void send_steering_command() {
         // Update previous position to the current position because
         // the current position will change in the next time step
         prevPos = pos;
-        // if (can.read(msg)) {
-        //     read_message = true;
-        //     receiving_messages = true;
-        //     // ID for EPRM, Current, and duty cycle is 9
-        //     // if (msg.id >> 8 == MOTOR_STATUS_MSG_ID) {
-        //     //     uint32_t* rpm = (uint32_t*)msg.data;
-        //     //     uint16_t* current = (uint16_t* )(msg.data + 4);
+        if (can.read(msg)) {
+            read_message = true;
+            receiving_messages = true;
+            // ID for EPRM, Current, and duty cycle is 9
+            if (msg.id >> 8 == MOTOR_STATUS_MSG_ID) {
+                uint32_t* rpm = (uint32_t*)msg.data;
+                uint16_t* current = (uint16_t* )(msg.data + 4);
 
-        //     //     char receivedByte[4];
-        //     //     sprintf(receivedByte, "%02X%02X", msg.data[6], msg.data[7]);
-        //     //     float duty_cycle = (short) strtol(receivedByte, NULL, 16);
+                char receivedByte[4];
+                sprintf(receivedByte, "%02X%02X", msg.data[6], msg.data[7]);
+                float duty_cycle = (short) strtol(receivedByte, NULL, 16);
 
-        //     //     char currentBytes[4];
-        //     //     sprintf(currentBytes, "%02X%02X", msg.data[4], msg.data[5]);
-        //     //     float current_f = (short) strtol(currentBytes, NULL, 16);
+                char currentBytes[4];
+                sprintf(currentBytes, "%02X%02X", msg.data[4], msg.data[5]);
+                float current_f = (short) strtol(currentBytes, NULL, 16);
 
-        //     //     unsigned char erpm_vals[4];
-        //     //     erpm_vals[0] = msg.data[3];
-        //     //     erpm_vals[1] = msg.data[2];
-        //     //     erpm_vals[2] = msg.data[1];
-        //     //     erpm_vals[3] = msg.data[0];
-        //     //     int erpm = *(int *)erpm_vals;
-        //     //     // printf("Steering - ID: %u, ERPM: %d, Current: %f, Duty Cycle %f\n", msg.id, erpm, current_f * 0.1, duty_cycle * 0.001);
-        //     // } else {
-        //     //     // printf("Steering - ID: %u\n", msg.id);
-        //     // }
-        // } else {
-        //     receiving_messages = false;
-        // }
+                unsigned char erpm_vals[4];
+                erpm_vals[0] = msg.data[3];
+                erpm_vals[1] = msg.data[2];
+                erpm_vals[2] = msg.data[1];
+                erpm_vals[3] = msg.data[0];
+                int erpm = *(int *)erpm_vals;
+                printf("Steering - ID: %u, ERPM: %d, Current: %f, Duty Cycle %f\n", msg.id, erpm, current_f * 0.1, duty_cycle * 0.001);
+            } else {
+                // printf("Steering - ID: %u\n", msg.id);
+            }
+        } else {
+            receiving_messages = false;
+        }
 
         // If CAN messages were able to send, but they stopped sending later on,
         // we can restart the CAN controller on the microcontroller and start
@@ -638,9 +667,9 @@ void send_drive_command() {
                 current_velocity.store(velocity);
 
                 auto timeMs = Kernel::get_ms_count();
-                printf("Time: %llu, Drive - ID: %u, ERPM: %d, Current: %f, Duty Cycle %f\n", timeMs, msg.id, erpm, current_f * 0.1, duty_cycle * 0.001);
+                // printf("Time: %llu, Drive - ID: %u, ERPM: %d, Current: %f, Duty Cycle %f\n", timeMs, msg.id, erpm, current_f * 0.1, duty_cycle * 0.001);
             } else {
-                printf("Drive - Message ID: %u\n", msg.id);
+                // printf("Drive - Message ID: %u\n", msg.id);
             }
         }
         ThisThread::sleep_until(time + REFRESH_RATE);
@@ -734,12 +763,14 @@ int main()
     
 
     // Testing code for measuring potentiometer accuracy
-    // while (true) {
-    //     // float position = (sample_pot() - POT_OFFSET) * POT_ELECTRICAL_RANGE;
-    //     float position = sample_pot();
-    //     printf("Position - %f\n", position);
-    //     ThisThread::sleep_for(100ms);
-    // }
+    if (STRAIGHT_ANGLE_TEST) {
+        while (true) {
+            // float position = (sample_pot() - POT_OFFSET) * POT_ELECTRICAL_RANGE;
+            float position = sample_pot();
+            printf("Position - %f\n", position);
+            ThisThread::sleep_for(100ms);
+        }
+    }
 
     // Testing code for sending and reading drive VESC
     // while (true) {
@@ -780,7 +811,9 @@ int main()
     desired_angle.store((sample_pot() - POT_OFFSET) * POT_ELECTRICAL_RANGE);
 
     // Start up UDP thread in the background to the main thread
-    rjnet_udp.start_network_and_listening_threads();
+    if (!NETWORK_OFF) {
+        rjnet_udp.start_network_and_listening_threads();
+    }
 
     // Start threads for sending and reading (from remote) steering and driving values
     send_steering_thread.start(send_steering_command);
